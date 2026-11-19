@@ -297,6 +297,10 @@ static bool IsPortListening(int port)
     }
 }
 
+/// <summary>
+/// Menjalankan microservice dari folder Shadow-Copy (obj/runtime-shadow) serta menyertakan NSP_PARENT_PID.
+/// Keuntungannya: Folder asli bin/Debug/net10.0 TIDAK PERNAH terkunci (locked) saat Visual Studio melakukan Build/Rebuild!
+/// </summary>
 static void TryStartDotnetMicroservice(
     string serviceName,
     int port,
@@ -311,17 +315,28 @@ static void TryStartDotnetMicroservice(
 
     try
     {
-        var dllPath = Path.Combine(projectDir, "bin", "Debug", "net10.0", $"{serviceName}.dll");
-        var startInfo = File.Exists(dllPath)
-            ? new ProcessStartInfo
+        var binDir = Path.Combine(projectDir, "bin", "Debug", "net10.0");
+        var sourceDll = Path.Combine(binDir, $"{serviceName}.dll");
+
+        ProcessStartInfo startInfo;
+        if (File.Exists(sourceDll))
+        {
+            var shadowDir = Path.Combine(projectDir, "obj", "runtime-shadow", $"run-{DateTime.UtcNow.Ticks}");
+            CopyDirectoryRecursive(binDir, shadowDir);
+            var shadowDll = Path.Combine(shadowDir, $"{serviceName}.dll");
+
+            startInfo = new ProcessStartInfo
             {
                 FileName = "dotnet",
-                Arguments = $"\"{dllPath}\" --urls http://localhost:{port}",
+                Arguments = $"\"{shadowDll}\" --urls http://localhost:{port}",
                 WorkingDirectory = projectDir,
                 UseShellExecute = false,
                 CreateNoWindow = false
-            }
-            : new ProcessStartInfo
+            };
+        }
+        else
+        {
+            startInfo = new ProcessStartInfo
             {
                 FileName = "dotnet",
                 Arguments = $"run --project \"{projectDir}\" --urls http://localhost:{port}",
@@ -329,8 +344,11 @@ static void TryStartDotnetMicroservice(
                 UseShellExecute = false,
                 CreateNoWindow = false
             };
+        }
 
         startInfo.EnvironmentVariables["ASPNETCORE_ENVIRONMENT"] = "Development";
+        startInfo.EnvironmentVariables["NSP_PARENT_PID"] = Environment.ProcessId.ToString();
+
         var process = Process.Start(startInfo);
         if (process is not null)
         {
@@ -341,6 +359,21 @@ static void TryStartDotnetMicroservice(
     catch (Exception ex)
     {
         logger.LogWarning(ex, "[Gateway Orchestrator] Gagal menjalankan microservice {ServiceName} secara otomatis.", serviceName);
+    }
+}
+
+static void CopyDirectoryRecursive(string sourceDir, string targetDir)
+{
+    Directory.CreateDirectory(targetDir);
+    foreach (var file in Directory.GetFiles(sourceDir))
+    {
+        var destFile = Path.Combine(targetDir, Path.GetFileName(file));
+        File.Copy(file, destFile, overwrite: true);
+    }
+    foreach (var subDir in Directory.GetDirectories(sourceDir))
+    {
+        var destSubDir = Path.Combine(targetDir, Path.GetFileName(subDir));
+        CopyDirectoryRecursive(subDir, destSubDir);
     }
 }
 
@@ -385,7 +418,7 @@ static async Task MergeMicroserviceOpenApiAsync(
     }
 }
 
-static async Task<object> ProbeServiceAsync(
+static async Task<ServiceHealthNode> ProbeServiceAsync(
     HttpClient client,
     string serviceName,
     string healthUrl,
@@ -397,27 +430,32 @@ static async Task<object> ProbeServiceAsync(
     {
         var response = await client.GetAsync(healthUrl);
         sw.Stop();
-        return new
-        {
-            service = serviceName,
+        return new ServiceHealthNode(
+            serviceName,
             port,
-            url = healthUrl,
-            status = response.IsSuccessStatusCode ? "Healthy" : $"HTTP {(int)response.StatusCode}",
-            database = databaseName,
-            latencyMs = sw.ElapsedMilliseconds
-        };
+            healthUrl,
+            response.IsSuccessStatusCode ? "Healthy" : $"HTTP {(int)response.StatusCode}",
+            databaseName,
+            sw.ElapsedMilliseconds);
     }
     catch
     {
         sw.Stop();
-        return new
-        {
-            service = serviceName,
+        return new ServiceHealthNode(
+            serviceName,
             port,
-            url = healthUrl,
-            status = "Unreachable",
-            database = databaseName,
-            latencyMs = sw.ElapsedMilliseconds
-        };
+            healthUrl,
+            "Unreachable",
+            databaseName,
+            sw.ElapsedMilliseconds);
     }
 }
+
+internal record ServiceHealthNode(
+    string Service,
+    int Port,
+    string Url,
+    string Status,
+    string Database,
+    long LatencyMs
+);

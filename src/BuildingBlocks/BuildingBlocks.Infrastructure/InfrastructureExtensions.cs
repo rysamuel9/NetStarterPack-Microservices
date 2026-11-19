@@ -1,4 +1,5 @@
-﻿using BuildingBlocks.Core.Interfaces;
+﻿using System.Diagnostics;
+using BuildingBlocks.Core.Interfaces;
 using BuildingBlocks.Infrastructure.Caching;
 using BuildingBlocks.Infrastructure.Messaging;
 using BuildingBlocks.Infrastructure.Middleware;
@@ -71,12 +72,39 @@ public static class InfrastructureExtensions
 
     /// <summary>
     /// Memasang middleware bersama serta endpoint dokumentasi OpenAPI, Scalar UI (/scalar/v1), dan Swagger UI (/swagger).
+    /// Dilengkapi Parent-Process Watchdog: jika dijalankan oleh Gateway.Api (F5) dan Gateway di-stop dari Visual Studio,
+    /// microservice ini otomatis ikut berhenti agar tidak pernah mengunci file DLL.
     /// </summary>
     public static WebApplication UseSharedMicroservicePipeline(
         this WebApplication app,
         string serviceTitle,
         string serviceName)
     {
+        var parentPidStr = Environment.GetEnvironmentVariable("NSP_PARENT_PID");
+        if (int.TryParse(parentPidStr, out var parentPid) && parentPid > 0)
+        {
+            _ = Task.Run(async () =>
+            {
+                while (true)
+                {
+                    await Task.Delay(1500);
+                    try
+                    {
+                        var parent = Process.GetProcessById(parentPid);
+                        if (parent.HasExited)
+                        {
+                            Environment.Exit(0);
+                        }
+                    }
+                    catch
+                    {
+                        // Parent Gateway.Api sudah berhenti (Stop Debugging di Visual Studio)
+                        Environment.Exit(0);
+                    }
+                }
+            });
+        }
+
         app.UseMiddleware<CorrelationIdMiddleware>();
         app.UseExceptionHandler();
 
@@ -97,8 +125,8 @@ public static class InfrastructureExtensions
   <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.18.2/swagger-ui.css" />
   <style>
     body { margin: 0; background: #fafafa; }
-    .topbar-custom { background: #0f172a; color: #f8fafc; padding: 10px 24px; font-family: sans-serif; display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
-    .topbar-custom a { color: #818cf8; text-decoration: none; font-weight: 600; margin-left: 16px; }
+    .topbar-custom { background: #042f2e; color: #f0fdfa; padding: 10px 24px; font-family: sans-serif; display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
+    .topbar-custom a { color: #2dd4bf; text-decoration: none; font-weight: 600; margin-left: 16px; }
   </style>
 </head>
 <body>
@@ -158,4 +186,3 @@ public static class InfrastructureExtensions
         return app;
     }
 }
-
