@@ -256,6 +256,7 @@ export interface AnnouncementAttachmentItem {
 
 export interface AnnouncementCommentItem {
   id: string;
+  parentCommentId?: string | null;
   userId: string;
   username: string;
   fullName: string;

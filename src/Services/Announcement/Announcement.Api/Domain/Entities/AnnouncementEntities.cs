@@ -83,6 +83,8 @@ public class AnnouncementComment : BaseEntity
     public Guid AnnouncementId { get; set; }
     public Announcement Announcement { get; set; } = null!;
 
+    public Guid? ParentCommentId { get; set; }
+
     public Guid UserId { get; set; }
     public string Username { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;

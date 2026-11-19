@@ -21,6 +21,7 @@ public record AnnouncementAttachmentInputDto(
 
 public record AnnouncementCommentDto(
     Guid Id,
+    Guid? ParentCommentId,
     Guid UserId,
     string Username,
     string FullName,
@@ -101,7 +102,8 @@ public record ToggleCommentsRequest(
 );
 
 public record CreateCommentRequest(
-    string Content
+    string Content,
+    Guid? ParentCommentId = null
 );
 
 public record ToggleLikeResponseDto(

@@ -456,10 +456,24 @@ public partial class AnnouncementService(
                 "Komentar untuk pengumuman ini sedang dinonaktifkan oleh tim HR.", 400);
         }
 
+        Guid? resolvedParentId = null;
+        if (request.ParentCommentId.HasValue)
+        {
+            var parentComment = await unitOfWork.Comments.GetByIdAsync(request.ParentCommentId.Value, cancellationToken);
+            if (parentComment is null || parentComment.AnnouncementId != entity.Id)
+            {
+                return Result<AnnouncementCommentDto>.Failure("Komentar induk yang ingin dibalas tidak ditemukan.", 404);
+            }
+
+            // Jaga kedalaman thread tetap 1 level (jika membalas sebuah reply, arahkan ke root comment)
+            resolvedParentId = parentComment.ParentCommentId ?? parentComment.Id;
+        }
+
         var username = currentUserService.Username ?? "user";
         var comment = new AnnouncementComment
         {
             AnnouncementId = entity.Id,
+            ParentCommentId = resolvedParentId,
             UserId = userId,
             Username = username,
             FullName = currentUserService.FullName ?? username,
@@ -475,13 +489,14 @@ public partial class AnnouncementService(
         return Result<AnnouncementCommentDto>.Success(
             new AnnouncementCommentDto(
                 comment.Id,
+                comment.ParentCommentId,
                 comment.UserId,
                 comment.Username,
                 comment.FullName,
                 comment.UserRole,
                 comment.Content,
                 comment.CreatedAt),
-            "Komentar berhasil ditambahkan.",
+            resolvedParentId.HasValue ? "Balasan komentar berhasil ditambahkan." : "Komentar berhasil ditambahkan.",
             201);
     }
 
@@ -502,8 +517,20 @@ public partial class AnnouncementService(
             return Result.Failure("Anda hanya dapat menghapus komentar milik sendiri.", 403);
         }
 
-        comment.UpdatedBy = currentUserService.Username ?? "System";
+        var actor = currentUserService.Username ?? "System";
+        comment.UpdatedBy = actor;
         unitOfWork.Comments.Remove(comment);
+
+        // Jika komentar induk dihapus, ikut soft-delete semua balasan di bawahnya agar tidak yatim
+        var childReplies = await unitOfWork.Comments.GetListAsync(
+            c => c.AnnouncementId == announcementId && c.ParentCommentId == commentId,
+            cancellationToken);
+        foreach (var child in childReplies)
+        {
+            child.UpdatedBy = actor;
+            unitOfWork.Comments.Remove(child);
+        }
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
         await InvalidateCacheAsync(cancellationToken);
 
@@ -627,6 +654,7 @@ public partial class AnnouncementService(
                 .OrderByDescending(c => c.CreatedAt)
                 .Select(c => new AnnouncementCommentDto(
                     c.Id,
+                    c.ParentCommentId,
                     c.UserId,
                     c.Username,
                     c.FullName,

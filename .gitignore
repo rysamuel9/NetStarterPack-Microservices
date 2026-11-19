@@ -17,7 +17,7 @@ coverage/
 publish/
 publish-iis/
 out/
-App_Data/uploads/
+**/App_Data/
 
 ## Node / Frontend
 node_modules/

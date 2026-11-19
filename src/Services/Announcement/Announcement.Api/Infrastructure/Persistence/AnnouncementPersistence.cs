@@ -81,6 +81,7 @@ public class AnnouncementDbContext(DbContextOptions<AnnouncementDbContext> optio
             entity.Property(x => x.FullName).HasMaxLength(160).IsRequired();
             entity.Property(x => x.UserRole).HasMaxLength(60).IsRequired();
             entity.Property(x => x.Content).HasMaxLength(2000).IsRequired();
+            entity.HasIndex(x => x.ParentCommentId);
             entity.HasOne(x => x.Announcement)
                 .WithMany(a => a.Comments)
                 .HasForeignKey(x => x.AnnouncementId)
@@ -231,6 +232,8 @@ public class AnnouncementDatabaseSeeder(
                 // }
                 // catch { }
             }
+
+            await EnsureParentCommentColumnExistsAsync(cancellationToken);
         }
         else
         {
@@ -252,6 +255,7 @@ public class AnnouncementDatabaseSeeder(
         var hrStaffId = Guid.Parse("90000000-0000-0000-0000-000000000003");
         var sampleStaffId = Guid.Parse("90000000-0000-0000-0000-000000000004");
         var sampleMgrId = Guid.Parse("90000000-0000-0000-0000-000000000005");
+        var firstSeededCommentId = Guid.Parse("91000000-0000-0000-0000-000000000001");
 
         var seeded = new List<Domain.Entities.Announcement>
         {
@@ -310,21 +314,23 @@ public class AnnouncementDatabaseSeeder(
                 [
                     new AnnouncementComment
                     {
+                        Id = firstSeededCommentId,
                         UserId = sampleStaffId,
                         Username = "staff",
                         FullName = "Dewi Lestari (Staff)",
                         UserRole = RoleNames.Staff,
-                        Content = "Mantap Bu Rina! Untuk tim yang sedang sprint release, apakah hari Kamis bisa tukar WFO ke Senin?",
+                        Content = "Mantap Bu Rina! 🎉 Untuk tim yang sedang sprint release, apakah hari Kamis bisa tukar WFO ke Senin?",
                         CreatedAt = now.AddHours(-1),
                         CreatedBy = "SystemSeeder"
                     },
                     new AnnouncementComment
                     {
+                        ParentCommentId = firstSeededCommentId,
                         UserId = hrManagerId,
                         Username = "hrmanager",
                         FullName = "Rina Kusuma (HR Manager)",
                         UserRole = RoleNames.HRManager,
-                        Content = "Bisa banget Dewi, cukup info ke Manager langsung agar tercatat di kalender tim ya.",
+                        Content = "Bisa banget Dewi! 👍 Cukup info ke Manager langsung agar tercatat di kalender tim ya.",
                         CreatedAt = now.AddMinutes(-35),
                         CreatedBy = "SystemSeeder"
                     }
@@ -529,6 +535,32 @@ public class AnnouncementDatabaseSeeder(
         await dbContext.Announcements.AddRangeAsync(seeded, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
         logger.LogInformation("Seeded 12 announcements successfully into NetStarterPack_AnnouncementDb!");
+    }
+
+    /// <summary>
+    /// Auto-upgrade aman untuk database existing (tanpa DROP DATABASE):
+    /// menambahkan kolom ParentCommentId pada AnnouncementComments jika belum ada.
+    /// </summary>
+    private async Task EnsureParentCommentColumnExistsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (dbContext.Database.IsSqlServer())
+            {
+                await dbContext.Database.ExecuteSqlRawAsync("""
+                    IF OBJECT_ID(N'AnnouncementComments', N'U') IS NOT NULL
+                       AND COL_LENGTH(N'AnnouncementComments', N'ParentCommentId') IS NULL
+                    BEGIN
+                        ALTER TABLE [AnnouncementComments] ADD [ParentCommentId] uniqueidentifier NULL;
+                        CREATE INDEX [IX_AnnouncementComments_ParentCommentId] ON [AnnouncementComments]([ParentCommentId]);
+                    END
+                    """, cancellationToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "[Announcement.Api] Gagal memeriksa auto-upgrade kolom ParentCommentId.");
+        }
     }
 
     private void EnsureSeededAssetFiles()

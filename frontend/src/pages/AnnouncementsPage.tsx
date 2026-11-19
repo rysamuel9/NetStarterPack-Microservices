@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { api, getErrorMessage } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { EmojiPickerButton } from '../components/EmojiPickerButton';
 import type {
   AnnouncementAttachmentItem,
   AnnouncementDetailItem,
@@ -829,6 +830,13 @@ export const AnnouncementsPage: React.FC = () => {
                     >
                       <Link2 className="w-4 h-4" />
                     </button>
+                    <div className="w-px h-5 bg-slate-300 mx-1" />
+                    <EmojiPickerButton
+                      size="sm"
+                      align="left"
+                      title="Sisipkan Emoji ke Isi Pengumuman"
+                      onSelect={(emoji) => applyFormat('insertText', emoji)}
+                    />
                   </div>
 
                   <div

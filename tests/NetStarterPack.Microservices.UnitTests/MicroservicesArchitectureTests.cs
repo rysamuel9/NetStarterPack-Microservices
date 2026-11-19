@@ -676,5 +676,15 @@ public class MicroservicesArchitectureTests
 
         var comment2 = await service.AddCommentAsync(annId, new CreateCommentRequest("Sip sudah dibuka lagi!"));
         Assert.True(comment2.Succeeded);
+
+        // 5. Reply berjenjang + emoji (ParentCommentId) & auto-flatten jika reply-to-reply
+        var reply1 = await service.AddCommentAsync(annId, new CreateCommentRequest("Setuju banget! 🎉🔥", comment1.Data!.Id));
+        Assert.True(reply1.Succeeded);
+        Assert.Equal(comment1.Data.Id, reply1.Data!.ParentCommentId);
+        Assert.Contains("🎉🔥", reply1.Data.Content);
+
+        var replyToReply = await service.AddCommentAsync(annId, new CreateCommentRequest("Ikutan juga ya 👍", reply1.Data.Id));
+        Assert.True(replyToReply.Succeeded);
+        Assert.Equal(comment1.Data.Id, replyToReply.Data!.ParentCommentId);
     }
 }

@@ -182,7 +182,7 @@ X-Correlation-Id: 9a4f2c1b8e7d4a5b9c0d1e2f3a4b5c6d
 | `DELETE` | `/api/announcements/{id}` | `Announcements.Manage` *(Tim HR)* | Hapus pengumuman (*soft-delete*) |
 | `PATCH` | `/api/announcements/{id}/toggle-comments` | `Announcements.Manage` *(Tim HR)* | Aktifkan/matikan komentar kapan saja setelah dipublish |
 | `POST` | `/api/announcements/{id}/like` | `Announcements.View` | Toggle like / unlike pengumuman |
-| `POST` | `/api/announcements/{id}/comments` | `Announcements.View` | Tambah komentar baru (otomatis ditolak `400` jika komentar sedang off) |
+| `POST` | `/api/announcements/{id}/comments` | `Announcements.View` | Tambah komentar baru atau balasan berjenjang (`parentCommentId`) beserta emoji (ditolak `400` jika komentar sedang off) |
 | `DELETE` | `/api/announcements/{id}/comments/{commentId}` | `Announcements.View` | Hapus komentar (khusus pemilik komentar atau Tim HR) |
 | `POST` | `/api/announcements/mark-all-read` | `[Authorize]` | Tandai seluruh pengumuman sudah dibaca |
 | `POST` | `/api/announcements/upload?kind=Banner\|Image\|File` | `Announcements.Manage` *(Tim HR)* | Upload banner, lampiran gambar, atau lampiran file (maks. 10 MB) |
