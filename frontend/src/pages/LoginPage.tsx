@@ -61,10 +61,16 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     description: 'Staff HR: buat pengumuman perusahaan + kelola komentar setelah publish',
   },
   {
-    username: 'financedirector',
-    roleLabel: 'FinanceDirector (Final)',
+    username: 'angelica.cfo',
+    roleLabel: 'CFO (Direktorat Finance)',
     badgeClass: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
-    description: 'Approver Final budget untuk Pengadaan Laptop (L3) & Pengadaan Barang Kantor (L2)',
+    description: 'Angelica Wijaya (CFO): Kepala Direktorat Finance (Divisi Accounting & Treasury)',
+  },
+  {
+    username: 'financedirector',
+    roleLabel: 'VP Accounting (Finance)',
+    badgeClass: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
+    description: 'Surya Darmawan: Kepala Divisi Accounting & Approver Budget Final',
   },
   {
     username: 'viewer',

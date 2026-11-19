@@ -17,6 +17,11 @@ public class UserRepository(IdentityDbContext dbContext)
         var normalized = usernameOrEmail.ToLowerInvariant();
         return await DbSet
             .AsSplitQuery()
+            .Include(u => u.Directorate)
+            .Include(u => u.Division)
+            .Include(u => u.DepartmentEntity)
+            .Include(u => u.Position)
+            .Include(u => u.Manager)
             .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
                     .ThenInclude(r => r.RolePermissions)
@@ -28,6 +33,11 @@ public class UserRepository(IdentityDbContext dbContext)
     public async Task<User?> GetWithRolesAndPermissionsByIdAsync(Guid userId, CancellationToken cancellationToken = default) =>
         await DbSet
             .AsSplitQuery()
+            .Include(u => u.Directorate)
+            .Include(u => u.Division)
+            .Include(u => u.DepartmentEntity)
+            .Include(u => u.Position)
+            .Include(u => u.Manager)
             .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
                     .ThenInclude(r => r.RolePermissions)
@@ -36,6 +46,11 @@ public class UserRepository(IdentityDbContext dbContext)
     public async Task<User?> GetByRefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default) =>
         await DbSet
             .AsSplitQuery()
+            .Include(u => u.Directorate)
+            .Include(u => u.Division)
+            .Include(u => u.DepartmentEntity)
+            .Include(u => u.Position)
+            .Include(u => u.Manager)
             .Include(u => u.RefreshTokens)
             .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
@@ -48,9 +63,14 @@ public class UserRepository(IdentityDbContext dbContext)
         await DbSet
             .AsNoTracking()
             .AsSplitQuery()
+            .Include(u => u.Directorate)
+            .Include(u => u.Division)
+            .Include(u => u.DepartmentEntity)
+            .Include(u => u.Position)
+            .Include(u => u.Manager)
             .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
-            .OrderBy(u => u.Username)
+            .OrderBy(u => u.EmployeeCode ?? u.Username)
             .ToListAsync(cancellationToken);
 }
 

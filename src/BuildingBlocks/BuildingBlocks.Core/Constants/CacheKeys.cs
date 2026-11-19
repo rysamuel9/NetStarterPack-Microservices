@@ -9,6 +9,7 @@ public static class CacheKeys
     public const string OrdersPrefix = "orders:";
     public const string WorkflowsPrefix = "workflows:";
     public const string AnnouncementsPrefix = "announcements:";
+    public const string OrganizationPrefix = "org:";
     public const string MenusPrefix = "menus:";
     public const string RolesPrefix = "roles:";
     public const string UsersPrefix = "users:";
@@ -40,6 +41,21 @@ public static class CacheKeys
 
     public static string AnnouncementStats() =>
         $"{AnnouncementsPrefix}stats";
+
+    public static string OrganizationTree() =>
+        $"{OrganizationPrefix}tree";
+
+    public static string AllDirectorates() =>
+        $"{OrganizationPrefix}directorates";
+
+    public static string AllDivisions() =>
+        $"{OrganizationPrefix}divisions";
+
+    public static string AllDepartments() =>
+        $"{OrganizationPrefix}departments";
+
+    public static string AllPositions() =>
+        $"{OrganizationPrefix}positions";
 
     public static string MenusByRoles(IEnumerable<string> roles) =>
         $"{MenusPrefix}roles:{string.Join(",", roles.OrderBy(r => r).Select(r => r.ToLowerInvariant()))}";

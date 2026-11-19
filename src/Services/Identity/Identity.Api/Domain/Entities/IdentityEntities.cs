@@ -15,14 +15,87 @@ public class User : BaseEntity
     public string Email { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public string PasswordHash { get; set; } = string.Empty;
+    public string? EmployeeCode { get; set; }
     public string? PhoneNumber { get; set; }
     public string? Department { get; set; }
     public string? AvatarUrl { get; set; }
     public UserStatus Status { get; set; } = UserStatus.Active;
     public DateTime? LastLoginAt { get; set; }
 
+    // Profil Organisasi Terstruktur (Direktorat -> Divisi -> Departemen + Posisi + Atasan)
+    public Guid? DirectorateId { get; set; }
+    public Directorate? Directorate { get; set; }
+
+    public Guid? DivisionId { get; set; }
+    public Division? Division { get; set; }
+
+    public Guid? DepartmentId { get; set; }
+    public Department? DepartmentEntity { get; set; }
+
+    public Guid? PositionId { get; set; }
+    public Position? Position { get; set; }
+
+    public Guid? ManagerUserId { get; set; }
+    public User? Manager { get; set; }
+
     public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+}
+
+/// <summary>Master Direktorat (puncak hierarki, misal Direktorat Finance, Technology, Human Capital, Operations).</summary>
+public class Directorate : BaseEntity
+{
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public Guid? HeadUserId { get; set; }
+    public bool IsActive { get; set; } = true;
+
+    public ICollection<Division> Divisions { get; set; } = new List<Division>();
+    public ICollection<User> Users { get; set; } = new List<User>();
+}
+
+/// <summary>Master Divisi (turunan dari Direktorat, misal Divisi Accounting dan Treasury di bawah Direktorat Finance).</summary>
+public class Division : BaseEntity
+{
+    public Guid DirectorateId { get; set; }
+    public Directorate Directorate { get; set; } = null!;
+
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public Guid? HeadUserId { get; set; }
+    public bool IsActive { get; set; } = true;
+
+    public ICollection<Department> Departments { get; set; } = new List<Department>();
+    public ICollection<User> Users { get; set; } = new List<User>();
+}
+
+/// <summary>Master Departemen (turunan dari Divisi, misal General Ledger, Tax, Cash Management, FP&amp;A).</summary>
+public class Department : BaseEntity
+{
+    public Guid DivisionId { get; set; }
+    public Division Division { get; set; } = null!;
+
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public Guid? HeadUserId { get; set; }
+    public bool IsActive { get; set; } = true;
+
+    public ICollection<User> Users { get; set; } = new List<User>();
+}
+
+/// <summary>Master Posisi / Jabatan perusahaan beserta level hierarkinya (1 = C-Level/Director tertinggi).</summary>
+public class Position : BaseEntity
+{
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public int Level { get; set; } = 5;
+    public string Description { get; set; } = string.Empty;
+    public bool IsActive { get; set; } = true;
+
+    public ICollection<User> Users { get; set; } = new List<User>();
 }
 
 public class Role : BaseEntity

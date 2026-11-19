@@ -46,7 +46,12 @@ public class UserService(
                 u.Username.Contains(term, StringComparison.OrdinalIgnoreCase) ||
                 u.FullName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
                 u.Email.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                (u.Department?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false));
+                (u.EmployeeCode?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (u.Department?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (u.DirectorateName?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (u.DivisionName?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (u.DepartmentName?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (u.PositionName?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false));
         }
 
         if (!string.IsNullOrWhiteSpace(role))
@@ -104,14 +109,27 @@ public class UserService(
             status = UserStatus.Active;
         }
 
+        string? resolvedDeptText = request.Department?.Trim();
+        if (string.IsNullOrWhiteSpace(resolvedDeptText) && request.DepartmentId.HasValue)
+        {
+            var dept = await unitOfWork.Repository<Department>().GetByIdAsync(request.DepartmentId.Value, cancellationToken);
+            resolvedDeptText = dept?.Name;
+        }
+
         var user = new User
         {
             Username = username,
             Email = email,
             FullName = request.FullName.Trim(),
             PasswordHash = passwordHasher.HashPassword(request.Password),
+            EmployeeCode = string.IsNullOrWhiteSpace(request.EmployeeCode) ? null : request.EmployeeCode.Trim().ToUpperInvariant(),
             PhoneNumber = request.PhoneNumber?.Trim(),
-            Department = request.Department?.Trim(),
+            Department = resolvedDeptText,
+            DirectorateId = request.DirectorateId,
+            DivisionId = request.DivisionId,
+            DepartmentId = request.DepartmentId,
+            PositionId = request.PositionId,
+            ManagerUserId = request.ManagerUserId,
             Status = status,
             CreatedBy = currentUserService.Username ?? "System"
         };
@@ -140,7 +158,8 @@ public class UserService(
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         await InvalidateUserCachesAsync(cancellationToken);
-        return Result<UserDto>.Success(MapToDto(user), "Pengguna berhasil ditambahkan.", 201);
+        var loaded = await unitOfWork.Users.GetWithRolesAndPermissionsByIdAsync(user.Id, cancellationToken);
+        return Result<UserDto>.Success(MapToDto(loaded ?? user), "Pengguna berhasil ditambahkan.", 201);
     }
 
     public async Task<Result<UserDto>> UpdateUserAsync(Guid id, UpdateUserRequest request, CancellationToken cancellationToken = default)
@@ -157,10 +176,23 @@ public class UserService(
             return Result<UserDto>.Failure("Email sudah digunakan oleh pengguna lain.", 409);
         }
 
+        string? resolvedDeptText = request.Department?.Trim();
+        if (request.DepartmentId.HasValue)
+        {
+            var dept = await unitOfWork.Repository<Department>().GetByIdAsync(request.DepartmentId.Value, cancellationToken);
+            if (dept is not null) resolvedDeptText = dept.Name;
+        }
+
         user.Email = email;
         user.FullName = request.FullName.Trim();
+        user.EmployeeCode = string.IsNullOrWhiteSpace(request.EmployeeCode) ? user.EmployeeCode : request.EmployeeCode.Trim().ToUpperInvariant();
         user.PhoneNumber = request.PhoneNumber?.Trim();
-        user.Department = request.Department?.Trim();
+        user.Department = resolvedDeptText;
+        user.DirectorateId = request.DirectorateId;
+        user.DivisionId = request.DivisionId;
+        user.DepartmentId = request.DepartmentId;
+        user.PositionId = request.PositionId;
+        user.ManagerUserId = request.ManagerUserId == id ? null : request.ManagerUserId;
         user.UpdatedAt = DateTime.UtcNow;
         user.UpdatedBy = currentUserService.Username ?? "System";
 
@@ -229,7 +261,8 @@ public class UserService(
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         await InvalidateUserCachesAsync(cancellationToken);
-        return Result<UserDto>.Success(MapToDto(user), "Data pengguna berhasil diperbarui.");
+        var loaded = await unitOfWork.Users.GetWithRolesAndPermissionsByIdAsync(id, cancellationToken);
+        return Result<UserDto>.Success(MapToDto(loaded ?? user), "Data pengguna berhasil diperbarui.");
     }
 
     public async Task<Result> DeleteUserAsync(Guid id, CancellationToken cancellationToken = default)
@@ -272,6 +305,7 @@ public class UserService(
         if (cacheService is null) return;
         await cacheService.RemoveByPrefixAsync(CacheKeys.UsersPrefix, cancellationToken);
         await cacheService.RemoveByPrefixAsync(CacheKeys.RolesPrefix, cancellationToken);
+        await cacheService.RemoveByPrefixAsync(CacheKeys.OrganizationPrefix, cancellationToken);
         await cacheService.RemoveByPrefixAsync(CacheKeys.DashboardPrefix, cancellationToken);
     }
 
@@ -282,7 +316,7 @@ public class UserService(
             user.Email,
             user.FullName,
             user.PhoneNumber,
-            user.Department,
+            user.DepartmentEntity?.Name ?? user.Department,
             user.Status.ToString(),
             user.UserRoles
                 .Where(ur => ur.Role is not null && !ur.Role.IsDeleted)
@@ -290,5 +324,17 @@ public class UserService(
                 .Distinct()
                 .ToList(),
             user.CreatedAt,
-            user.LastLoginAt);
+            user.LastLoginAt,
+            user.EmployeeCode,
+            user.DirectorateId,
+            user.Directorate?.Name,
+            user.DivisionId,
+            user.Division?.Name,
+            user.DepartmentId,
+            user.DepartmentEntity?.Name,
+            user.PositionId,
+            user.Position?.Name,
+            user.Position?.Level,
+            user.ManagerUserId,
+            user.Manager?.FullName);
 }
