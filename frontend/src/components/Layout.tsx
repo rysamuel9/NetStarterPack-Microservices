@@ -18,9 +18,14 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
+import {
+  ensureAnnouncementHubStarted,
+  getAnnouncementHubConnection,
+  stopAnnouncementHub,
+} from '../services/announcementHub';
 import { DynamicIcon } from './DynamicIcon';
 import { announcementTypeStyle, formatRelativeTime } from '../pages/AnnouncementsPage';
-import type { AnnouncementBellResponse, ApiResult, MenuItem } from '../types';
+import type { AnnouncementBellResponse, AnnouncementSummaryItem, ApiResult, MenuItem } from '../types';
 
 export const Layout: React.FC = () => {
   const { user, menus, logout } = useAuth();
@@ -30,9 +35,10 @@ export const Layout: React.FC = () => {
   const [logoutModalOpen, setLogoutModalOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
-  // Bell Announcement Notifications state
+  // Bell Announcement Notifications state + Live SignalR Toast
   const [bellOpen, setBellOpen] = useState(false);
   const [bellData, setBellData] = useState<AnnouncementBellResponse>({ unreadCount: 0, items: [] });
+  const [liveToast, setLiveToast] = useState<AnnouncementSummaryItem | null>(null);
   const bellRef = useRef<HTMLDivElement | null>(null);
 
   const loadBell = async () => {
@@ -52,6 +58,29 @@ export const Layout: React.FC = () => {
     window.addEventListener('announcement-read-updated', handler);
     return () => window.removeEventListener('announcement-read-updated', handler);
   }, [location.pathname]);
+
+  // Global SignalR listener: update angka Bell & tampilkan toast instan saat HR publish pengumuman baru
+  useEffect(() => {
+    const conn = getAnnouncementHubConnection();
+    let toastTimer: number | undefined;
+
+    const onAnnouncementPublished = (summary: AnnouncementSummaryItem) => {
+      loadBell();
+      if (summary.authorUsername !== user?.username) {
+        setLiveToast(summary);
+        window.clearTimeout(toastTimer);
+        toastTimer = window.setTimeout(() => setLiveToast(null), 7000);
+      }
+    };
+
+    conn.on('AnnouncementPublished', onAnnouncementPublished);
+    ensureAnnouncementHubStarted();
+
+    return () => {
+      conn.off('AnnouncementPublished', onAnnouncementPublished);
+      window.clearTimeout(toastTimer);
+    };
+  }, [user?.username]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -75,6 +104,7 @@ export const Layout: React.FC = () => {
   const handleConfirmLogout = async (allDevices = false) => {
     setLoggingOut(true);
     try {
+      await stopAnnouncementHub();
       await logout(allDevices);
       setLogoutModalOpen(false);
       navigate('/login', { replace: true });
@@ -438,6 +468,41 @@ export const Layout: React.FC = () => {
           <Outlet />
         </main>
       </div>
+
+      {/* Live Realtime Toast saat HR menerbitkan pengumuman baru */}
+      {liveToast && (
+        <div className="fixed bottom-5 right-5 z-50 max-w-sm w-full bg-slate-950 text-white rounded-2xl border border-teal-500/40 shadow-2xl p-4 flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-teal-500/20 text-teal-300 flex items-center justify-center shrink-0">
+            <Bell className="w-5 h-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-teal-400">
+              Pengumuman Baru • Live
+            </p>
+            <p className="text-xs font-bold text-white line-clamp-2 mt-0.5">{liveToast.title}</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">Oleh {liveToast.authorFullName}</p>
+            <button
+              type="button"
+              onClick={() => {
+                const targetId = liveToast.id;
+                setLiveToast(null);
+                navigate(`/announcements/${targetId}`);
+              }}
+              className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-teal-300 hover:text-teal-200"
+            >
+              <span>Baca Sekarang</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => setLiveToast(null)}
+            className="text-slate-400 hover:text-white p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {logoutModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">

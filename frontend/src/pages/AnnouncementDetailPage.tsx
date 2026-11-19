@@ -16,10 +16,20 @@ import {
   Lock,
   CornerDownRight,
   Reply,
+  Radio,
 } from 'lucide-react';
 import { api, getErrorMessage } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { EmojiPickerButton } from '../components/EmojiPickerButton';
+import {
+  getAnnouncementHubConnection,
+  joinAnnouncementRoom,
+  leaveAnnouncementRoom,
+  type CommentAddedEvent,
+  type CommentDeletedEvent,
+  type CommentsToggledEvent,
+  type LikeUpdatedEvent,
+} from '../services/announcementHub';
 import { announcementTypeStyle, formatRelativeTime } from './AnnouncementsPage';
 import type { AnnouncementCommentItem, AnnouncementDetailItem, ApiResult } from '../types';
 
@@ -37,6 +47,7 @@ export const AnnouncementDetailPage: React.FC = () => {
   const [sendingComment, setSendingComment] = useState(false);
   const [togglingComments, setTogglingComments] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [realtimeLive, setRealtimeLive] = useState(false);
 
   // Threaded Reply state
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
@@ -71,6 +82,79 @@ export const AnnouncementDetailPage: React.FC = () => {
     loadDetail(true);
   }, [id]);
 
+  // SignalR Realtime Room Subscription (0ms live update untuk Comment, Reply, Like, Delete, & Toggle Komentar)
+  useEffect(() => {
+    if (!id) return;
+    let mounted = true;
+    const conn = getAnnouncementHubConnection();
+
+    const onCommentAdded = (evt: CommentAddedEvent) => {
+      if (evt.announcementId !== id) return;
+      setItem((prev) => {
+        if (!prev) return prev;
+        if (prev.comments.some((c) => c.id === evt.comment.id)) {
+          return { ...prev, commentCount: evt.commentCount };
+        }
+        return {
+          ...prev,
+          commentCount: evt.commentCount,
+          comments: [evt.comment, ...prev.comments],
+        };
+      });
+    };
+
+    const onCommentDeleted = (evt: CommentDeletedEvent) => {
+      if (evt.announcementId !== id) return;
+      const deletedSet = new Set(evt.deletedCommentIds);
+      setItem((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          commentCount: evt.commentCount,
+          comments: prev.comments.filter((c) => !deletedSet.has(c.id)),
+        };
+      });
+    };
+
+    const onLikeUpdated = (evt: LikeUpdatedEvent) => {
+      if (evt.announcementId !== id) return;
+      setItem((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          likeCount: evt.likeCount,
+          isLikedByMe: evt.actorUserId === user?.id ? evt.isLiked : prev.isLikedByMe,
+        };
+      });
+    };
+
+    const onCommentsToggled = (evt: CommentsToggledEvent) => {
+      if (evt.announcementId !== id) return;
+      setItem((prev) => (prev ? { ...prev, allowComments: evt.allowComments } : prev));
+      if (!evt.allowComments) {
+        setReplyingToId(null);
+      }
+    };
+
+    conn.on('CommentAdded', onCommentAdded);
+    conn.on('CommentDeleted', onCommentDeleted);
+    conn.on('LikeUpdated', onLikeUpdated);
+    conn.on('CommentsToggled', onCommentsToggled);
+
+    joinAnnouncementRoom(id).then((connected) => {
+      if (mounted) setRealtimeLive(connected);
+    });
+
+    return () => {
+      mounted = false;
+      conn.off('CommentAdded', onCommentAdded);
+      conn.off('CommentDeleted', onCommentDeleted);
+      conn.off('LikeUpdated', onLikeUpdated);
+      conn.off('CommentsToggled', onCommentsToggled);
+      leaveAnnouncementRoom(id);
+    };
+  }, [id, user?.id]);
+
   const handleToggleLike = async () => {
     if (!item) return;
     try {
@@ -78,7 +162,8 @@ export const AnnouncementDetailPage: React.FC = () => {
         `/announcements/${item.id}/like`
       );
       if (res.data.succeeded && res.data.data) {
-        setItem({ ...item, isLikedByMe: res.data.data.isLiked, likeCount: res.data.data.likeCount });
+        const { isLiked, likeCount } = res.data.data;
+        setItem((prev) => (prev ? { ...prev, isLikedByMe: isLiked, likeCount } : prev));
       }
     } catch {
       // ignore
@@ -95,8 +180,9 @@ export const AnnouncementDetailPage: React.FC = () => {
         { allowComments: !item.allowComments }
       );
       if (res.data.succeeded && res.data.data) {
-        setItem(res.data.data);
-        if (!res.data.data.allowComments) {
+        const nextAllow = res.data.data.allowComments;
+        setItem((prev) => (prev ? { ...prev, allowComments: nextAllow } : prev));
+        if (!nextAllow) {
           setReplyingToId(null);
         }
       }
@@ -107,19 +193,32 @@ export const AnnouncementDetailPage: React.FC = () => {
     }
   };
 
+  // Update state lokal langsung dari response API (0ms flicker, tanpa setLoading(true)!)
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!item || !commentText.trim()) return;
     setSendingComment(true);
     setError(null);
     try {
-      const res = await api.post(`/announcements/${item.id}/comments`, {
-        content: commentText.trim(),
-        parentCommentId: null,
-      });
-      if (res.data.succeeded) {
+      const res = await api.post<ApiResult<AnnouncementCommentItem>>(
+        `/announcements/${item.id}/comments`,
+        {
+          content: commentText.trim(),
+          parentCommentId: null,
+        }
+      );
+      if (res.data.succeeded && res.data.data) {
+        const created = res.data.data;
         setCommentText('');
-        await loadDetail(false);
+        setItem((prev) => {
+          if (!prev) return prev;
+          if (prev.comments.some((c) => c.id === created.id)) return prev;
+          return {
+            ...prev,
+            commentCount: prev.commentCount + 1,
+            comments: [created, ...prev.comments],
+          };
+        });
       }
     } catch (err) {
       setError(getErrorMessage(err, 'Gagal menambahkan komentar.'));
@@ -140,15 +239,27 @@ export const AnnouncementDetailPage: React.FC = () => {
     setSendingReply(true);
     setError(null);
     try {
-      const res = await api.post(`/announcements/${item.id}/comments`, {
-        content: replyText.trim(),
-        parentCommentId: replyingToId,
-      });
-      if (res.data.succeeded) {
+      const res = await api.post<ApiResult<AnnouncementCommentItem>>(
+        `/announcements/${item.id}/comments`,
+        {
+          content: replyText.trim(),
+          parentCommentId: replyingToId,
+        }
+      );
+      if (res.data.succeeded && res.data.data) {
+        const created = res.data.data;
         setReplyText('');
         setReplyingToId(null);
         setReplyingToName('');
-        await loadDetail(false);
+        setItem((prev) => {
+          if (!prev) return prev;
+          if (prev.comments.some((c) => c.id === created.id)) return prev;
+          return {
+            ...prev,
+            commentCount: prev.commentCount + 1,
+            comments: [created, ...prev.comments],
+          };
+        });
       }
     } catch (err) {
       setError(getErrorMessage(err, 'Gagal mengirim balasan komentar.'));
@@ -161,7 +272,17 @@ export const AnnouncementDetailPage: React.FC = () => {
     if (!item) return;
     try {
       await api.delete(`/announcements/${item.id}/comments/${commentId}`);
-      await loadDetail(false);
+      setItem((prev) => {
+        if (!prev) return prev;
+        const remaining = prev.comments.filter(
+          (c) => c.id !== commentId && c.parentCommentId !== commentId
+        );
+        return {
+          ...prev,
+          commentCount: remaining.length,
+          comments: remaining,
+        };
+      });
     } catch (err) {
       setError(getErrorMessage(err, 'Gagal menghapus komentar.'));
     }
@@ -198,7 +319,6 @@ export const AnnouncementDetailPage: React.FC = () => {
   const imageAttachments = item.attachments.filter((a) => a.kind === 'Image');
   const fileAttachments = item.attachments.filter((a) => a.kind === 'File');
 
-  // Kelompokkan komentar menjadi Top-Level Comments & Replies per parentCommentId
   const rootComments = item.comments.filter((c) => !c.parentCommentId);
   const repliesByParent = item.comments.reduce<Record<string, AnnouncementCommentItem[]>>((acc, c) => {
     if (c.parentCommentId) {
@@ -208,7 +328,6 @@ export const AnnouncementDetailPage: React.FC = () => {
     return acc;
   }, {});
 
-  // Urutkan balasan dari terlama ke terbaru supaya alur obrolan natural dibaca dari atas ke bawah
   Object.values(repliesByParent).forEach((list) =>
     list.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
   );
@@ -384,13 +503,21 @@ export const AnnouncementDetailPage: React.FC = () => {
         </div>
       </article>
 
-      {/* Threaded Comments Section + Emoji Picker */}
+      {/* Threaded Comments Section + Emoji Picker + SignalR Live Indicator */}
       <section className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 space-y-5 shadow-xs">
-        <div className="flex items-center justify-between">
-          <h2 className="font-bold text-slate-900 text-base flex items-center gap-2">
-            <MessageSquare className="w-5 h-5 text-teal-600" />
-            <span>Diskusi &amp; Komentar ({item.comments.length})</span>
-          </h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <h2 className="font-bold text-slate-900 text-base flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-teal-600" />
+              <span>Diskusi &amp; Komentar ({item.commentCount})</span>
+            </h2>
+            {realtimeLive && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <Radio className="w-3 h-3 animate-pulse text-emerald-500" />
+                <span>LIVE</span>
+              </span>
+            )}
+          </div>
           {!item.allowComments && (
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
               <Lock className="w-3 h-3" /> Komentar Dinonaktifkan
@@ -442,7 +569,6 @@ export const AnnouncementDetailPage: React.FC = () => {
 
               return (
                 <div key={c.id} className="space-y-2.5">
-                  {/* Top-Level Comment Card */}
                   <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-3 min-w-0 flex-1">
@@ -494,7 +620,6 @@ export const AnnouncementDetailPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Indented Replies Thread */}
                   {replies.length > 0 && (
                     <div className="ml-5 sm:ml-8 pl-4 border-l-2 border-teal-200/80 space-y-2">
                       {replies.map((r) => {
@@ -548,7 +673,6 @@ export const AnnouncementDetailPage: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Inline Reply Form */}
                   {isReplyingHere && item.allowComments && (
                     <form
                       onSubmit={handleSendReply}

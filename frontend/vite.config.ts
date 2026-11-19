@@ -19,6 +19,11 @@ export default defineConfig({
         changeOrigin: true,
         agent: keepAliveAgent,
       },
+      '/hubs': {
+        target: 'http://localhost:5080',
+        changeOrigin: true,
+        ws: true,
+      },
     },
   },
 });

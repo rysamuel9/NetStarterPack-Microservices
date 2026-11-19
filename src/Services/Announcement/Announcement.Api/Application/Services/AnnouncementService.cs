@@ -14,7 +14,8 @@ public partial class AnnouncementService(
     IAnnouncementUnitOfWork unitOfWork,
     ICurrentUserService currentUserService,
     ICacheService cacheService,
-    IEventBus eventBus) : IAnnouncementService
+    IEventBus eventBus,
+    IAnnouncementRealtimeNotifier? realtimeNotifier = null) : IAnnouncementService
 {
     private static readonly HashSet<string> AllowedHrPublisherRoles = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -207,6 +208,11 @@ public partial class AnnouncementService(
             IpAddress: currentUserService.IpAddress,
             SourceService: "Announcement.Api"), cancellationToken);
 
+        if (realtimeNotifier is not null)
+        {
+            await realtimeNotifier.NotifyAnnouncementPublishedAsync(MapSummary(entity, Guid.Empty), cancellationToken);
+        }
+
         return Result<AnnouncementDetailDto>.Success(
             MapDetail(entity, authorId),
             "Pengumuman berhasil diterbitkan.",
@@ -375,6 +381,11 @@ public partial class AnnouncementService(
             IpAddress: currentUserService.IpAddress,
             SourceService: "Announcement.Api"), cancellationToken);
 
+        if (realtimeNotifier is not null)
+        {
+            await realtimeNotifier.NotifyCommentsToggledAsync(entity.Id, entity.AllowComments, cancellationToken);
+        }
+
         return Result<AnnouncementDetailDto>.Success(
             MapDetail(entity, currentUserService.UserId ?? Guid.Empty),
             entity.AllowComments ? "Komentar berhasil diaktifkan kembali." : "Komentar berhasil dinonaktifkan.");
@@ -422,10 +433,16 @@ public partial class AnnouncementService(
         await unitOfWork.SaveChangesAsync(cancellationToken);
         await InvalidateCacheAsync(cancellationToken);
 
+        var updatedLikeCount = entity.Likes.Count(l => !l.IsDeleted);
+        if (realtimeNotifier is not null)
+        {
+            await realtimeNotifier.NotifyLikeUpdatedAsync(entity.Id, updatedLikeCount, userId, isLiked, cancellationToken);
+        }
+
         return Result<ToggleLikeResponseDto>.Success(new ToggleLikeResponseDto(
             AnnouncementId: entity.Id,
             IsLiked: isLiked,
-            LikeCount: entity.Likes.Count(l => !l.IsDeleted)));
+            LikeCount: updatedLikeCount));
     }
 
     public async Task<Result<AnnouncementCommentDto>> AddCommentAsync(
@@ -486,16 +503,24 @@ public partial class AnnouncementService(
         await unitOfWork.SaveChangesAsync(cancellationToken);
         await InvalidateCacheAsync(cancellationToken);
 
+        var commentDto = new AnnouncementCommentDto(
+            comment.Id,
+            comment.ParentCommentId,
+            comment.UserId,
+            comment.Username,
+            comment.FullName,
+            comment.UserRole,
+            comment.Content,
+            comment.CreatedAt);
+
+        if (realtimeNotifier is not null)
+        {
+            var totalComments = await unitOfWork.Comments.CountAsync(c => c.AnnouncementId == entity.Id, cancellationToken);
+            await realtimeNotifier.NotifyCommentAddedAsync(entity.Id, commentDto, totalComments, cancellationToken);
+        }
+
         return Result<AnnouncementCommentDto>.Success(
-            new AnnouncementCommentDto(
-                comment.Id,
-                comment.ParentCommentId,
-                comment.UserId,
-                comment.Username,
-                comment.FullName,
-                comment.UserRole,
-                comment.Content,
-                comment.CreatedAt),
+            commentDto,
             resolvedParentId.HasValue ? "Balasan komentar berhasil ditambahkan." : "Komentar berhasil ditambahkan.",
             201);
     }
@@ -521,6 +546,8 @@ public partial class AnnouncementService(
         comment.UpdatedBy = actor;
         unitOfWork.Comments.Remove(comment);
 
+        var deletedIds = new List<Guid> { comment.Id };
+
         // Jika komentar induk dihapus, ikut soft-delete semua balasan di bawahnya agar tidak yatim
         var childReplies = await unitOfWork.Comments.GetListAsync(
             c => c.AnnouncementId == announcementId && c.ParentCommentId == commentId,
@@ -529,10 +556,17 @@ public partial class AnnouncementService(
         {
             child.UpdatedBy = actor;
             unitOfWork.Comments.Remove(child);
+            deletedIds.Add(child.Id);
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         await InvalidateCacheAsync(cancellationToken);
+
+        if (realtimeNotifier is not null)
+        {
+            var totalComments = await unitOfWork.Comments.CountAsync(c => c.AnnouncementId == announcementId, cancellationToken);
+            await realtimeNotifier.NotifyCommentDeletedAsync(announcementId, deletedIds, totalComments, cancellationToken);
+        }
 
         return Result.Success("Komentar berhasil dihapus.");
     }

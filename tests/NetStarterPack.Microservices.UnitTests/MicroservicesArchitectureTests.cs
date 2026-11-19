@@ -1,4 +1,5 @@
 ﻿using Announcement.Api.Application.DTOs;
+using Announcement.Api.Application.Interfaces;
 using Announcement.Api.Application.Services;
 using Announcement.Api.Infrastructure.Persistence;
 using BuildingBlocks.Core.Constants;
@@ -593,12 +594,48 @@ public class MicroservicesArchitectureTests
         Assert.Equal(3, bellAfterAll.Data.Items.Count);
     }
 
+    private sealed class FakeAnnouncementRealtimeNotifier : IAnnouncementRealtimeNotifier
+    {
+        public List<string> Events { get; } = new();
+
+        public Task NotifyAnnouncementPublishedAsync(AnnouncementSummaryDto summary, CancellationToken cancellationToken = default)
+        {
+            Events.Add($"Published:{summary.Id}");
+            return Task.CompletedTask;
+        }
+
+        public Task NotifyCommentAddedAsync(Guid announcementId, AnnouncementCommentDto comment, int totalCommentCount, CancellationToken cancellationToken = default)
+        {
+            Events.Add($"CommentAdded:{comment.Id}:{totalCommentCount}");
+            return Task.CompletedTask;
+        }
+
+        public Task NotifyCommentDeletedAsync(Guid announcementId, IReadOnlyList<Guid> deletedCommentIds, int totalCommentCount, CancellationToken cancellationToken = default)
+        {
+            Events.Add($"CommentDeleted:{deletedCommentIds.Count}:{totalCommentCount}");
+            return Task.CompletedTask;
+        }
+
+        public Task NotifyLikeUpdatedAsync(Guid announcementId, int likeCount, Guid actorUserId, bool isLiked, CancellationToken cancellationToken = default)
+        {
+            Events.Add($"LikeUpdated:{likeCount}:{isLiked}");
+            return Task.CompletedTask;
+        }
+
+        public Task NotifyCommentsToggledAsync(Guid announcementId, bool allowComments, CancellationToken cancellationToken = default)
+        {
+            Events.Add($"CommentsToggled:{allowComments}");
+            return Task.CompletedTask;
+        }
+    }
+
     [Fact]
     public async Task AnnouncementService_LikeToggle_And_PostPublishCommentToggle_ShouldEnforceState()
     {
         var (_, uow) = await CreateSeededAnnouncementAsync();
         var cache = CreateTestCacheService();
         var eventBus = new InMemoryEventBus();
+        var realtime = new FakeAnnouncementRealtimeNotifier();
 
         var hrSupervisorId = Guid.NewGuid();
         var staffId = Guid.NewGuid();
@@ -612,7 +649,7 @@ public class MicroservicesArchitectureTests
             Permissions = [Permissions.Announcements.View, Permissions.Announcements.Manage]
         };
 
-        var service = new AnnouncementService(uow, currentUser, cache, eventBus);
+        var service = new AnnouncementService(uow, currentUser, cache, eventBus, realtime);
 
         // 1. HRSupervisor buat pengumuman dengan AllowComments = true
         var created = await service.CreateAnnouncementAsync(new CreateOrUpdateAnnouncementRequest(
@@ -686,5 +723,12 @@ public class MicroservicesArchitectureTests
         var replyToReply = await service.AddCommentAsync(annId, new CreateCommentRequest("Ikutan juga ya 👍", reply1.Data.Id));
         Assert.True(replyToReply.Succeeded);
         Assert.Equal(comment1.Data.Id, replyToReply.Data!.ParentCommentId);
+
+        // 6. Pastikan seluruh SignalR Realtime Notifier events terpanggil sesuai aksi
+        Assert.Contains(realtime.Events, e => e.StartsWith("Published:"));
+        Assert.Contains(realtime.Events, e => e == "LikeUpdated:1:True");
+        Assert.Contains(realtime.Events, e => e == "CommentsToggled:False");
+        Assert.Contains(realtime.Events, e => e == "CommentsToggled:True");
+        Assert.Contains(realtime.Events, e => e.StartsWith($"CommentAdded:{reply1.Data.Id}:"));
     }
 }

@@ -34,6 +34,7 @@ Konfigurasi di [`src/ApiGateway/Gateway.Api/appsettings.json`](../src/ApiGateway
 | `/api/orders` & `/api/orders/{**catch-all}` | `order-cluster` | `http://localhost:5083` (`Order.Api`) | `NetStarterPack_OrderDb` |
 | `/api/workflows` & `/api/workflows/{**catch-all}` | `workflow-cluster` | `http://localhost:5084` (`Workflow.Api`) | `NetStarterPack_WorkflowDb` |
 | `/api/announcements` & `/api/announcements/{**catch-all}` | `announcement-cluster` | `http://localhost:5085` (`Announcement.Api`) | `NetStarterPack_AnnouncementDb` |
+| `/hubs/announcements` & `/hubs/announcements/{**catch-all}` *(WebSocket/SignalR)* | `announcement-cluster` | `http://localhost:5085` (`Announcement.Api`) | Realtime SignalR Hub (`?access_token=<JWT>`) |
 | `/api/health` | *(Ditangani langsung oleh Gateway)* | Aggregated Health Probe ke `:5081`, `:5082`, `:5083`, `:5084`, & `:5085` | — |
 
 ---

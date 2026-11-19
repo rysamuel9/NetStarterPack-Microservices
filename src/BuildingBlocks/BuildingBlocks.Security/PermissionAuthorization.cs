@@ -121,6 +121,18 @@ public static class SecurityExtensions
 
                 options.Events = new JwtBearerEvents
                 {
+                    // Dukungan Zero-Trust JWT untuk WebSocket / SignalR Hub (/hubs/*) via ?access_token=...
+                    OnMessageReceived = context =>
+                    {
+                        var accessToken = context.Request.Query["access_token"];
+                        var path = context.HttpContext.Request.Path;
+                        if (!string.IsNullOrEmpty(accessToken) &&
+                            path.StartsWithSegments("/hubs", StringComparison.OrdinalIgnoreCase))
+                        {
+                            context.Token = accessToken;
+                        }
+                        return Task.CompletedTask;
+                    },
                     OnChallenge = async context =>
                     {
                         context.HandleResponse();

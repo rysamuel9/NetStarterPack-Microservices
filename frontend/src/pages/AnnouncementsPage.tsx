@@ -30,6 +30,11 @@ import {
 import { api, getErrorMessage } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { EmojiPickerButton } from '../components/EmojiPickerButton';
+import {
+  ensureAnnouncementHubStarted,
+  getAnnouncementHubConnection,
+  type AnnouncementStatsChangedEvent,
+} from '../services/announcementHub';
 import type {
   AnnouncementAttachmentItem,
   AnnouncementDetailItem,
@@ -78,7 +83,7 @@ export const formatRelativeTime = (iso: string) => {
 };
 
 export const AnnouncementsPage: React.FC = () => {
-  const { hasPermission } = useAuth();
+  const { user, hasPermission } = useAuth();
   const navigate = useNavigate();
 
   const canManage = hasPermission('Announcements.Manage');
@@ -131,6 +136,59 @@ export const AnnouncementsPage: React.FC = () => {
   useEffect(() => {
     loadFeed(page, typeFilter, search);
   }, [page, typeFilter]);
+
+  // SignalR live updates pada kartu feed (likeCount, commentCount, allowComments, & pengumuman baru)
+  useEffect(() => {
+    const conn = getAnnouncementHubConnection();
+
+    const onStatsChanged = (evt: AnnouncementStatsChangedEvent) => {
+      setData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          items: prev.items.map((item) => {
+            if (item.id !== evt.announcementId) return item;
+            return {
+              ...item,
+              likeCount: evt.likeCount ?? item.likeCount,
+              commentCount: evt.commentCount ?? item.commentCount,
+              allowComments: evt.allowComments ?? item.allowComments,
+              isLikedByMe:
+                evt.actorUserId && evt.actorUserId === user?.id && typeof evt.isLiked === 'boolean'
+                  ? evt.isLiked
+                  : item.isLikedByMe,
+            };
+          }),
+        };
+      });
+    };
+
+    const onPublished = (summary: AnnouncementSummaryItem) => {
+      setData((prev) => {
+        if (!prev || prev.page !== 1) return prev;
+        if (typeFilter && summary.type !== typeFilter) return prev;
+        if (prev.items.some((x) => x.id === summary.id)) return prev;
+        const isAuthor = summary.authorUsername === user?.username;
+        const nextItem: AnnouncementSummaryItem = { ...summary, isReadByMe: isAuthor };
+        return {
+          ...prev,
+          totalCount: prev.totalCount + 1,
+          totalPages: Math.max(1, Math.ceil((prev.totalCount + 1) / prev.pageSize)),
+          unreadCount: isAuthor ? prev.unreadCount : prev.unreadCount + 1,
+          items: [nextItem, ...prev.items].slice(0, prev.pageSize),
+        };
+      });
+    };
+
+    conn.on('AnnouncementStatsChanged', onStatsChanged);
+    conn.on('AnnouncementPublished', onPublished);
+    ensureAnnouncementHubStarted();
+
+    return () => {
+      conn.off('AnnouncementStatsChanged', onStatsChanged);
+      conn.off('AnnouncementPublished', onPublished);
+    };
+  }, [typeFilter, user?.id, user?.username]);
 
   useEffect(() => {
     if (modalOpen && editorRef.current) {

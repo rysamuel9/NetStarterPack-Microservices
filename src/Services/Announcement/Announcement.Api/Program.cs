@@ -2,6 +2,7 @@ using Announcement.Api.Application.Interfaces;
 using Announcement.Api.Application.Services;
 using Announcement.Api.Domain.Interfaces;
 using Announcement.Api.Infrastructure.Persistence;
+using Announcement.Api.Infrastructure.Realtime;
 using BuildingBlocks.Infrastructure;
 using BuildingBlocks.Security;
 using Microsoft.EntityFrameworkCore;
@@ -43,8 +44,14 @@ builder.Services.AddDbContext<AnnouncementDbContext>(options =>
     }
 });
 
-// 3. Register Announcement Onion Services
+// 3. Register Announcement Onion Services & SignalR Realtime Hub
+builder.Services.AddSignalR();
+// [TEMPLATE SCALE-OUT MULTI-SERVER]: Jika Announcement.Api dijalankan di >1 instance IIS/Docker,
+// install Microsoft.AspNetCore.SignalR.StackExchangeRedis lalu uncomment:
+// builder.Services.AddSignalR().AddStackExchangeRedis(builder.Configuration["CacheSettings:RedisConnectionString"] ?? "localhost:6379");
+
 builder.Services.AddScoped<IAnnouncementUnitOfWork, AnnouncementUnitOfWork>();
+builder.Services.AddScoped<IAnnouncementRealtimeNotifier, SignalRAnnouncementRealtimeNotifier>();
 builder.Services.AddScoped<IAnnouncementService, AnnouncementService>();
 builder.Services.AddScoped<AnnouncementDatabaseSeeder>();
 
@@ -71,5 +78,7 @@ using (var scope = app.Services.CreateScope())
 app.UseSharedMicroservicePipeline(
     serviceTitle: "Internal Announcement & Newsroom Microservice API",
     serviceName: "Announcement.Api");
+
+app.MapHub<AnnouncementHub>("/hubs/announcements");
 
 app.Run();
