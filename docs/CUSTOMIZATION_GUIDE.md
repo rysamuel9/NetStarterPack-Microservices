@@ -60,7 +60,7 @@ Misalkan kita ingin menambahkan tabel dan fitur **Data Pelanggan (`Customer`)** 
 | **4.2** | `Catalog.Api` | [`src/Services/Catalog/Catalog.Api/Program.cs`](../src/Services/Catalog/Catalog.Api/Program.cs) | Edit | Registrasi DI `AddScoped<ICustomerService, CustomerService>()` |
 | **5.1** | `Catalog.Api/Controllers` | `src/Services/Catalog/Catalog.Api/Controllers/CustomersController.cs` | Buat Baru | Endpoint HTTP `/api/customers` + `[HasPermission]` |
 | **5.2** | `Gateway.Api` | [`src/ApiGateway/Gateway.Api/appsettings.json`](../src/ApiGateway/Gateway.Api/appsettings.json) | Edit | Tambah route YARP `/api/customers` ke `catalog-cluster` |
-| **6.1** | `UnitTests` | [`tests/NetStarterPack.Microservices.UnitTests/MicroservicesArchitectureTests.cs`](../tests/NetStarterPack.Microservices.UnitTests/MicroservicesArchitectureTests.cs) | Edit | Unit test CRUD, Cache, Soft-Delete, & `InMemoryEventBus` |
+| **6.1** | `UnitTests` | `tests/NetStarterPack.Microservices.UnitTests/Services/Catalog/CustomerServiceTests.cs` | Buat Baru | Unit test CRUD, Cache, Soft-Delete, & `InMemoryEventBus` |
 | **7.1** | `Frontend React` | `frontend/src/types/index.ts`, `pages/CustomersPage.tsx`, `App.tsx` | Buat/Edit | Tampilan tabel, modal CRUD, & proteksi `hasPermission` |
 
 ---
@@ -520,18 +520,18 @@ Supaya panggilan `api.get('/customers')` dari React (`:5173`) diteruskan oleh YA
 
 ## Tahap 6: Membuat Unit Test (`tests/NetStarterPack.Microservices.UnitTests`)
 
-Di [`MicroservicesArchitectureTests.cs`](../tests/NetStarterPack.Microservices.UnitTests/MicroservicesArchitectureTests.cs), kamu bisa langsung menguji `CustomerService` menggunakan `CreateSeededCatalogAsync()` dan `InMemoryEventBus`:
+Buat file baru `tests/NetStarterPack.Microservices.UnitTests/Services/Catalog/CustomerServiceTests.cs`, lalu uji `CustomerService` menggunakan `TestDbFactory.CreateCatalogAsync()`, `TestCacheFactory.CreateInMemory()`, dan `InMemoryEventBus`:
 
 ```csharp
 [Fact]
-public async Task CustomerService_CreateUpdateDelete_ShouldValidateCacheAndPublishAuditEvents()
+public async Task CreateUpdateDelete_ShouldValidateCacheAndPublishAuditEvents()
 {
-    var (db, catalogUow) = await CreateSeededCatalogAsync();
+    using var ctx = await TestDbFactory.CreateCatalogAsync();
     var currentUser = new FakeCurrentUserService { Username = "staff" };
-    var cache = CreateTestCacheService();
+    var cache = TestCacheFactory.CreateInMemory();
     var eventBus = new InMemoryEventBus();
 
-    var customerService = new CustomerService(catalogUow, currentUser, cache, eventBus);
+    var customerService = new CustomerService(ctx.Uow, currentUser, cache, eventBus);
 
     // 1. Tambah Pelanggan Baru (201 Created)
     var createReq = new CreateOrUpdateCustomerRequest(
@@ -562,7 +562,7 @@ public async Task CustomerService_CreateUpdateDelete_ShouldValidateCacheAndPubli
     var customerId = createResult.Data.Id;
     await customerService.DeleteCustomerAsync(customerId);
 
-    var rawInDb = await db.Customers.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == customerId);
+    var rawInDb = await ctx.Db.Customers.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == customerId);
     Assert.NotNull(rawInDb);
     Assert.True(rawInDb!.IsDeleted);
 }
@@ -635,7 +635,7 @@ Di sisi Frontend React (`:5173`), langkahnya **100% sama mudahnya** dengan edisi
 > Kamu bisa langsung membuka dan mempelajari file aslinya di:
 > - **Backend Microservice**: [`src/Services/Order/Order.Api/`](../src/Services/Order/Order.Api/)
 > - **YARP Gateway Route**: [`src/ApiGateway/Gateway.Api/appsettings.json`](../src/ApiGateway/Gateway.Api/appsettings.json) (`orders-route` $\rightarrow$ `http://localhost:5083`)
-> - **Unit Test**: [`tests/NetStarterPack.Microservices.UnitTests/MicroservicesArchitectureTests.cs`](../tests/NetStarterPack.Microservices.UnitTests/MicroservicesArchitectureTests.cs)
+> - **Unit Test**: [`tests/NetStarterPack.Microservices.UnitTests/Services/Order/OrderServiceTests.cs`](../tests/NetStarterPack.Microservices.UnitTests/Services/Order/OrderServiceTests.cs)
 > - **Frontend React UI**: [`frontend/src/pages/OrdersPage.tsx`](../frontend/src/pages/OrdersPage.tsx) (Menu: **Pesanan (Order.Api)** di `/orders`)
 
 ---
@@ -1134,7 +1134,7 @@ Kalau **Bagian A (`Customer`)** adalah contoh *vertical scaling* (nambah tabel d
 | **7** | `Identity.Api` | [`Infrastructure/Persistence/IdentityDatabaseSeeder.cs`](../src/Services/Identity/Identity.Api/Infrastructure/Persistence/IdentityDatabaseSeeder.cs) | Seed 3 role & 3 user baru, 3 menu `WORKFLOW & APPROVAL`, & `EnsureWorkflowRolesUsersAndMenusAsync()` |
 | **8** | `Gateway.Api`, Docker, & IIS | [`Gateway.Api/appsettings.json`](../src/ApiGateway/Gateway.Api/appsettings.json), [`Gateway.Api/Program.cs`](../src/ApiGateway/Gateway.Api/Program.cs), [`docker-compose.yml`](../docker-compose.yml), [`publish-iis.ps1`](../publish-iis.ps1) | Route YARP `/api/workflows`, F5 Auto-Orchestrator, Unified Swagger, Health Probe, Docker & IIS |
 | **9** | `Frontend React` | `types/index.ts`, `DynamicIcon.tsx`, `App.tsx`, `Layout.tsx`, `LoginPage.tsx`, `DashboardPage.tsx`, `WorkflowCreatePage.tsx`, `WorkflowWorkingListPage.tsx`, `WorkflowTrackingPage.tsx` | 3 halaman workflow dinamis + 8 Quick Login akun korporat + Topologi 5 node |
-| **10** | `UnitTests` | [`tests/NetStarterPack.Microservices.UnitTests/MicroservicesArchitectureTests.cs`](../tests/NetStarterPack.Microservices.UnitTests/MicroservicesArchitectureTests.cs) | 3 test khusus Workflow: Schema Validation, 3-Level Approval + Anti-Bypass, & Anti-Self-Approval + Revisi |
+| **10** | `UnitTests` | [`tests/NetStarterPack.Microservices.UnitTests/Services/Workflow/WorkflowServiceTests.cs`](../tests/NetStarterPack.Microservices.UnitTests/Services/Workflow/WorkflowServiceTests.cs) | 4 test khusus Workflow: Schema Validation, 3-Level Approval + Anti-Bypass, Anti-Self-Approval, & Revisi/Resubmit |
 
 ---
 
@@ -1447,20 +1447,24 @@ Karena kita butuh role approver korporat yang realistis (`ITLead`, `HRManager`, 
 
 ## Langkah 10: Tulis Unit Test Lintas Role & Security (`xUnit`)
 
-Tambahkan 3 test otomatis di [`tests/NetStarterPack.Microservices.UnitTests/MicroservicesArchitectureTests.cs`](../tests/NetStarterPack.Microservices.UnitTests/MicroservicesArchitectureTests.cs) menggunakan EF Core In-Memory + `FakeCurrentUserService` + `InMemoryEventBus`:
+Tambahkan test otomatis di [`tests/NetStarterPack.Microservices.UnitTests/Services/Workflow/WorkflowServiceTests.cs`](../tests/NetStarterPack.Microservices.UnitTests/Services/Workflow/WorkflowServiceTests.cs) menggunakan `TestDbFactory.CreateWorkflowAsync()`, `FakeCurrentUserService`, dan `InMemoryEventBus`:
 
-1. **`WorkflowService_DynamicSchemaValidation_ShouldRejectMissingRequiredFields`**:
+1. **`DynamicSchemaValidation_ShouldRejectMissingRequiredFields`**:
    - Memastikan submit form `LAPTOP_PROCUREMENT` dengan field wajib kosong ditolak dengan HTTP `400`.
-2. **`WorkflowService_MultiLevelApproval_FromStaffToFullyApproved_WithSecurityGuards`**:
+2. **`MultiLevelApproval_FromStaffToFullyApproved_ShouldAdvance3StepsAndBlockQueueJumping`**:
    - `staff` submit pengadaan laptop &rarr; `financedirector` coba lompat antrean di Step 1 (**harus ditolak `403`**) &rarr; `manager` approve (Step 1) &rarr; `itlead` approve (Step 2) &rarr; `financedirector` approve (Step 3) &rarr; status menjadi **`Approved`** (`FULLY_APPROVED` terkirim ke `IEventBus`).
-3. **`WorkflowService_AntiSelfApproval_And_RevisionResubmitCycle_ShouldEnforceSecurity`**:
+3. **`AntiSelfApproval_ShouldRejectApprovingOwnSubmissionWith403`**:
    - `manager` submit cuti sendiri lalu coba approve sendiri (**harus ditolak `403` Anti-Self-Approval**).
+4. **`RevisionAndResubmitCycle_ShouldBlockNonOwnerEditAndReturnToStep1OnOwnerResubmit`**:
    - `staff` submit barang kantor &rarr; `manager` minta revisi (`RevisionRequested`) &rarr; orang lain coba edit (**ditolak `403` Ownership Guard**) &rarr; `staff` edit & resubmit &rarr; kembali ke `InReview` Step 1.
 
 Verifikasi akhir dari terminal root:
 ```powershell
-# 1. Jalankan seluruh backend build & 7 unit test (0 Warning, 0 Error)
+# 1. Jalankan seluruh backend build & unit test (0 Warning, 0 Error)
 dotnet test NetStarterPack.Microservices.sln
+
+# Atau fokus ke Workflow saja:
+dotnet test --filter "FullyQualifiedName~Services.Workflow"
 
 # 2. Verifikasi kompilasi TypeScript & bundle Vite React
 cd frontend

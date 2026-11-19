@@ -131,9 +131,15 @@ Setiap microservice (`Identity.Api`, `Catalog.Api`, `Order.Api`, `Workflow.Api`)
 
 ## 4. `tests/NetStarterPack.Microservices.UnitTests/` — Jaring Pengaman Otomatis
 
-| File | Tujuan & Fungsi | Kapan & Kasus Apa Dipakai? |
+Struktur folder test dipisah berdasarkan area tanggung jawab agar rapi, mudah dicari, dan berjalan paralel di xUnit:
+
+| Subfolder | Tujuan & Fungsi | Kapan & Kasus Apa Dipakai? |
 | :--- | :--- | :--- |
-| **`MicroservicesArchitectureTests.cs`** | Menguji seluruh alur bisnis penting lintas microservice secara cepat (tanpa butuh SQL Server/Redis nyala) menggunakan **EF Core In-Memory**, **`MemoryDistributedCache`**, **`FakeCurrentUserService`**, dan **`InMemoryEventBus`**. | **Kasus**: Setiap kali kamu membuat fitur baru, state machine baru, atau memperbaiki bug—tambahkan 1 `[Fact]` di sini (terutama untuk kasus keamanan seperti `403 Forbidden` dan validasi `400 Bad Request`). *(Lihat panduan lengkap di [`docs/UNIT_TESTING_GUIDE.md`](UNIT_TESTING_GUIDE.md)).* |
+| **`Common/TestDoubles/`** | Komponen pengganti (*test doubles*): `FakeCurrentUserService`, `FakePasswordHasher`, `InMemoryEventBus`, `FakeCatalogStatsClient`, `FakeAnnouncementRealtimeNotifier`, dan `FakeHostEnvironment` (auto-cleanup temp dir). | **Kasus**: Saat microservice baru punya interface eksternal (misal `INotificationClient` atau `IEmailSender`) yang perlu di-mock di unit test. |
+| **`Common/Factories/`** | `TestDbFactory` (EF Core In-Memory + seeder + `IDisposable` per service) dan `TestCacheFactory` (`DistributedCacheService` mode In-Memory). | **Kasus**: Tambah satu method `Create<NamaService>Async()` di `TestDbFactory` setiap kali membuat microservice baru. |
+| **`BuildingBlocks/`** | Unit test untuk komponen inti bersama (`ResultTests`, `DistributedCacheServiceTests`, `PermissionAuthorizationHandlerTests`). | **Kasus**: Saat mengubah logika di `BuildingBlocks.Core`, `BuildingBlocks.Security`, atau `BuildingBlocks.Infrastructure`. |
+| **`Services/<ServiceName>/`** | Unit test terfokus per service (`Identity/`, `Catalog/`, `Order/`, `Workflow/`, `Announcement/`). | **Kasus**: Setiap kali menambah fitur, validasi `400`, security guard `403`, atau memperbaiki bug—tambahkan `[Fact]` di class test service terkait. *(Lihat [`docs/UNIT_TESTING_GUIDE.md`](UNIT_TESTING_GUIDE.md)).* |
+| **`CrossService/`** | Uji alur integrasi lintas microservice di RAM (contoh: `DashboardAuditIntegrationTests` untuk `Catalog -> EventBus -> Identity Dashboard`). | **Kasus**: Saat menambah event integrasi atau agregasi data antar-microservice. |
 
 ---
 
