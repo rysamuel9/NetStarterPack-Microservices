@@ -1,4 +1,5 @@
-﻿using BuildingBlocks.Core.Constants;
+﻿using Microsoft.Extensions.Caching.Memory;
+using BuildingBlocks.Core.Constants;
 using BuildingBlocks.Core.Contracts;
 using BuildingBlocks.Core.Interfaces;
 using BuildingBlocks.Infrastructure.Caching;
@@ -236,3 +237,4 @@ public class MicroservicesArchitectureTests
         Assert.Contains(summaryResult.Data.RecentActivities, a => a.Action == "CREATE_PRODUCT");
     }
 }
+
