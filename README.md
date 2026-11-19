@@ -11,7 +11,9 @@ Tujuannya simpel: memberikan fondasi Microservices modern yang **clean, reliable
 Seluruh panduan teknis sudah disusun secara mendalam di dalam folder [`docs/`](docs/):
 
 1. 🛠️ **[Panduan A–Z Membuat Modul & Microservice Baru (`docs/CUSTOMIZATION_GUIDE.md`)](docs/CUSTOMIZATION_GUIDE.md)**
-   *Contekan lengkap langkah demi langkah untuk 2 skenario: (A) Menambah tabel/modul CRUD baru di dalam microservice yang sudah ada, dan (B) Membuat microservice baru dari nol (misal `Order.Api` di port `5083`) lengkap dengan koneksi ke `BuildingBlocks`, routing YARP Gateway, Unit Test, hingga halaman React & Menu Sidebar.*
+   *Contekan lengkap langkah demi langkah untuk 2 skenario: (A) Menambah tabel/modul CRUD baru di dalam microservice yang sudah ada, dan (B) Membuat microservice baru dari nol (Example 2: `Order.Api` di port `5083`) lengkap dengan koneksi ke `BuildingBlocks`, routing YARP Gateway, Unit Test, hingga halaman React & Menu Sidebar.*
+2. 🧩 **[Example 3 (Advanced): Dynamic Form Builder & Multi-Level Approval Workflow (`docs/WORKFLOW_ADVANCED_EXAMPLE.md`)](docs/WORKFLOW_ADVANCED_EXAMPLE.md)**
+   *Studi kasus level enterprise (`Workflow.Api` di port `5084`, DB `NetStarterPack_WorkflowDb`): form dinamis berbasis tipe dokumen (Pengadaan Laptop, Cuti, Barang Kantor), alur approval berjenjang lintas role (`Staff` &rarr; `Manager` &rarr; `ITLead` / `HRManager` &rarr; `FinanceDirector`), menu Create Form, Working List, & Tracking List, serta 7 lapisan security handling (Anti-Self-Approval, Anti-Queue-Jumping, Schema Validation Backend).*
 2. 🏛️ **[Bedah Arsitektur Microservices, Compact Onion, & YARP Gateway (`docs/ARCHITECTURE.md`)](docs/ARCHITECTURE.md)**
    *Penjelasan hubungan Microservices (level makro) vs Onion Architecture (level mikro), Sequence Diagram alur request lintas service, YARP Reverse Proxy, Database-per-Service, Resilient EventBus, Distributed Tracing (`X-Correlation-Id`), dan arsitektur Frontend React.*
 3. 🔐 **[Zero-Trust JWT, Refresh Token, RBAC Lintas Service, & Menu Dinamis (`docs/AUTH_AND_RBAC.md`)](docs/AUTH_AND_RBAC.md)**
@@ -35,7 +37,9 @@ Seluruh panduan teknis sudah disusun secara mendalam di dalam folder [`docs/`](d
 | :--- | :---: | :--- | :--- |
 | **`Gateway.Api`** *(YARP Reverse Proxy)* | `5080` | *(Stateless / Tanpa DB)* | Pintu masuk tunggal Frontend, Routing YARP, Rate Limiting (`300 req/menit`), CORS terpusat, `X-Correlation-Id`, Aggregated Health Check, **Unified Swagger/Scalar UI**, & **F5 Auto-Orchestrator**. |
 | **`Identity.Api`** *(Auth & Core Hub)* | `5081` | `NetStarterPack_IdentityDb` | Login JWT, Refresh Token Rotation, Users, Roles, Permissions, Dynamic Sidebar Menus, Dashboard Aggregator, & penerima terpusat `AuditLogs` dari seluruh microservice. |
-| **`Catalog.Api`** *(Business Microservice)* | `5082` | `NetStarterPack_CatalogDb` | Contoh Microservice Bisnis mandiri (CRUD `Products` + Hybrid L1/L2 Cache + publish `AuditLogIntegrationEvent` via `IEventBus` ke Identity). |
+| **`Catalog.Api`** *(Business Microservice 1)* | `5082` | `NetStarterPack_CatalogDb` | Contoh Microservice Bisnis mandiri (CRUD `Products` + Hybrid L1/L2 Cache + publish `AuditLogIntegrationEvent` via `IEventBus` ke Identity). |
+| **`Order.Api`** *(Example 2: Order CRUD)* | `5083` | `NetStarterPack_OrderDb` | Contoh Microservice Mandiri ke-2 (CRUD `Orders` + kalkulasi total otomatis + Cache + EventBus + Soft-Delete). |
+| **`Workflow.Api`** *(Example 3 Advanced)* | `5084` | `NetStarterPack_WorkflowDb` | **Dynamic Form Builder & Multi-Level Approval Engine** (Hybrid Relational + JSON Schema, State Machine, Working List, Tracking Stepper, & 7-Layer Security). |
 | **`Frontend`** *(React 19 + TS + Tailwind v4)* | `5173` | — | SPA Frontend yang cukup menembak ke **1 URL Gateway (`http://localhost:5080`)** tanpa perlu tahu di belakang ada berapa microservice. |
 
 ---

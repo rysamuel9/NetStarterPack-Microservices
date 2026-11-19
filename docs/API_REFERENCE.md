@@ -13,6 +13,8 @@ Ketika aplikasi berjalan, kamu bisa mengetes API lewat **Unified Gateway** (semu
 | **1. Unified API Gateway *(Direkomendasikan)*** | **`http://localhost:5080/swagger`** | **`http://localhost:5080/scalar/v1`** | `http://localhost:5080/openapi/v1.json` |
 | **2. Identity Microservice (Standalone)** | `http://localhost:5081/swagger` | `http://localhost:5081/scalar/v1` | `http://localhost:5081/openapi/v1.json` |
 | **3. Catalog Microservice (Standalone)** | `http://localhost:5082/swagger` | `http://localhost:5082/scalar/v1` | `http://localhost:5082/openapi/v1.json` |
+| **4. Order Microservice (Standalone)** | `http://localhost:5083/swagger` | `http://localhost:5083/scalar/v1` | `http://localhost:5083/openapi/v1.json` |
+| **5. Workflow Microservice (Standalone)** | `http://localhost:5084/swagger` | `http://localhost:5084/scalar/v1` | `http://localhost:5084/openapi/v1.json` |
 
 ---
 
@@ -28,7 +30,9 @@ Konfigurasi di [`src/ApiGateway/Gateway.Api/appsettings.json`](../src/ApiGateway
 | `/api/menus` & `/api/menus/{**catch-all}` | `identity-cluster` | `http://localhost:5081` (`Identity.Api`) | `NetStarterPack_IdentityDb` |
 | `/api/dashboard/{**catch-all}` | `identity-cluster` | `http://localhost:5081` (`Identity.Api`) | `NetStarterPack_IdentityDb` (+ HTTP Stats ke `Catalog.Api`) |
 | `/api/products` & `/api/products/{**catch-all}` | `catalog-cluster` | `http://localhost:5082` (`Catalog.Api`) | `NetStarterPack_CatalogDb` |
-| `/api/health` | *(Ditangani langsung oleh Gateway)* | Aggregated Health Probe ke `:5081` & `:5082` | — |
+| `/api/orders` & `/api/orders/{**catch-all}` | `order-cluster` | `http://localhost:5083` (`Order.Api`) | `NetStarterPack_OrderDb` |
+| `/api/workflows` & `/api/workflows/{**catch-all}` | `workflow-cluster` | `http://localhost:5084` (`Workflow.Api`) | `NetStarterPack_WorkflowDb` |
+| `/api/health` | *(Ditangani langsung oleh Gateway)* | Aggregated Health Probe ke `:5081`, `:5082`, `:5083`, & `:5084` | — |
 
 ---
 
@@ -130,3 +134,34 @@ X-Correlation-Id: 9a4f2c1b8e7d4a5b9c0d1e2f3a4b5c6d
 | `POST` | `/api/products` | `Products.Create` | Tambah produk ke `CatalogDb`, invalidate cache `products:`, & publish `AuditLogIntegrationEvent` ke `Identity.Api` |
 | `PUT` | `/api/products/{id}` | `Products.Edit` | Ubah produk di `CatalogDb`, invalidate cache, & publish `AuditLogIntegrationEvent` |
 | `DELETE` | `/api/products/{id}` | `Products.Delete` | Soft-delete produk di `CatalogDb`, invalidate cache, & publish `AuditLogIntegrationEvent` |
+
+---
+
+## 7. Endpoint `Order.Api` (`Port 5083` — Example 2, Lewat Gateway `Port 5080`)
+
+| Method | Endpoint | Permission | Fungsi |
+| :---: | :--- | :--- | :--- |
+| `GET` | `/api/orders?search=&status=` | `Orders.View` | Ambil daftar pesanan dari `NetStarterPack_OrderDb` (L1/L2 Cache) |
+| `GET` | `/api/orders/{id}` | `Orders.View` | Ambil detail 1 pesanan berdasarkan `Guid Id` |
+| `GET` | `/api/orders/stats` | Publik / Aggregator | Ambil ringkasan `OrderStatsDto` untuk Dashboard |
+| `POST` | `/api/orders` | `Orders.Create` | Buat pesanan baru + kalkulasi total otomatis + publish `AuditLogIntegrationEvent` |
+| `PUT` | `/api/orders/{id}` | `Orders.Edit` | Ubah pesanan/status di `OrderDb` + invalidate cache |
+| `DELETE` | `/api/orders/{id}` | `Orders.Delete` | Soft-delete pesanan di `OrderDb` |
+
+---
+
+## 8. Endpoint `Workflow.Api` (`Port 5084` — Example 3 Advanced, Lewat Gateway `Port 5080`)
+
+| Method | Endpoint | Permission | Fungsi |
+| :---: | :--- | :--- | :--- |
+| `GET` | `/api/workflows/templates` | `[Authorize]` | Ambil daftar template form dinamis beserta `fields` & `approvalFlow` |
+| `POST` | `/api/workflows/templates` | `Workflows.ManageTemplates` | Buat template formulir dinamis baru (khusus Admin / SuperAdmin) |
+| `POST` | `/api/workflows` | `Workflows.Create` | Buat pengajuan baru (*Save Draft* atau *Submit* langsung + validasi skema dinamis) |
+| `PUT` | `/api/workflows/{id}/resubmit` | `Workflows.Create` | Edit & submit ulang dokumen berstatus `Draft`/`RevisionRequested` (wajib pemilik asli) |
+| `GET` | `/api/workflows/working-list` | `Workflows.Approve` | Ambil inbox antrean approval khusus untuk role user yang sedang login |
+| `GET` | `/api/workflows/tracking?scope=&status=&search=` | `Workflows.View` | Pantau progres semua/milik sendiri lengkap dengan posisi approver & history log |
+| `GET` | `/api/workflows/{id}` | `Workflows.View` | Detail lengkap 1 pengajuan (form dinamis, approval steps, & immutable logs) |
+| `POST` | `/api/workflows/{id}/approve` | `Workflows.Approve` | Setujui step aktif (*Anti-Self-Approval* & *Strict Role Step Guard*) |
+| `POST` | `/api/workflows/{id}/request-revision` | `Workflows.Approve` | Kembalikan pengajuan ke pemohon untuk direvisi (catatan wajib diisi) |
+| `POST` | `/api/workflows/{id}/reject` | `Workflows.Approve` | Tolak pengajuan secara final (alasan wajib diisi) |
+| `GET` | `/api/workflows/stats` | Publik / Aggregator | Ambil ringkasan `WorkflowStatsDto` untuk Dashboard |

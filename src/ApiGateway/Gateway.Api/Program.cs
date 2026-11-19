@@ -64,7 +64,7 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// 4. Development Auto-Orchestrator: Otomatis menyalakan Identity.Api (5081), Catalog.Api (5082), Order.Api (5083), dan React Vite (5173) saat tekan F5
+// 4. Development Auto-Orchestrator: Otomatis menyalakan Identity.Api (5081), Catalog.Api (5082), Order.Api (5083), Workflow.Api (5084), dan React Vite (5173) saat tekan F5
 var spawnedProcesses = new List<Process>();
 
 if (app.Environment.IsDevelopment())
@@ -74,6 +74,7 @@ if (app.Environment.IsDevelopment())
     var identityPort = builder.Configuration.GetValue<int>("MicroservicesOrchestrator:IdentityPort", 5081);
     var catalogPort = builder.Configuration.GetValue<int>("MicroservicesOrchestrator:CatalogPort", 5082);
     var orderPort = builder.Configuration.GetValue<int>("MicroservicesOrchestrator:OrderPort", 5083);
+    var workflowPort = builder.Configuration.GetValue<int>("MicroservicesOrchestrator:WorkflowPort", 5084);
     var spaPort = builder.Configuration.GetValue<int>("MicroservicesOrchestrator:SpaPort", 5173);
 
     var solutionRoot = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "..", "..", ".."));
@@ -98,6 +99,13 @@ if (app.Environment.IsDevelopment())
             serviceName: "Order.Api",
             port: orderPort,
             projectDir: Path.Combine(solutionRoot, "src", "Services", "Order", "Order.Api"),
+            spawnedProcesses,
+            app.Logger);
+
+        TryStartDotnetMicroservice(
+            serviceName: "Workflow.Api",
+            port: workflowPort,
+            projectDir: Path.Combine(solutionRoot, "src", "Services", "Workflow", "Workflow.Api"),
             spawnedProcesses,
             app.Logger);
     }
@@ -155,13 +163,14 @@ app.UseExceptionHandler();
 app.UseCors("AllowFrontend");
 app.UseRateLimiter();
 
-// 5. Unified OpenAPI Spec Aggregator (/openapi/v1.json) — Menggabungkan spec Identity.Api (5081), Catalog.Api (5082), & Order.Api (5083)
+// 5. Unified OpenAPI Spec Aggregator (/openapi/v1.json) — Menggabungkan spec Identity.Api (5081), Catalog.Api (5082), Order.Api (5083), & Workflow.Api (5084)
 app.MapGet("/openapi/v1.json", async (IHttpClientFactory httpClientFactory) =>
 {
     var client = httpClientFactory.CreateClient("GatewayAggregator");
     var identityUrl = builder.Configuration["ServiceEndpoints:IdentityServiceUrl"] ?? "http://localhost:5081";
     var catalogUrl = builder.Configuration["ServiceEndpoints:CatalogServiceUrl"] ?? "http://localhost:5082";
     var orderUrl = builder.Configuration["ServiceEndpoints:OrderServiceUrl"] ?? "http://localhost:5083";
+    var workflowUrl = builder.Configuration["ServiceEndpoints:WorkflowServiceUrl"] ?? "http://localhost:5084";
 
     var rootDoc = new JsonObject
     {
@@ -170,7 +179,7 @@ app.MapGet("/openapi/v1.json", async (IHttpClientFactory httpClientFactory) =>
         {
             ["title"] = "NetStarterPack Microservices — Unified API Gateway (YARP)",
             ["version"] = "v1",
-            ["description"] = "Dokumentasi gabungan seluruh Microservice (Identity.Api :5081, Catalog.Api :5082, & Order.Api :5083) melalui pintu YARP API Gateway (Port 5080)."
+            ["description"] = "Dokumentasi gabungan seluruh Microservice (Identity.Api :5081, Catalog.Api :5082, Order.Api :5083, & Workflow.Api :5084) melalui pintu YARP API Gateway (Port 5080)."
         },
         ["servers"] = new JsonArray(new JsonObject { ["url"] = "http://localhost:5080", ["description"] = "YARP API Gateway (Port 5080)" }),
         ["paths"] = new JsonObject(),
@@ -197,6 +206,7 @@ app.MapGet("/openapi/v1.json", async (IHttpClientFactory httpClientFactory) =>
     await MergeMicroserviceOpenApiAsync(client, $"{identityUrl}/openapi/v1.json", mergedPaths, mergedSchemas);
     await MergeMicroserviceOpenApiAsync(client, $"{catalogUrl}/openapi/v1.json", mergedPaths, mergedSchemas);
     await MergeMicroserviceOpenApiAsync(client, $"{orderUrl}/openapi/v1.json", mergedPaths, mergedSchemas);
+    await MergeMicroserviceOpenApiAsync(client, $"{workflowUrl}/openapi/v1.json", mergedPaths, mergedSchemas);
 
     return Results.Content(rootDoc.ToJsonString(), "application/json");
 }).AllowAnonymous();
@@ -227,12 +237,13 @@ app.MapGet("/swagger", () => Results.Content("""
   <div class="topbar-custom">
     <div>
       <span class="badge-ms">YARP GATEWAY :5080</span>
-      <strong>Unified Microservices Swagger UI</strong> — Klik <b>Authorize</b> untuk tes Identity (:5081), Catalog (:5082), &amp; Order (:5083)
+      <strong>Unified Microservices Swagger UI</strong> — Klik <b>Authorize</b> untuk tes Identity (:5081), Catalog (:5082), Order (:5083), &amp; Workflow (:5084)
     </div>
     <div>
       <a href="http://localhost:5081/swagger" target="_blank">Identity (:5081) &nearr;</a>
       <a href="http://localhost:5082/swagger" target="_blank">Catalog (:5082) &nearr;</a>
       <a href="http://localhost:5083/swagger" target="_blank">Order (:5083) &nearr;</a>
+      <a href="http://localhost:5084/swagger" target="_blank">Workflow (:5084) &nearr;</a>
       <a href="/scalar/v1">Unified Scalar &rarr;</a>
       <a href="http://localhost:5173" target="_blank">Web React (:5173) &rarr;</a>
     </div>
@@ -264,18 +275,25 @@ app.MapGet("/api/health", async (IHttpClientFactory httpClientFactory) =>
     var identityUrl = builder.Configuration["ServiceEndpoints:IdentityServiceUrl"] ?? "http://localhost:5081";
     var catalogUrl = builder.Configuration["ServiceEndpoints:CatalogServiceUrl"] ?? "http://localhost:5082";
     var orderUrl = builder.Configuration["ServiceEndpoints:OrderServiceUrl"] ?? "http://localhost:5083";
+    var workflowUrl = builder.Configuration["ServiceEndpoints:WorkflowServiceUrl"] ?? "http://localhost:5084";
 
     var identityHealth = await ProbeServiceAsync(client, "Identity.Api", $"{identityUrl}/api/health", "NetStarterPack_IdentityDb", 5081);
     var catalogHealth = await ProbeServiceAsync(client, "Catalog.Api", $"{catalogUrl}/api/health", "NetStarterPack_CatalogDb", 5082);
     var orderHealth = await ProbeServiceAsync(client, "Order.Api", $"{orderUrl}/api/health", "NetStarterPack_OrderDb", 5083);
+    var workflowHealth = await ProbeServiceAsync(client, "Workflow.Api", $"{workflowUrl}/api/health", "NetStarterPack_WorkflowDb", 5084);
+
+    var allHealthy = identityHealth.Status == "Healthy"
+        && catalogHealth.Status == "Healthy"
+        && orderHealth.Status == "Healthy"
+        && workflowHealth.Status == "Healthy";
 
     return Results.Ok(new
     {
         gateway = "Gateway.Api (YARP Reverse Proxy)",
-        status = identityHealth.Status == "Healthy" && catalogHealth.Status == "Healthy" && orderHealth.Status == "Healthy" ? "Healthy" : "Degraded",
+        status = allHealthy ? "Healthy" : "Degraded",
         framework = ".NET 10.0 LTS",
         architecture = "Microservices + Compact Onion + YARP Gateway",
-        services = new[] { identityHealth, catalogHealth, orderHealth },
+        services = new[] { identityHealth, catalogHealth, orderHealth, workflowHealth },
         timestamp = DateTime.UtcNow
     });
 }).AllowAnonymous();

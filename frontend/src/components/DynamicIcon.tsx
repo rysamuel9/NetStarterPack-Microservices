@@ -20,6 +20,13 @@ import {
   Database,
   Server,
   Boxes,
+  FilePlus2,
+  ClipboardCheck,
+  GitBranch,
+  Laptop,
+  Calendar,
+  Briefcase,
+  CheckSquare,
 } from 'lucide-react';
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -43,6 +50,13 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Database,
   Server,
   Boxes,
+  FilePlus2,
+  ClipboardCheck,
+  GitBranch,
+  Laptop,
+  Calendar,
+  Briefcase,
+  CheckSquare,
 };
 
 export const AVAILABLE_ICON_NAMES = Object.keys(iconMap);

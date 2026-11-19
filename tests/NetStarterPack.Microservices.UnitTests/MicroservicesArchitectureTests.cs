@@ -1,5 +1,4 @@
-﻿using Microsoft.Extensions.Caching.Memory;
-using BuildingBlocks.Core.Constants;
+﻿using BuildingBlocks.Core.Constants;
 using BuildingBlocks.Core.Contracts;
 using BuildingBlocks.Core.Interfaces;
 using BuildingBlocks.Infrastructure.Caching;
@@ -14,11 +13,15 @@ using Identity.Api.Infrastructure.Persistence;
 using Identity.Api.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Order.Api.Application.DTOs;
 using Order.Api.Application.Services;
 using Order.Api.Infrastructure.Persistence;
+using Workflow.Api.Application.DTOs;
+using Workflow.Api.Application.Services;
+using Workflow.Api.Infrastructure.Persistence;
 
 namespace NetStarterPack.Microservices.UnitTests;
 
@@ -28,6 +31,7 @@ public class MicroservicesArchitectureTests
     {
         public Guid? UserId { get; set; } = Guid.NewGuid();
         public string? Username { get; set; } = "superadmin";
+        public string? FullName { get; set; } = "Budi Santoso (Super Admin)";
         public IReadOnlyList<string> Roles { get; set; } = [RoleNames.SuperAdmin];
         public IReadOnlyList<string> Permissions { get; set; } =
             BuildingBlocks.Core.Constants.Permissions.GetAll().Select(p => p.Code).ToList();
@@ -103,6 +107,20 @@ public class MicroservicesArchitectureTests
         return (db, uow);
     }
 
+    private static async Task<(WorkflowDbContext Db, WorkflowUnitOfWork Uow)> CreateSeededWorkflowAsync()
+    {
+        var options = new DbContextOptionsBuilder<WorkflowDbContext>()
+            .UseInMemoryDatabase($"WorkflowTestDb_{Guid.NewGuid()}")
+            .Options;
+
+        var db = new WorkflowDbContext(options);
+        var seeder = new WorkflowDatabaseSeeder(db, NullLogger<WorkflowDatabaseSeeder>.Instance);
+        await seeder.SeedAsync();
+
+        var uow = new WorkflowUnitOfWork(db);
+        return (db, uow);
+    }
+
     [Fact]
     public async Task IdentityService_Login_And_RefreshTokenRotation_ShouldSucceed()
     {
@@ -163,11 +181,9 @@ public class MicroservicesArchitectureTests
 
         var orderService = new OrderService(orderUow, currentUser, cache, eventBus);
 
-        // 1. Pastikan 4 data order hasil seeder masuk ke cache
         var initialList = await orderService.GetAllOrdersAsync();
         Assert.Equal(4, initialList.Data!.Count);
 
-        // 2. Buat pesanan baru (Quantity 3 x 2.000.000 = 6.000.000)
         var createResult = await orderService.CreateOrderAsync(new CreateOrUpdateOrderRequest(
             OrderNumber: "ord-2026-999",
             CustomerName: "PT Garuda Digital Nusantara",
@@ -184,16 +200,13 @@ public class MicroservicesArchitectureTests
         Assert.Equal("ORD-2026-999", createResult.Data!.OrderNumber);
         Assert.Equal(6000000m, createResult.Data.TotalAmount);
 
-        // 3. Pastikan cache ter-invalidate sehingga total order sekarang 5
         var afterCreateList = await orderService.GetAllOrdersAsync();
         Assert.Equal(5, afterCreateList.Data!.Count);
 
-        // 4. Pastikan event CREATE_ORDER dikirim oleh Order.Api ke IEventBus
         Assert.Single(eventBus.PublishedEvents);
         Assert.Equal("CREATE_ORDER", eventBus.PublishedEvents[0].Action);
         Assert.Equal("Order.Api", eventBus.PublishedEvents[0].SourceService);
 
-        // 5. Pastikan Soft-Delete berfungsi di OrderDbContext
         await orderService.DeleteOrderAsync(createResult.Data.Id);
         var deletedEntity = await db.Orders.IgnoreQueryFilters().FirstOrDefaultAsync(o => o.Id == createResult.Data.Id);
         Assert.NotNull(deletedEntity);
@@ -232,9 +245,228 @@ public class MicroservicesArchitectureTests
 
         var summaryResult = await dashboardService.GetSummaryAsync();
         Assert.True(summaryResult.Succeeded);
-        Assert.Equal(5, summaryResult.Data!.TotalUsers);
+        Assert.Equal(8, summaryResult.Data!.TotalUsers);
         Assert.Equal(7, summaryResult.Data.TotalProducts);
         Assert.Contains(summaryResult.Data.RecentActivities, a => a.Action == "CREATE_PRODUCT");
     }
-}
 
+    [Fact]
+    public async Task WorkflowService_DynamicSchemaValidation_ShouldRejectMissingRequiredFields()
+    {
+        var (_, uow) = await CreateSeededWorkflowAsync();
+        var staffUser = new FakeCurrentUserService
+        {
+            UserId = Guid.NewGuid(),
+            Username = "staff",
+            FullName = "Dewi Lestari (Staff)",
+            Roles = [RoleNames.Staff]
+        };
+        var service = new WorkflowService(uow, staffUser, CreateTestCacheService(), new InMemoryEventBus());
+
+        // Submit LAPTOP_PROCUREMENT tanpa mengisi field wajib (deviceBrand, processor, ram, dll)
+        var result = await service.CreateRequestAsync(new CreateWorkflowRequestDto(
+            TemplateCode: "LAPTOP_PROCUREMENT",
+            Title: "Pengajuan Laptop Kurang Lengkap",
+            FormData: new Dictionary<string, string>
+            {
+                ["deviceBrand"] = "MacBook Pro 14 M4"
+                // Field wajib lainnya sengaja dikosongkan
+            },
+            SubmitImmediately: true));
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(400, result.StatusCode);
+        Assert.NotEmpty(result.Errors);
+    }
+
+    [Fact]
+    public async Task WorkflowService_MultiLevelApproval_FromStaffToFullyApproved_WithSecurityGuards()
+    {
+        var (_, uow) = await CreateSeededWorkflowAsync();
+        var cache = CreateTestCacheService();
+        var eventBus = new InMemoryEventBus();
+
+        var staffId = Guid.NewGuid();
+        var managerId = Guid.NewGuid();
+        var itLeadId = Guid.NewGuid();
+        var financeId = Guid.NewGuid();
+
+        var currentUser = new FakeCurrentUserService
+        {
+            UserId = staffId,
+            Username = "staff",
+            FullName = "Dewi Lestari (Staff)",
+            Roles = [RoleNames.Staff]
+        };
+
+        var service = new WorkflowService(uow, currentUser, cache, eventBus);
+
+        // 1. Staff mengajukan Form Pengadaan Laptop (3 Level Approval: Manager -> ITLead -> FinanceDirector)
+        var createRes = await service.CreateRequestAsync(new CreateWorkflowRequestDto(
+            TemplateCode: "LAPTOP_PROCUREMENT",
+            Title: "Pengadaan ThinkPad P14s Gen 5 untuk Backend Dev",
+            FormData: new Dictionary<string, string>
+            {
+                ["brandModel"] = "Lenovo ThinkPad P14s Gen 5",
+                ["specifications"] = "AMD Ryzen 7 PRO 8840HS, 32GB RAM, 1TB NVMe SSD",
+                ["estimatedCost"] = "28500000",
+                ["urgency"] = "Urgent (7 Hari)",
+                ["neededDate"] = "2026-12-01",
+                ["justification"] = "Dibutuhkan untuk run Docker + SQL Server + 5 microservice lokal."
+            },
+            SubmitImmediately: true));
+
+        Assert.True(createRes.Succeeded);
+        Assert.Equal("InReview", createRes.Data!.Status);
+        Assert.Equal(1, createRes.Data.CurrentStepOrder);
+        Assert.Equal(RoleNames.Manager, createRes.Data.CurrentApproverRole);
+        var requestId = createRes.Data.Id;
+
+        // 2. Security Guard #1 (Anti-Queue-Jumping): FinanceDirector mencoba bypass & approve di Step 1 -> HARUS 403!
+        currentUser.UserId = financeId;
+        currentUser.Username = "financedirector";
+        currentUser.FullName = "Surya Darmawan (Finance Director)";
+        currentUser.Roles = [RoleNames.FinanceDirector];
+
+        var bypassAttempt = await service.ApproveAsync(requestId, new ApprovalActionRequestDto("Coba bypass step 1"));
+        Assert.False(bypassAttempt.Succeeded);
+        Assert.Equal(403, bypassAttempt.StatusCode);
+
+        // 3. Manager (Step 1) melihat Working List & Approve
+        currentUser.UserId = managerId;
+        currentUser.Username = "manager";
+        currentUser.FullName = "Andi Pratama (Manager)";
+        currentUser.Roles = [RoleNames.Manager];
+
+        var managerInbox = await service.GetWorkingListAsync();
+        Assert.Contains(managerInbox.Data!, x => x.Id == requestId);
+
+        var step1Res = await service.ApproveAsync(requestId, new ApprovalActionRequestDto("Kebutuhan dev valid, lanjut cek IT."));
+        Assert.True(step1Res.Succeeded);
+        Assert.Equal("InReview", step1Res.Data!.Status);
+        Assert.Equal(2, step1Res.Data.CurrentStepOrder);
+        Assert.Equal(RoleNames.ITLead, step1Res.Data.CurrentApproverRole);
+
+        // 4. ITLead (Step 2) Approve
+        currentUser.UserId = itLeadId;
+        currentUser.Username = "itlead";
+        currentUser.FullName = "Hendra Wijaya (IT Lead)";
+        currentUser.Roles = [RoleNames.ITLead];
+
+        var step2Res = await service.ApproveAsync(requestId, new ApprovalActionRequestDto("Spek ThinkPad 32GB sesuai standar IT."));
+        Assert.True(step2Res.Succeeded);
+        Assert.Equal(3, step2Res.Data!.CurrentStepOrder);
+        Assert.Equal(RoleNames.FinanceDirector, step2Res.Data.CurrentApproverRole);
+
+        // 5. FinanceDirector (Step 3 Final) Approve -> Status menjadi Approved (Fully Approved)
+        currentUser.UserId = financeId;
+        currentUser.Username = "financedirector";
+        currentUser.FullName = "Surya Darmawan (Finance Director)";
+        currentUser.Roles = [RoleNames.FinanceDirector];
+
+        var finalRes = await service.ApproveAsync(requestId, new ApprovalActionRequestDto("Budget Capex IT Q4 disetujui."));
+        Assert.True(finalRes.Succeeded);
+        Assert.Equal("Approved", finalRes.Data!.Status);
+        Assert.Null(finalRes.Data.CurrentApproverRole);
+        Assert.NotNull(finalRes.Data.CompletedAt);
+        Assert.All(finalRes.Data.ApprovalSteps, s => Assert.Equal("Approved", s.Status));
+        Assert.Contains(eventBus.PublishedEvents, e => e.Action == "FULLY_APPROVED" && e.SourceService == "Workflow.Api");
+    }
+
+    [Fact]
+    public async Task WorkflowService_AntiSelfApproval_And_RevisionResubmitCycle_ShouldEnforceSecurity()
+    {
+        var (_, uow) = await CreateSeededWorkflowAsync();
+        var cache = CreateTestCacheService();
+        var eventBus = new InMemoryEventBus();
+
+        var managerId = Guid.NewGuid();
+        var staffId = Guid.NewGuid();
+
+        // Kasus A: Manager submit form sendiri -> tidak boleh approve form sendiri (403 Anti-Self-Approval)
+        var currentUser = new FakeCurrentUserService
+        {
+            UserId = managerId,
+            Username = "manager",
+            FullName = "Andi Pratama (Manager)",
+            Roles = [RoleNames.Manager]
+        };
+        var service = new WorkflowService(uow, currentUser, cache, eventBus);
+
+        var selfRequest = await service.CreateRequestAsync(new CreateWorkflowRequestDto(
+            TemplateCode: "LEAVE_REQUEST",
+            Title: "Cuti Tahunan Manager",
+            FormData: new Dictionary<string, string>
+            {
+                ["leaveType"] = "Cuti Tahunan",
+                ["startDate"] = "2026-12-10",
+                ["endDate"] = "2026-12-12",
+                ["totalDays"] = "3",
+                ["backupPic"] = "Budi Santoso",
+                ["reason"] = "Urusan keluarga"
+            },
+            SubmitImmediately: true));
+
+        Assert.True(selfRequest.Succeeded);
+        var selfApproveRes = await service.ApproveAsync(selfRequest.Data!.Id, new ApprovalActionRequestDto("Approve sendiri"));
+        Assert.False(selfApproveRes.Succeeded);
+        Assert.Equal(403, selfApproveRes.StatusCode);
+
+        // Kasus B: Staff submit -> Manager minta revisi -> Staff edit & resubmit -> kembali InReview
+        currentUser.UserId = staffId;
+        currentUser.Username = "staff";
+        currentUser.FullName = "Dewi Lestari (Staff)";
+        currentUser.Roles = [RoleNames.Staff];
+
+        var supplyReq = await service.CreateRequestAsync(new CreateWorkflowRequestDto(
+            TemplateCode: "OFFICE_SUPPLY",
+            Title: "Beli Kursi Ergonomis",
+            FormData: new Dictionary<string, string>
+            {
+                ["itemName"] = "Kursi Ergonomis Kantor",
+                ["supplyCategory"] = "Furniture & Ruang Kerja",
+                ["quantity"] = "2",
+                ["estimatedTotal"] = "6000000",
+                ["deliveryDivision"] = "Lantai 3 - Engineering"
+            },
+            SubmitImmediately: true));
+
+        var supplyId = supplyReq.Data!.Id;
+
+        // Manager minta revisi
+        currentUser.UserId = managerId;
+        currentUser.Username = "manager";
+        currentUser.Roles = [RoleNames.Manager];
+
+        var revRes = await service.RequestRevisionAsync(supplyId, new ApprovalActionRequestDto("Lampirkan tipe kursi dan vendornya."));
+        Assert.True(revRes.Succeeded);
+        Assert.Equal("RevisionRequested", revRes.Data!.Status);
+
+        // Orang lain (Manager) mencoba mengedit form milik Staff -> HARUS 403!
+        var illegalEdit = await service.ResubmitRequestAsync(supplyId, new UpdateAndResubmitWorkflowRequestDto(
+            Title: "Diedit bukan pemilik",
+            FormData: supplyReq.Data.FormData,
+            ResubmitNotes: "Coba edit paksa"));
+        Assert.False(illegalEdit.Succeeded);
+        Assert.Equal(403, illegalEdit.StatusCode);
+
+        // Staff (pemilik asli) merevisi & submit ulang -> sukses kembali ke InReview Step 1
+        currentUser.UserId = staffId;
+        currentUser.Username = "staff";
+        currentUser.Roles = [RoleNames.Staff];
+
+        var updatedData = new Dictionary<string, string>(supplyReq.Data.FormData)
+        {
+            ["itemName"] = "Kursi Ergonomis Pexio Mike (Vendor Resmi)",
+            ["notes"] = "Link vendor sudah dicek"
+        };
+        var resubmitRes = await service.ResubmitRequestAsync(supplyId, new UpdateAndResubmitWorkflowRequestDto(
+            Title: "Beli Kursi Ergonomis (Revisi Vendor)",
+            FormData: updatedData,
+            ResubmitNotes: "Sudah ditambahkan detail tipe & vendor resmi"));
+
+        Assert.True(resubmitRes.Succeeded);
+        Assert.Equal("InReview", resubmitRes.Data!.Status);
+        Assert.Equal(1, resubmitRes.Data.CurrentStepOrder);
+    }
+}

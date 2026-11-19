@@ -4,6 +4,7 @@ import {
   ShieldCheck,
   Package,
   ShoppingCart,
+  GitBranch,
   CheckCircle2,
   Clock,
   KeyRound,
@@ -14,21 +15,29 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import type { ApiResult, DashboardSummary, GatewayHealthResponse, OrderStats } from '../types';
+import type {
+  ApiResult,
+  DashboardSummary,
+  GatewayHealthResponse,
+  OrderStats,
+  WorkflowStats,
+} from '../types';
 
 export const DashboardPage: React.FC = () => {
   const { user, menus } = useAuth();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [orderStats, setOrderStats] = useState<OrderStats | null>(null);
+  const [workflowStats, setWorkflowStats] = useState<WorkflowStats | null>(null);
   const [health, setHealth] = useState<GatewayHealthResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [sumRes, ordRes, healthRes] = await Promise.allSettled([
+        const [sumRes, ordRes, wfRes, healthRes] = await Promise.allSettled([
           api.get<ApiResult<DashboardSummary>>('/dashboard/summary'),
           api.get<ApiResult<OrderStats>>('/orders/stats'),
+          api.get<ApiResult<WorkflowStats>>('/workflows/stats'),
           api.get<GatewayHealthResponse>('/health'),
         ]);
 
@@ -37,6 +46,9 @@ export const DashboardPage: React.FC = () => {
         }
         if (ordRes.status === 'fulfilled' && ordRes.value.data.succeeded && ordRes.value.data.data) {
           setOrderStats(ordRes.value.data.data);
+        }
+        if (wfRes.status === 'fulfilled' && wfRes.value.data.succeeded && wfRes.value.data.data) {
+          setWorkflowStats(wfRes.value.data.data);
         }
         if (healthRes.status === 'fulfilled' && healthRes.value.data) {
           setHealth(healthRes.value.data);
@@ -68,29 +80,36 @@ export const DashboardPage: React.FC = () => {
           <p className="text-slate-300 text-sm mt-1 max-w-2xl">
             Sesi kamu diautentikasi oleh <strong>Identity.Api (:5081)</strong> dengan role{' '}
             <strong className="text-teal-300">{user?.roles.join(', ')}</strong> ({menus.length} menu aktif).
-            Metrik di halaman ini diagregasi langsung dari 3 database microservice berbeda.
+            Metrik di halaman ini diagregasi langsung dari 4 database microservice berbeda.
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 shrink-0">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 shrink-0">
           <div className="bg-slate-900/90 rounded-xl p-3.5 border border-slate-800">
             <p className="text-[11px] text-slate-400 font-mono">Catalog.Api (:5082)</p>
             <p className="text-xs text-slate-400">Nilai Aset Katalog</p>
-            <p className="text-lg font-bold mt-0.5 text-emerald-400">
+            <p className="text-base font-bold mt-0.5 text-emerald-400">
               {summary ? formatCurrency(summary.totalInventoryValue) : 'Rp 0'}
             </p>
           </div>
           <div className="bg-slate-900/90 rounded-xl p-3.5 border border-slate-800">
             <p className="text-[11px] text-slate-400 font-mono">Order.Api (:5083)</p>
             <p className="text-xs text-slate-400">Total Nilai Pesanan</p>
-            <p className="text-lg font-bold mt-0.5 text-cyan-400">
+            <p className="text-base font-bold mt-0.5 text-cyan-400">
               {orderStats ? formatCurrency(orderStats.totalRevenue) : 'Rp 0'}
+            </p>
+          </div>
+          <div className="bg-slate-900/90 rounded-xl p-3.5 border border-violet-500/30 col-span-2 sm:col-span-1">
+            <p className="text-[11px] text-violet-300 font-mono">Workflow.Api (:5084)</p>
+            <p className="text-xs text-slate-400">Pengajuan In Review</p>
+            <p className="text-base font-bold mt-0.5 text-violet-300">
+              {workflowStats ? `${workflowStats.inReviewRequests} Aktif / ${workflowStats.totalRequests} Total` : '0 Aktif'}
             </p>
           </div>
         </div>
       </div>
 
-      {/* Live 4-Node Microservices Topology & Database-per-Service Status */}
+      {/* Live 5-Node Microservices Topology & Database-per-Service Status */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
           <div className="flex items-center gap-2">
@@ -101,12 +120,12 @@ export const DashboardPage: React.FC = () => {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
-              1 Gateway + 3 Microservices + 3 Isolated Databases
+              1 Gateway + 4 Microservices + 4 Isolated Databases
             </span>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
           {/* Node 1: Gateway */}
           <div className="p-3.5 rounded-xl bg-teal-50/50 border border-teal-200 flex flex-col justify-between">
             <div>
@@ -126,12 +145,12 @@ export const DashboardPage: React.FC = () => {
                 rel="noreferrer"
                 className="text-teal-700 hover:underline inline-flex items-center gap-1 font-semibold"
               >
-                Unified Swagger <ExternalLink className="w-3 h-3" />
+                Swagger <ExternalLink className="w-3 h-3" />
               </a>
             </div>
           </div>
 
-          {/* Node 2, 3, 4 from live /api/health or default */}
+          {/* Node 2, 3, 4, 5 from live /api/health or default */}
           {(health?.services ?? [
             {
               service: 'Identity.Api',
@@ -155,6 +174,14 @@ export const DashboardPage: React.FC = () => {
               url: 'http://localhost:5083/api/health',
               status: 'Healthy',
               database: 'NetStarterPack_OrderDb',
+              latencyMs: 2,
+            },
+            {
+              service: 'Workflow.Api',
+              port: 5084,
+              url: 'http://localhost:5084/api/health',
+              status: 'Healthy',
+              database: 'NetStarterPack_WorkflowDb',
               latencyMs: 2,
             },
           ]).map((node, idx) => (
@@ -198,14 +225,14 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 4 Kartu Metrik Lintas 3 Database Microservice */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* 5 Kartu Metrik Lintas 4 Database Microservice */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center">
-            <Users className="w-6 h-6" />
+          <div className="w-11 h-11 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center shrink-0">
+            <Users className="w-5 h-5" />
           </div>
-          <div>
-            <p className="text-xs font-medium text-slate-500">Users (IdentityDb :5081)</p>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-slate-500 truncate">Users (IdentityDb)</p>
             <p className="text-2xl font-bold text-slate-900">
               {loading ? '...' : summary?.totalUsers ?? 0}
             </p>
@@ -214,42 +241,57 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
-            <ShieldCheck className="w-6 h-6" />
+          <div className="w-11 h-11 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
+            <ShieldCheck className="w-5 h-5" />
           </div>
-          <div>
-            <p className="text-xs font-medium text-slate-500">Roles &amp; Menus (IdentityDb)</p>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-slate-500 truncate">Roles &amp; Menus</p>
             <p className="text-2xl font-bold text-slate-900">
               {loading ? '...' : summary?.totalRoles ?? 0} Role
             </p>
-            <p className="text-xs text-slate-500">{summary?.totalMenus ?? 0} menu terdaftar</p>
+            <p className="text-xs text-slate-500">{summary?.totalMenus ?? 0} menu aktif</p>
           </div>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-            <Package className="w-6 h-6" />
+          <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+            <Package className="w-5 h-5" />
           </div>
-          <div>
-            <p className="text-xs font-medium text-slate-500">Katalog (CatalogDb :5082)</p>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-slate-500 truncate">Katalog (:5082)</p>
             <p className="text-2xl font-bold text-slate-900">
               {loading ? '...' : summary?.totalProducts ?? 0}
             </p>
-            <p className="text-xs text-slate-500">Microservice 1 (CRUD)</p>
+            <p className="text-xs text-slate-500">CatalogDb</p>
           </div>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-            <ShoppingCart className="w-6 h-6" />
+          <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+            <ShoppingCart className="w-5 h-5" />
           </div>
-          <div>
-            <p className="text-xs font-medium text-slate-500">Pesanan (OrderDb :5083)</p>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-slate-500 truncate">Pesanan (:5083)</p>
             <p className="text-2xl font-bold text-slate-900">
               {loading ? '...' : orderStats?.totalOrders ?? 0}
             </p>
             <p className="text-xs text-teal-600 font-medium">
               {orderStats?.completedOrders ?? 0} selesai • {orderStats?.pendingOrders ?? 0} proses
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-violet-200 flex items-center gap-4">
+          <div className="w-11 h-11 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center shrink-0">
+            <GitBranch className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-slate-500 truncate">Workflow (:5084)</p>
+            <p className="text-2xl font-bold text-slate-900">
+              {loading ? '...' : workflowStats?.totalRequests ?? 0}
+            </p>
+            <p className="text-xs text-violet-600 font-medium">
+              {workflowStats?.approvedRequests ?? 0} approved • {workflowStats?.inReviewRequests ?? 0} review
             </p>
           </div>
         </div>

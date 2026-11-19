@@ -10,10 +10,11 @@
     <ProjectReference Include="..\..\BuildingBlocks\BuildingBlocks.Core\BuildingBlocks.Core.csproj" />
     <ProjectReference Include="..\..\BuildingBlocks\BuildingBlocks.Security\BuildingBlocks.Security.csproj" />
     <ProjectReference Include="..\..\BuildingBlocks\BuildingBlocks.Infrastructure\BuildingBlocks.Infrastructure.csproj" />
-    <!-- Ensure Visual Studio automatically builds Identity.Api, Catalog.Api, & Order.Api when pressing F5 on Gateway.Api -->
+    <!-- Ensure Visual Studio automatically builds Identity.Api, Catalog.Api, Order.Api, & Workflow.Api when pressing F5 on Gateway.Api -->
     <ProjectReference Include="..\..\Services\Identity\Identity.Api\Identity.Api.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\..\Services\Catalog\Catalog.Api\Catalog.Api.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\..\Services\Order\Order.Api\Order.Api.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\Services\Workflow\Workflow.Api\Workflow.Api.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
