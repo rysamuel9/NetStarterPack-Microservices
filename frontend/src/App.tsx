@@ -90,6 +90,7 @@ export const App: React.FC = () => {
                 </ProtectedRoute>
               }
             />
+            <Route path="announcement" element={<Navigate to="/announcements" replace />} />
             <Route
               path="announcements/:id"
               element={
