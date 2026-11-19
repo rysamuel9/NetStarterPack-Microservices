@@ -56,6 +56,12 @@ public static class Permissions
         public const string ManageTemplates = "Workflows.ManageTemplates";
     }
 
+    public static class Announcements
+    {
+        public const string View = "Announcements.View";
+        public const string Manage = "Announcements.Manage";
+    }
+
     public static class Reports
     {
         public const string View = "Reports.View";
@@ -96,6 +102,9 @@ public static class Permissions
         new(Workflows.Create, "Buat Pengajuan Form", "Workflows", "Membuat dan men-submit formulir dinamis (Workflow Microservice)"),
         new(Workflows.Approve, "Approval Working List", "Workflows", "Menyetujui, meminta revisi, atau menolak dokumen di Working List (Workflow Microservice)"),
         new(Workflows.ManageTemplates, "Kelola Template Form", "Workflows", "Membuat dan mengubah skema form dinamis serta tahapan approval (Workflow Microservice)"),
+
+        new(Announcements.View, "Lihat Pengumuman", "Announcements", "Melihat daftar, detail, notifikasi bel, like, dan komentar pengumuman (Announcement Microservice)"),
+        new(Announcements.Manage, "Kelola Pengumuman (HR)", "Announcements", "Membuat, mengubah, menghapus pengumuman, upload banner/lampiran, dan on/off komentar (khusus Tim HR)"),
 
         new(Reports.View, "Lihat Laporan & Analitik", "Reports", "Mengakses halaman laporan manajemen"),
         new(Reports.Export, "Ekspor Laporan", "Reports", "Mengunduh/mengekspor data laporan"),

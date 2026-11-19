@@ -42,6 +42,7 @@ Seluruh panduan teknis sudah disusun secara mendalam di dalam folder [`docs/`](d
 | **`Catalog.Api`** *(Business Microservice 1)* | `5082` | `NetStarterPack_CatalogDb` | Contoh Microservice Bisnis mandiri (CRUD `Products` + Hybrid L1/L2 Cache + publish `AuditLogIntegrationEvent` via `IEventBus` ke Identity). |
 | **`Order.Api`** *(Example 2: Order CRUD)* | `5083` | `NetStarterPack_OrderDb` | Contoh Microservice Mandiri ke-2 (CRUD `Orders` + kalkulasi total otomatis + Cache + EventBus + Soft-Delete). |
 | **`Workflow.Api`** *(Example 3 Advanced)* | `5084` | `NetStarterPack_WorkflowDb` | **Dynamic Form Builder & Multi-Level Approval Engine** (Hybrid Relational + JSON Schema, State Machine, Working List, Tracking Stepper, & 7-Layer Security). |
+| **`Announcement.Api`** *(HR Newsroom)* | `5085` | `NetStarterPack_AnnouncementDb` | **Internal Announcement & Newsroom** (Compact Rich Text Editor, Banner & Image/File Uploads, Like, On/Off Comment oleh HR, Bell Unread Feed, & Pagination 10/halaman). |
 | **`Frontend`** *(React 19 + TS + Tailwind v4)* | `5173` | — | SPA Frontend yang cukup menembak ke **1 URL Gateway (`http://localhost:5080`)** tanpa perlu tahu di belakang ada berapa microservice. |
 
 ---

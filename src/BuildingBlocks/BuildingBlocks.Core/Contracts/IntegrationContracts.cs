@@ -39,6 +39,13 @@ public record WorkflowStatsDto(
     int ActiveTemplates
 );
 
+public record AnnouncementStatsDto(
+    int TotalAnnouncements,
+    int PublishedAnnouncements,
+    int TotalLikes,
+    int TotalComments
+);
+
 public record ServiceHealthNode(
     string Service,
     int Port,

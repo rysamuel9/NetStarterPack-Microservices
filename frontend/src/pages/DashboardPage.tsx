@@ -120,12 +120,12 @@ export const DashboardPage: React.FC = () => {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
-              1 Gateway + 4 Microservices + 4 Isolated Databases
+              1 Gateway + 5 Microservices + 5 Isolated Databases
             </span>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 text-xs">
           {/* Node 1: Gateway */}
           <div className="p-3.5 rounded-xl bg-teal-50/50 border border-teal-200 flex flex-col justify-between">
             <div>
@@ -182,6 +182,14 @@ export const DashboardPage: React.FC = () => {
               url: 'http://localhost:5084/api/health',
               status: 'Healthy',
               database: 'NetStarterPack_WorkflowDb',
+              latencyMs: 2,
+            },
+            {
+              service: 'Announcement.Api',
+              port: 5085,
+              url: 'http://localhost:5085/api/health',
+              status: 'Healthy',
+              database: 'NetStarterPack_AnnouncementDb',
               latencyMs: 2,
             },
           ]).map((node, idx) => (

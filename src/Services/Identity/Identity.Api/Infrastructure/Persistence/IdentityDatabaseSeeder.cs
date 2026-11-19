@@ -33,6 +33,7 @@ public class IdentityDatabaseSeeder(
         {
             await EnsureOrderMicroserviceMenuAndPermissionsAsync(cancellationToken);
             await EnsureWorkflowRolesUsersAndMenusAsync(cancellationToken);
+            await EnsureAnnouncementRolesUsersAndMenuAsync(cancellationToken);
             return;
         }
 
@@ -499,7 +500,8 @@ public class IdentityDatabaseSeeder(
         }, cancellationToken);
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        logger.LogInformation("Identity database seeded successfully with corporate workflow roles & users!");
+        await EnsureAnnouncementRolesUsersAndMenuAsync(cancellationToken);
+        logger.LogInformation("Identity database seeded successfully with corporate workflow & HR announcement roles & users!");
     }
 
     private async Task EnsureOrderMicroserviceMenuAndPermissionsAsync(CancellationToken cancellationToken)
@@ -761,5 +763,178 @@ public class IdentityDatabaseSeeder(
 
         await dbContext.SaveChangesAsync(cancellationToken);
         logger.LogInformation("[Identity.Api] Auto-upgraded existing Identity DB with Workflow.Api roles, users, and 3 menus!");
+    }
+
+    /// <summary>
+    /// Auto-upgrade aman untuk Announcement.Api (Port 5085):
+    /// menambahkan 2 role HR baru (HRSupervisor dan HRStaff), 2 akun demo HR (hrsupervisor dan hrstaff),
+    /// permission Announcements.View (semua role) serta Announcements.Manage (khusus HRStaff, HRSupervisor, HRManager, SuperAdmin),
+    /// dan menu sidebar Pengumuman (/announcements) tanpa menduplikasi jika user sudah membuat /announcements lewat UI.
+    /// </summary>
+    private async Task EnsureAnnouncementRolesUsersAndMenuAsync(CancellationToken cancellationToken)
+    {
+        var hasHrStaff = await dbContext.Roles.AnyAsync(r => r.Name == RoleNames.HRStaff, cancellationToken);
+        var hasHrSupervisor = await dbContext.Roles.AnyAsync(r => r.Name == RoleNames.HRSupervisor, cancellationToken);
+        var hasAnnPerm = await dbContext.RolePermissions.AnyAsync(rp => rp.PermissionCode == Permissions.Announcements.Manage, cancellationToken);
+        if (hasHrStaff && hasHrSupervisor && hasAnnPerm)
+        {
+            return;
+        }
+
+        logger.LogInformation("[Identity.Api] Ensuring HR Announcement roles (HRStaff, HRSupervisor), users, permissions, and menu...");
+
+        var existingRoles = await dbContext.Roles.Include(r => r.RolePermissions).ToListAsync(cancellationToken);
+        Role EnsureRole(string name, string displayName, string description, string badgeColor)
+        {
+            var found = existingRoles.FirstOrDefault(r => r.Name == name);
+            if (found is not null) return found;
+
+            var created = new Role
+            {
+                Name = name,
+                DisplayName = displayName,
+                Description = description,
+                BadgeColor = badgeColor,
+                IsSystemRole = false,
+                CreatedBy = "SystemSeeder"
+            };
+            dbContext.Roles.Add(created);
+            existingRoles.Add(created);
+            return created;
+        }
+
+        var hrSupervisorRole = EnsureRole(
+            RoleNames.HRSupervisor,
+            "HR Supervisor",
+            "Supervisor HR: membuat & menerbitkan pengumuman perusahaan, kelola komentar, dan operasional HR.",
+            "fuchsia");
+
+        var hrStaffRole = EnsureRole(
+            RoleNames.HRStaff,
+            "HR Staff",
+            "Staff HR: membuat & menerbitkan pengumuman perusahaan, upload banner/lampiran, dan pengajuan form.",
+            "pink");
+
+        var defaultPasswordHash = passwordHasher.HashPassword("Password123!");
+        async Task EnsureUserAsync(string username, string email, string fullName, string phone, string dept, Role role)
+        {
+            if (await dbContext.Users.AnyAsync(u => u.Username == username, cancellationToken))
+                return;
+
+            var user = new User
+            {
+                Username = username,
+                Email = email,
+                FullName = fullName,
+                PasswordHash = defaultPasswordHash,
+                PhoneNumber = phone,
+                Department = dept,
+                Status = UserStatus.Active,
+                CreatedBy = "SystemSeeder"
+            };
+            await dbContext.Users.AddAsync(user, cancellationToken);
+            await dbContext.UserRoles.AddAsync(new UserRole
+            {
+                UserId = user.Id,
+                RoleId = role.Id,
+                CreatedBy = "SystemSeeder"
+            }, cancellationToken);
+        }
+
+        await EnsureUserAsync("hrsupervisor", "hrsupervisor@starterpack.local", "Dimas Prakoso (HR Supervisor)", "+62 811-1000-009", "Human Resources & Internal Comms", hrSupervisorRole);
+        await EnsureUserAsync("hrstaff", "hrstaff@starterpack.local", "Nadia Putri (HR Staff)", "+62 811-1000-010", "Human Resources & People Ops", hrStaffRole);
+
+        // Hanya HRStaff, HRSupervisor, HRManager (+ SuperAdmin) yang mendapatkan Announcements.Manage
+        var hrPublisherRoles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            RoleNames.SuperAdmin, RoleNames.HRManager, RoleNames.HRSupervisor, RoleNames.HRStaff
+        };
+
+        foreach (var role in existingRoles)
+        {
+            var permsToAdd = new List<string> { Permissions.Announcements.View };
+            if (hrPublisherRoles.Contains(role.Name))
+            {
+                permsToAdd.Add(Permissions.Announcements.Manage);
+            }
+
+            if (role.Name is RoleNames.HRSupervisor or RoleNames.HRStaff)
+            {
+                permsToAdd.AddRange([
+                    Permissions.Dashboard.View,
+                    Permissions.Workflows.View,
+                    Permissions.Workflows.Create
+                ]);
+            }
+
+            foreach (var code in permsToAdd.Distinct())
+            {
+                if (!role.RolePermissions.Any(rp => rp.PermissionCode == code))
+                {
+                    await dbContext.RolePermissions.AddAsync(new RolePermission
+                    {
+                        RoleId = role.Id,
+                        PermissionCode = code,
+                        CreatedBy = "SystemSeeder"
+                    }, cancellationToken);
+                }
+            }
+        }
+
+        var existingMenus = await dbContext.MenuItems.ToListAsync(cancellationToken);
+        var existingRoleMenus = await dbContext.RoleMenus.ToListAsync(cancellationToken);
+
+        void EnsureRoleMenu(Guid roleId, Guid menuId)
+        {
+            if (!existingRoleMenus.Any(rm => rm.RoleId == roleId && rm.MenuItemId == menuId))
+            {
+                var rm = new RoleMenu { RoleId = roleId, MenuItemId = menuId, CreatedBy = "SystemSeeder" };
+                dbContext.RoleMenus.Add(rm);
+                existingRoleMenus.Add(rm);
+            }
+        }
+
+        // Gunakan menu /announcements yang sudah ada (misal buatan user dari UI /menus) agar tidak duplikat!
+        var annMenu = existingMenus.FirstOrDefault(m =>
+            m.Code.Equals("announcements", StringComparison.OrdinalIgnoreCase) ||
+            m.Path.Equals("/announcements", StringComparison.OrdinalIgnoreCase));
+
+        if (annMenu is null)
+        {
+            annMenu = new MenuItem
+            {
+                Code = "announcements",
+                Title = "Pengumuman (HR News)",
+                Path = "/announcements",
+                Icon = "Bell",
+                GroupName = "MAIN",
+                SortOrder = 2,
+                RequiredPermission = Permissions.Announcements.View,
+                IsVisible = true,
+                Description = "Papan pengumuman resmi perusahaan dengan banner, lampiran gambar/file, like, & komentar (Announcement.Api :5085)",
+                CreatedBy = "SystemSeeder"
+            };
+            await dbContext.MenuItems.AddAsync(annMenu, cancellationToken);
+            existingMenus.Add(annMenu);
+        }
+
+        // Berikan akses menu Pengumuman ke semua 10 role
+        foreach (var role in existingRoles)
+        {
+            EnsureRoleMenu(role.Id, annMenu.Id);
+        }
+
+        // Berikan akses menu dasar (dashboard, workflow-create, workflow-tracking, profile) ke HRSupervisor & HRStaff
+        foreach (var newRole in new[] { hrSupervisorRole, hrStaffRole })
+        {
+            foreach (var code in new[] { "dashboard", "workflow-create", "workflow-tracking", "profile" })
+            {
+                var m = existingMenus.FirstOrDefault(x => x.Code == code);
+                if (m is not null) EnsureRoleMenu(newRole.Id, m.Id);
+            }
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        logger.LogInformation("[Identity.Api] HR Announcement roles (HRSupervisor, HRStaff), users, permissions, and menu ensured!");
     }
 }

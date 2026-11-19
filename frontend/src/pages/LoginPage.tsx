@@ -44,9 +44,21 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
   },
   {
     username: 'hrmanager',
-    roleLabel: 'HRManager (Approver HR)',
+    roleLabel: 'HRManager (HR & Cuti)',
     badgeClass: 'bg-violet-500/20 text-violet-300 border-violet-500/30',
-    description: 'Approver Final (L2) untuk persetujuan Form Pengajuan Cuti karyawan',
+    description: 'Publish/kelola Pengumuman (Announcement.Api) + Approver Final Cuti',
+  },
+  {
+    username: 'hrsupervisor',
+    roleLabel: 'HRSupervisor (HR News)',
+    badgeClass: 'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30',
+    description: 'Publish Pengumuman perusahaan, upload banner/lampiran, & on/off komentar',
+  },
+  {
+    username: 'hrstaff',
+    roleLabel: 'HRStaff (HR News)',
+    badgeClass: 'bg-pink-500/20 text-pink-300 border-pink-500/30',
+    description: 'Staff HR: buat pengumuman perusahaan + kelola komentar setelah publish',
   },
   {
     username: 'financedirector',
@@ -128,7 +140,7 @@ export const LoginPage: React.FC = () => {
             Waktu tekan <code>F5</code>, semua service langsung nyala bareng secara otomatis.
           </p>
 
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-5 max-w-2xl text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-5 max-w-2xl text-xs">
             <div className="p-2.5 rounded-xl bg-slate-900/90 border border-teal-500/30">
               <div className="flex items-center gap-1 text-teal-400 font-bold">
                 <Network className="w-3.5 h-3.5 shrink-0" />
@@ -157,19 +169,26 @@ export const LoginPage: React.FC = () => {
               </div>
               <p className="text-[10px] text-slate-400 mt-1 font-mono">:5083 DB</p>
             </div>
-            <div className="p-2.5 rounded-xl bg-slate-900/90 border border-violet-500/40 col-span-2 sm:col-span-1">
+            <div className="p-2.5 rounded-xl bg-slate-900/90 border border-violet-500/40">
               <div className="flex items-center gap-1 text-violet-400 font-bold">
                 <Database className="w-3.5 h-3.5 shrink-0" />
                 <span className="truncate">Workflow</span>
               </div>
               <p className="text-[10px] text-slate-400 mt-1 font-mono">:5084 DB</p>
             </div>
+            <div className="p-2.5 rounded-xl bg-slate-900/90 border border-pink-500/40">
+              <div className="flex items-center gap-1 text-pink-400 font-bold">
+                <Database className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Announce</span>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1 font-mono">:5085 DB</p>
+            </div>
           </div>
 
           <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 max-w-2xl">
             <div className="flex items-center gap-2 text-xs font-semibold text-teal-400 mb-2.5">
               <Terminal className="w-4 h-4" />
-              <span>Quick Login 8 Akun Organisasi (Klik untuk tes Submit &rarr; Multi-Level Approval)</span>
+              <span>Quick Login 10 Akun Organisasi (Klik untuk tes Workflow Approval &amp; HR Announcements)</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
               {DEMO_ACCOUNTS.map((acc) => (

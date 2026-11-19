@@ -243,3 +243,86 @@ export interface WorkflowStats {
   revisionRequests: number;
   activeTemplates: number;
 }
+
+export interface AnnouncementAttachmentItem {
+  id?: string;
+  fileName: string;
+  storedFileName: string;
+  contentType: string;
+  fileSizeBytes: number;
+  kind: 'Banner' | 'Image' | 'File' | string;
+  url: string;
+}
+
+export interface AnnouncementCommentItem {
+  id: string;
+  userId: string;
+  username: string;
+  fullName: string;
+  userRole: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface AnnouncementSummaryItem {
+  id: string;
+  title: string;
+  summary: string;
+  type: 'General' | 'HRPolicy' | 'Event' | 'Urgent' | 'Maintenance' | 'Celebration' | string;
+  bannerUrl?: string | null;
+  allowComments: boolean;
+  isPinned: boolean;
+  publishedAt: string;
+  authorUsername: string;
+  authorFullName: string;
+  authorRole: string;
+  likeCount: number;
+  commentCount: number;
+  imageCount: number;
+  fileCount: number;
+  isLikedByMe: boolean;
+  isReadByMe: boolean;
+}
+
+export interface AnnouncementDetailItem {
+  id: string;
+  title: string;
+  summary: string;
+  type: string;
+  contentHtml: string;
+  bannerUrl?: string | null;
+  allowComments: boolean;
+  isPinned: boolean;
+  publishedAt: string;
+  authorUserId: string;
+  authorUsername: string;
+  authorFullName: string;
+  authorRole: string;
+  likeCount: number;
+  commentCount: number;
+  isLikedByMe: boolean;
+  isReadByMe: boolean;
+  attachments: AnnouncementAttachmentItem[];
+  comments: AnnouncementCommentItem[];
+}
+
+export interface PagedAnnouncementsResponse {
+  items: AnnouncementSummaryItem[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+  unreadCount: number;
+}
+
+export interface AnnouncementBellResponse {
+  unreadCount: number;
+  items: AnnouncementSummaryItem[];
+}
+
+export interface AnnouncementStats {
+  totalAnnouncements: number;
+  publishedAnnouncements: number;
+  totalLikes: number;
+  totalComments: number;
+}
