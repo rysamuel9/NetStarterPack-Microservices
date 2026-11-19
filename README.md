@@ -29,7 +29,9 @@ Seluruh panduan teknis sudah disusun secara mendalam di dalam folder [`docs/`](d
    - 🧯 **[Catatan Lapangan & Playbook Troubleshooting IIS (`docs/IIS_TROUBLESHOOTING_AND_PLAYBOOK.md`)](docs/IIS_TROUBLESHOOTING_AND_PLAYBOOK.md)** — *Solusi cepat untuk `NETSDK1152`, `404 /api/auth/login` (ARR Proxy vs `VITE_API_URL`), error SQL `IIS APPPOOL\*` (3 opsi: SSMS Login, SQL Auth, Custom Identity), WebSocket SignalR, & debug `500.30`.*
 9. 📡 **[Referensi Endpoint API, Routing YARP, & Kontrak JSON (`docs/API_REFERENCE.md`)](docs/API_REFERENCE.md)**
    *Tabel pemetaan route YARP Gateway, daftar seluruh endpoint API publik & internal, format standar `Result<T>`, daftar HTTP Status Code (termasuk `429 Rate Limit`), dan cara testing lewat Unified Swagger / Scalar UI.*
-10. 📖 **[Kamus Istilah / Glosarium Arsitektur (`docs/GLOSSARY.md`)](docs/GLOSSARY.md)**
+10. 🧰 **[Tech Stack, Daftar Package, & Alasan Pemilihan Teknologi (`docs/TECH_STACK.md`)](docs/TECH_STACK.md)**
+    *Rincian lengkap versi .NET 10, NuGet & npm packages per layer, database/Redis/Docker/IIS, matriks prasyarat environment, dan alasan pemilihan tiap teknologi.*
+11. 📖 **[Kamus Istilah / Glosarium Arsitektur (`docs/GLOSSARY.md`)](docs/GLOSSARY.md)**
     *Penjelasan bahasa santai untuk seluruh istilah dan komponen yang benar-benar dipakai di kodingan project ini (YARP, Compact Onion, BuildingBlocks, Database-per-Service, Docker, Polyglot Persistence, Zero-Trust JWT, Integration Event, Graceful Degradation, Correlation ID, hingga Hybrid Cache).*
 
 ---
