@@ -23,6 +23,8 @@ public class IdentityDatabaseSeeder(
             {
                 await dbContext.Database.EnsureCreatedAsync(cancellationToken);
             }
+
+            await EnsureOrganizationSqlTablesAndColumnsAsync(cancellationToken);
         }
         else
         {
@@ -34,6 +36,7 @@ public class IdentityDatabaseSeeder(
             await EnsureOrderMicroserviceMenuAndPermissionsAsync(cancellationToken);
             await EnsureWorkflowRolesUsersAndMenusAsync(cancellationToken);
             await EnsureAnnouncementRolesUsersAndMenuAsync(cancellationToken);
+            await EnsureOrganizationSchemaAndSeedAsync(cancellationToken);
             return;
         }
 
@@ -501,7 +504,8 @@ public class IdentityDatabaseSeeder(
 
         await dbContext.SaveChangesAsync(cancellationToken);
         await EnsureAnnouncementRolesUsersAndMenuAsync(cancellationToken);
-        logger.LogInformation("Identity database seeded successfully with corporate workflow & HR announcement roles & users!");
+        await EnsureOrganizationSchemaAndSeedAsync(cancellationToken);
+        logger.LogInformation("Identity database seeded successfully with corporate workflow, HR announcements, & full organization master!");
     }
 
     private async Task EnsureOrderMicroserviceMenuAndPermissionsAsync(CancellationToken cancellationToken)
@@ -936,5 +940,381 @@ public class IdentityDatabaseSeeder(
 
         await dbContext.SaveChangesAsync(cancellationToken);
         logger.LogInformation("[Identity.Api] HR Announcement roles (HRSupervisor, HRStaff), users, permissions, and menu ensured!");
+    }
+
+    /// <summary>
+    /// Auto-upgrade skema SQL Server aman untuk database existing (tanpa DROP DATABASE):
+    /// membuat tabel Directorates, Divisions, Departments, Positions dan menambah kolom profil organisasi pada tabel Users.
+    /// </summary>
+    private async Task EnsureOrganizationSqlTablesAndColumnsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (!dbContext.Database.IsSqlServer())
+            {
+                return;
+            }
+
+            await dbContext.Database.ExecuteSqlRawAsync("""
+                IF OBJECT_ID(N'Directorates', N'U') IS NULL
+                BEGIN
+                    CREATE TABLE [Directorates] (
+                        [Id] uniqueidentifier NOT NULL PRIMARY KEY,
+                        [Code] nvarchar(40) NOT NULL,
+                        [Name] nvarchar(150) NOT NULL,
+                        [Description] nvarchar(500) NOT NULL DEFAULT N'',
+                        [HeadUserId] uniqueidentifier NULL,
+                        [IsActive] bit NOT NULL DEFAULT 1,
+                        [CreatedAt] datetime2 NOT NULL,
+                        [CreatedBy] nvarchar(max) NULL,
+                        [UpdatedAt] datetime2 NULL,
+                        [UpdatedBy] nvarchar(max) NULL,
+                        [IsDeleted] bit NOT NULL DEFAULT 0
+                    );
+                    CREATE UNIQUE INDEX [IX_Directorates_Code] ON [Directorates]([Code]);
+                END;
+
+                IF OBJECT_ID(N'Divisions', N'U') IS NULL
+                BEGIN
+                    CREATE TABLE [Divisions] (
+                        [Id] uniqueidentifier NOT NULL PRIMARY KEY,
+                        [DirectorateId] uniqueidentifier NOT NULL,
+                        [Code] nvarchar(40) NOT NULL,
+                        [Name] nvarchar(150) NOT NULL,
+                        [Description] nvarchar(500) NOT NULL DEFAULT N'',
+                        [HeadUserId] uniqueidentifier NULL,
+                        [IsActive] bit NOT NULL DEFAULT 1,
+                        [CreatedAt] datetime2 NOT NULL,
+                        [CreatedBy] nvarchar(max) NULL,
+                        [UpdatedAt] datetime2 NULL,
+                        [UpdatedBy] nvarchar(max) NULL,
+                        [IsDeleted] bit NOT NULL DEFAULT 0,
+                        CONSTRAINT [FK_Divisions_Directorates_DirectorateId] FOREIGN KEY ([DirectorateId]) REFERENCES [Directorates]([Id])
+                    );
+                    CREATE UNIQUE INDEX [IX_Divisions_Code] ON [Divisions]([Code]);
+                END;
+
+                IF OBJECT_ID(N'Departments', N'U') IS NULL
+                BEGIN
+                    CREATE TABLE [Departments] (
+                        [Id] uniqueidentifier NOT NULL PRIMARY KEY,
+                        [DivisionId] uniqueidentifier NOT NULL,
+                        [Code] nvarchar(40) NOT NULL,
+                        [Name] nvarchar(150) NOT NULL,
+                        [Description] nvarchar(500) NOT NULL DEFAULT N'',
+                        [HeadUserId] uniqueidentifier NULL,
+                        [IsActive] bit NOT NULL DEFAULT 1,
+                        [CreatedAt] datetime2 NOT NULL,
+                        [CreatedBy] nvarchar(max) NULL,
+                        [UpdatedAt] datetime2 NULL,
+                        [UpdatedBy] nvarchar(max) NULL,
+                        [IsDeleted] bit NOT NULL DEFAULT 0,
+                        CONSTRAINT [FK_Departments_Divisions_DivisionId] FOREIGN KEY ([DivisionId]) REFERENCES [Divisions]([Id])
+                    );
+                    CREATE UNIQUE INDEX [IX_Departments_Code] ON [Departments]([Code]);
+                END;
+
+                IF OBJECT_ID(N'Positions', N'U') IS NULL
+                BEGIN
+                    CREATE TABLE [Positions] (
+                        [Id] uniqueidentifier NOT NULL PRIMARY KEY,
+                        [Code] nvarchar(40) NOT NULL,
+                        [Name] nvarchar(150) NOT NULL,
+                        [Level] int NOT NULL DEFAULT 5,
+                        [Description] nvarchar(500) NOT NULL DEFAULT N'',
+                        [IsActive] bit NOT NULL DEFAULT 1,
+                        [CreatedAt] datetime2 NOT NULL,
+                        [CreatedBy] nvarchar(max) NULL,
+                        [UpdatedAt] datetime2 NULL,
+                        [UpdatedBy] nvarchar(max) NULL,
+                        [IsDeleted] bit NOT NULL DEFAULT 0
+                    );
+                    CREATE UNIQUE INDEX [IX_Positions_Code] ON [Positions]([Code]);
+                END;
+
+                IF OBJECT_ID(N'Users', N'U') IS NOT NULL
+                BEGIN
+                    IF COL_LENGTH(N'Users', N'EmployeeCode') IS NULL ALTER TABLE [Users] ADD [EmployeeCode] nvarchar(40) NULL;
+                    IF COL_LENGTH(N'Users', N'DirectorateId') IS NULL ALTER TABLE [Users] ADD [DirectorateId] uniqueidentifier NULL;
+                    IF COL_LENGTH(N'Users', N'DivisionId') IS NULL ALTER TABLE [Users] ADD [DivisionId] uniqueidentifier NULL;
+                    IF COL_LENGTH(N'Users', N'DepartmentId') IS NULL ALTER TABLE [Users] ADD [DepartmentId] uniqueidentifier NULL;
+                    IF COL_LENGTH(N'Users', N'PositionId') IS NULL ALTER TABLE [Users] ADD [PositionId] uniqueidentifier NULL;
+                    IF COL_LENGTH(N'Users', N'ManagerUserId') IS NULL ALTER TABLE [Users] ADD [ManagerUserId] uniqueidentifier NULL;
+                END;
+                """, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "[Identity.Api] Gagal memastikan skema tabel Organisasi pada SQL Server.");
+        }
+    }
+
+    /// <summary>
+    /// Seed Master Struktur Organisasi (4 Direktorat, 8 Divisi, 15 Departemen, 10 Posisi),
+    /// pemetaan 1 Bos per Direktorat (termasuk CFO Angelica Wijaya untuk Direktorat Finance),
+    /// tambahan 15 user korporat baru (total 25 user), permission Organization.*, dan menu Struktur Organisasi.
+    /// </summary>
+    private async Task EnsureOrganizationSchemaAndSeedAsync(CancellationToken cancellationToken)
+    {
+        if (await dbContext.Directorates.AnyAsync(cancellationToken))
+        {
+            return;
+        }
+
+        logger.LogInformation("[Identity.Api] Seeding Organization Master (4 Directorates, 8 Divisions, 15 Departments, 10 Positions) & corporate users...");
+
+        // 1. Seed 10 Master Posisi / Jabatan (Level 1 = C-Level tertinggi)
+        var posCfo = new Position { Code = "POS-CFO", Name = "Chief Financial Officer (CFO)", Level = 1, Description = "Kepala Direktorat Finance & Strategi Keuangan", CreatedBy = "SystemSeeder" };
+        var posCto = new Position { Code = "POS-CTO", Name = "Chief Technology Officer (CTO)", Level = 1, Description = "Kepala Direktorat Technology & Digital Architecture", CreatedBy = "SystemSeeder" };
+        var posChro = new Position { Code = "POS-CHRO", Name = "Chief Human Resources Officer (CHRO)", Level = 1, Description = "Kepala Direktorat Human Capital & General Affairs", CreatedBy = "SystemSeeder" };
+        var posCoo = new Position { Code = "POS-COO", Name = "Chief Operating Officer (COO)", Level = 1, Description = "Kepala Direktorat Operations & Audit", CreatedBy = "SystemSeeder" };
+        var posVp = new Position { Code = "POS-VP", Name = "Division Head / VP", Level = 2, Description = "Kepala Divisi yang memimpin beberapa Departemen", CreatedBy = "SystemSeeder" };
+        var posMgr = new Position { Code = "POS-MGR", Name = "Department Manager", Level = 3, Description = "Manager pengelola operasional departemen", CreatedBy = "SystemSeeder" };
+        var posLead = new Position { Code = "POS-LEAD", Name = "Supervisor / Team Lead", Level = 4, Description = "Supervisor teknis atau operasional tim", CreatedBy = "SystemSeeder" };
+        var posSrStaff = new Position { Code = "POS-SR-STAFF", Name = "Senior Specialist / Engineer", Level = 5, Description = "Staf senior dan spesialis bidang", CreatedBy = "SystemSeeder" };
+        var posStaff = new Position { Code = "POS-STAFF", Name = "Operational Staff / Analyst", Level = 6, Description = "Staf operasional harian departemen", CreatedBy = "SystemSeeder" };
+        var posAuditor = new Position { Code = "POS-AUDITOR", Name = "Internal Auditor", Level = 5, Description = "Auditor kepatuhan dan kontrol risiko internal", CreatedBy = "SystemSeeder" };
+
+        await dbContext.Positions.AddRangeAsync([posCfo, posCto, posChro, posCoo, posVp, posMgr, posLead, posSrStaff, posStaff, posAuditor], cancellationToken);
+
+        // 2. Seed 4 Direktorat
+        var dirFinance = new Directorate { Code = "DIR-FIN", Name = "Direktorat Finance", Description = "Pengelolaan keuangan perusahaan, akuntansi, perpajakan, treasury, dan FP&A.", CreatedBy = "SystemSeeder" };
+        var dirTech = new Directorate { Code = "DIR-TECH", Name = "Direktorat Technology & Digital", Description = "Pengembangan software, microservices, infrastruktur cloud, dan keamanan siber.", CreatedBy = "SystemSeeder" };
+        var dirHrGa = new Directorate { Code = "DIR-HRGA", Name = "Direktorat Human Capital & GA", Description = "Pengelolaan SDM, budaya perusahaan, komunikasi internal, dan fasilitas kantor.", CreatedBy = "SystemSeeder" };
+        var dirOps = new Directorate { Code = "DIR-OPS", Name = "Direktorat Operations & Audit", Description = "Operasional rantai pasok, pengadaan vendor, logistik, serta audit internal.", CreatedBy = "SystemSeeder" };
+
+        await dbContext.Directorates.AddRangeAsync([dirFinance, dirTech, dirHrGa, dirOps], cancellationToken);
+
+        // 3. Seed 8 Divisi (masing-masing 2 Divisi per Direktorat)
+        var divAccounting = new Division { DirectorateId = dirFinance.Id, Code = "DIV-ACC", Name = "Divisi Accounting", Description = "Pencatatan laporan keuangan, general ledger, dan kepatuhan pajak.", CreatedBy = "SystemSeeder" };
+        var divTreasury = new Division { DirectorateId = dirFinance.Id, Code = "DIV-TRS", Name = "Divisi Treasury", Description = "Manajemen arus kas, likuiditas, perencanaan anggaran, dan FP&A.", CreatedBy = "SystemSeeder" };
+
+        var divEngineering = new Division { DirectorateId = dirTech.Id, Code = "DIV-ENG", Name = "Divisi Software Engineering", Description = "Pengembangan backend API, frontend web, dan produk digital.", CreatedBy = "SystemSeeder" };
+        var divInfra = new Division { DirectorateId = dirTech.Id, Code = "DIV-INFRA", Name = "Divisi IT Infrastructure & Security", Description = "Operasional cloud, DevOps, jaringan, dan keamanan sistem.", CreatedBy = "SystemSeeder" };
+
+        var divHr = new Division { DirectorateId = dirHrGa.Id, Code = "DIV-HR", Name = "Divisi Human Resources", Description = "People operations, rekrutmen, pelatihan, dan komunikasi internal.", CreatedBy = "SystemSeeder" };
+        var divGa = new Division { DirectorateId = dirHrGa.Id, Code = "DIV-GA", Name = "Divisi General Affairs", Description = "Pengelolaan gedung, aset kantor, dan layanan operasional umum.", CreatedBy = "SystemSeeder" };
+
+        var divProc = new Division { DirectorateId = dirOps.Id, Code = "DIV-PROC", Name = "Divisi Supply Chain & Procurement", Description = "Pengadaan barang/vendor dan manajemen inventori operasional.", CreatedBy = "SystemSeeder" };
+        var divAudit = new Division { DirectorateId = dirOps.Id, Code = "DIV-AUDIT", Name = "Divisi Internal Audit & Risk", Description = "Audit kepatuhan SOP, mitigasi risiko, dan tata kelola perusahaan.", CreatedBy = "SystemSeeder" };
+
+        await dbContext.Divisions.AddRangeAsync([divAccounting, divTreasury, divEngineering, divInfra, divHr, divGa, divProc, divAudit], cancellationToken);
+
+        // 4. Seed 15 Departemen (turunan tiap Divisi)
+        var deptGl = new Department { DivisionId = divAccounting.Id, Code = "DEPT-GL", Name = "General Ledger & Reporting", Description = "Penyusunan laporan keuangan bulanan & tahunan.", CreatedBy = "SystemSeeder" };
+        var deptTax = new Department { DivisionId = divAccounting.Id, Code = "DEPT-TAX", Name = "Tax & Compliance", Description = "Pelaporan perpajakan dan kepatuhan regulasi fiskal.", CreatedBy = "SystemSeeder" };
+        var deptCash = new Department { DivisionId = divTreasury.Id, Code = "DEPT-CASH", Name = "Cash & Liquidity Management", Description = "Pengelolaan kas harian, pembayaran vendor, dan perbankan.", CreatedBy = "SystemSeeder" };
+        var deptFpna = new Department { DivisionId = divTreasury.Id, Code = "DEPT-FPNA", Name = "FP&A & Budgeting", Description = "Analisis kinerja keuangan dan penyusunan budget tahunan.", CreatedBy = "SystemSeeder" };
+
+        var deptBe = new Department { DivisionId = divEngineering.Id, Code = "DEPT-BE", Name = "Backend & Microservices", Description = "Arsitektur .NET 10, API Gateway, dan layanan inti.", CreatedBy = "SystemSeeder" };
+        var deptFe = new Department { DivisionId = divEngineering.Id, Code = "DEPT-FE", Name = "Frontend & Product UI", Description = "Pengembangan aplikasi web React TypeScript & design system.", CreatedBy = "SystemSeeder" };
+        var deptCloud = new Department { DivisionId = divInfra.Id, Code = "DEPT-CLOUD", Name = "Cloud & DevOps", Description = "CI/CD, containerization Docker, dan keandalan server.", CreatedBy = "SystemSeeder" };
+        var deptSec = new Department { DivisionId = divInfra.Id, Code = "DEPT-SEC", Name = "Cybersecurity & System Ops", Description = "Keamanan akses, monitoring, dan operasional sistem.", CreatedBy = "SystemSeeder" };
+
+        var deptPeople = new Department { DivisionId = divHr.Id, Code = "DEPT-PEOPLE", Name = "People Operations & Comms", Description = "Administrasi karyawan, benefit, dan HR newsroom.", CreatedBy = "SystemSeeder" };
+        var deptRecruit = new Department { DivisionId = divHr.Id, Code = "DEPT-RECRUIT", Name = "Talent Acquisition & L&D", Description = "Rekrutmen talenta dan pengembangan kompetensi.", CreatedBy = "SystemSeeder" };
+        var deptFacility = new Department { DivisionId = divGa.Id, Code = "DEPT-FACILITY", Name = "Facility & Office Asset", Description = "Pemeliharaan fasilitas ruang kerja dan aset fisik kantor.", CreatedBy = "SystemSeeder" };
+
+        var deptProc = new Department { DivisionId = divProc.Id, Code = "DEPT-PROC", Name = "Vendor & Procurement", Description = "Negosiasi vendor dan eksekusi pembelian barang.", CreatedBy = "SystemSeeder" };
+        var deptWh = new Department { DivisionId = divProc.Id, Code = "DEPT-WH", Name = "Warehouse & Fulfillment", Description = "Penerimaan, penyimpanan, dan distribusi barang.", CreatedBy = "SystemSeeder" };
+        var deptAudit = new Department { DivisionId = divAudit.Id, Code = "DEPT-AUDIT", Name = "Corporate Risk & Audit", Description = "Pemeriksaan audit proses bisnis dan kepatuhan.", CreatedBy = "SystemSeeder" };
+
+        await dbContext.Departments.AddRangeAsync([
+            deptGl, deptTax, deptCash, deptFpna,
+            deptBe, deptFe, deptCloud, deptSec,
+            deptPeople, deptRecruit, deptFacility,
+            deptProc, deptWh, deptAudit
+        ], cancellationToken);
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        // 5. Pastikan 25 User (10 existing + 15 corporate users baru) lengkap dengan Direktorat, Divisi, Departemen, Posisi, NIK, & Atasan
+        var rolesByName = (await dbContext.Roles.Include(r => r.RolePermissions).ToListAsync(cancellationToken))
+            .ToDictionary(r => r.Name, StringComparer.OrdinalIgnoreCase);
+        var existingUsers = await dbContext.Users.ToListAsync(cancellationToken);
+        var usersByUsername = existingUsers.ToDictionary(u => u.Username, StringComparer.OrdinalIgnoreCase);
+        var defaultPasswordHash = passwordHasher.HashPassword("Password123!");
+
+        async Task<User> EnsureOrgUserAsync(
+            string username,
+            string email,
+            string fullName,
+            string empCode,
+            string phone,
+            string roleName,
+            Directorate dir,
+            Division? div,
+            Department? dept,
+            Position pos,
+            User? manager)
+        {
+            if (!usersByUsername.TryGetValue(username, out var u))
+            {
+                u = new User
+                {
+                    Username = username,
+                    Email = email,
+                    FullName = fullName,
+                    PasswordHash = defaultPasswordHash,
+                    PhoneNumber = phone,
+                    Status = UserStatus.Active,
+                    CreatedBy = "SystemSeeder"
+                };
+                await dbContext.Users.AddAsync(u, cancellationToken);
+                usersByUsername[username] = u;
+
+                if (rolesByName.TryGetValue(roleName, out var role))
+                {
+                    await dbContext.UserRoles.AddAsync(new UserRole
+                    {
+                        UserId = u.Id,
+                        RoleId = role.Id,
+                        CreatedBy = "SystemSeeder"
+                    }, cancellationToken);
+                }
+            }
+
+            u.EmployeeCode = empCode;
+            u.DirectorateId = dir.Id;
+            u.DivisionId = div?.Id;
+            u.DepartmentId = dept?.Id;
+            u.Department = dept?.Name ?? div?.Name ?? dir.Name;
+            u.PositionId = pos.Id;
+            u.ManagerUserId = manager?.Id;
+            return u;
+        }
+
+        // === DIREKTORAT 1: FINANCE (Bos: CFO Angelica Wijaya) ===
+        var cfoAngelica = await EnsureOrgUserAsync("angelica.cfo", "angelica.cfo@starterpack.local", "Angelica Wijaya (CFO)", "EMP-0001", "+62 811-2000-001", RoleNames.FinanceDirector, dirFinance, null, null, posCfo, null);
+        var vpAccounting = await EnsureOrgUserAsync("financedirector", "finance@starterpack.local", "Surya Darmawan (VP Accounting)", "EMP-0002", "+62 811-1000-008", RoleNames.FinanceDirector, dirFinance, divAccounting, deptGl, posVp, cfoAngelica);
+        var staffGl = await EnsureOrgUserAsync("dina.acc", "dina.acc@starterpack.local", "Dina Kartika (Senior Accounting)", "EMP-0011", "+62 811-2000-011", RoleNames.Staff, dirFinance, divAccounting, deptGl, posSrStaff, vpAccounting);
+        var staffTax = await EnsureOrgUserAsync("farhan.tax", "farhan.tax@starterpack.local", "Farhan Hakim (Tax Specialist)", "EMP-0012", "+62 811-2000-012", RoleNames.Staff, dirFinance, divAccounting, deptTax, posSrStaff, vpAccounting);
+
+        var headTreasury = await EnsureOrgUserAsync("clarissa.trs", "clarissa.trs@starterpack.local", "Clarissa Tan (Head of Treasury)", "EMP-0013", "+62 811-2000-013", RoleNames.Manager, dirFinance, divTreasury, deptCash, posVp, cfoAngelica);
+        var staffCash = await EnsureOrgUserAsync("kevin.cash", "kevin.cash@starterpack.local", "Kevin Setiawan (Treasury Analyst)", "EMP-0014", "+62 811-2000-014", RoleNames.Staff, dirFinance, divTreasury, deptCash, posStaff, headTreasury);
+        var staffFpna = await EnsureOrgUserAsync("melisa.fpna", "melisa.fpna@starterpack.local", "Melisa Gunawan (FP&A Analyst)", "EMP-0015", "+62 811-2000-015", RoleNames.Staff, dirFinance, divTreasury, deptFpna, posStaff, headTreasury);
+
+        // === DIREKTORAT 2: TECHNOLOGY & DIGITAL (Bos: CTO Budi Santoso / superadmin) ===
+        var ctoBudi = await EnsureOrgUserAsync("superadmin", "superadmin@starterpack.local", "Budi Santoso (CTO / Super Admin)", "EMP-0003", "+62 811-1000-001", RoleNames.SuperAdmin, dirTech, null, null, posCto, null);
+        var vpEng = await EnsureOrgUserAsync("manager", "manager@starterpack.local", "Andi Pratama (VP Engineering)", "EMP-0004", "+62 811-1000-003", RoleNames.Manager, dirTech, divEngineering, deptBe, posVp, ctoBudi);
+        var srBe = await EnsureOrgUserAsync("rafi.be", "rafi.be@starterpack.local", "Rafi Pratama (Senior Backend Engineer)", "EMP-0016", "+62 811-2000-016", RoleNames.Staff, dirTech, divEngineering, deptBe, posSrStaff, vpEng);
+        var feEng = await EnsureOrgUserAsync("tiara.fe", "tiara.fe@starterpack.local", "Tiara Permata (Frontend Engineer)", "EMP-0017", "+62 811-2000-017", RoleNames.Staff, dirTech, divEngineering, deptFe, posStaff, vpEng);
+
+        var headInfra = await EnsureOrgUserAsync("itlead", "itlead@starterpack.local", "Hendra Wijaya (Head of IT Infra)", "EMP-0005", "+62 811-1000-006", RoleNames.ITLead, dirTech, divInfra, deptCloud, posVp, ctoBudi);
+        var devops = await EnsureOrgUserAsync("bagas.devops", "bagas.devops@starterpack.local", "Bagas Saputra (DevOps Engineer)", "EMP-0018", "+62 811-2000-018", RoleNames.Staff, dirTech, divInfra, deptCloud, posSrStaff, headInfra);
+        var sysAdmin = await EnsureOrgUserAsync("admin", "admin@starterpack.local", "Siti Rahmawati (System Ops Manager)", "EMP-0006", "+62 811-1000-002", RoleNames.Admin, dirTech, divInfra, deptSec, posMgr, headInfra);
+
+        // === DIREKTORAT 3: HUMAN CAPITAL & GA (Bos: CHRO Rina Kusuma / hrmanager) ===
+        var chroRina = await EnsureOrgUserAsync("hrmanager", "hrmanager@starterpack.local", "Rina Kusuma (CHRO / HR Manager)", "EMP-0007", "+62 811-1000-007", RoleNames.HRManager, dirHrGa, null, null, posChro, null);
+        var hrSpv = await EnsureOrgUserAsync("hrsupervisor", "hrsupervisor@starterpack.local", "Dimas Prakoso (HR Supervisor)", "EMP-0008", "+62 811-1000-009", RoleNames.HRSupervisor, dirHrGa, divHr, deptPeople, posLead, chroRina);
+        var hrStaff = await EnsureOrgUserAsync("hrstaff", "hrstaff@starterpack.local", "Nadia Putri (HR Staff)", "EMP-0009", "+62 811-1000-010", RoleNames.HRStaff, dirHrGa, divHr, deptPeople, posStaff, hrSpv);
+        var talentStaff = await EnsureOrgUserAsync("citra.talent", "citra.talent@starterpack.local", "Citra Melati (Talent Acquisition)", "EMP-0019", "+62 811-2000-019", RoleNames.HRStaff, dirHrGa, divHr, deptRecruit, posStaff, hrSpv);
+
+        var gaMgr = await EnsureOrgUserAsync("fajar.ga", "fajar.ga@starterpack.local", "Fajar Nugroho (GA Manager)", "EMP-0020", "+62 811-2000-020", RoleNames.Manager, dirHrGa, divGa, deptFacility, posMgr, chroRina);
+        var gaStaff = await EnsureOrgUserAsync("bambang.ga", "bambang.ga@starterpack.local", "Bambang Susanto (GA Operations)", "EMP-0021", "+62 811-2000-021", RoleNames.Staff, dirHrGa, divGa, deptFacility, posStaff, gaMgr);
+
+        // === DIREKTORAT 4: OPERATIONS & AUDIT (Bos: COO Reza Mahendra) ===
+        var cooReza = await EnsureOrgUserAsync("reza.coo", "reza.coo@starterpack.local", "Reza Mahendra (COO)", "EMP-0010", "+62 811-2000-010", RoleNames.Manager, dirOps, null, null, posCoo, null);
+        var procLead = await EnsureOrgUserAsync("staff", "staff@starterpack.local", "Dewi Lestari (Procurement Lead)", "EMP-0022", "+62 811-1000-004", RoleNames.Staff, dirOps, divProc, deptProc, posLead, cooReza);
+        var procStaff = await EnsureOrgUserAsync("yoga.proc", "yoga.proc@starterpack.local", "Yoga Saputra (Procurement Staff)", "EMP-0023", "+62 811-2000-023", RoleNames.Staff, dirOps, divProc, deptProc, posStaff, procLead);
+        var whStaff = await EnsureOrgUserAsync("putri.ops", "putri.ops@starterpack.local", "Putri Wulandari (Warehouse Staff)", "EMP-0024", "+62 811-2000-024", RoleNames.Staff, dirOps, divProc, deptWh, posStaff, procLead);
+
+        var auditHead = await EnsureOrgUserAsync("viewer", "viewer@starterpack.local", "Rizky Ramadhan (Head of Internal Audit)", "EMP-0025", "+62 811-1000-005", RoleNames.Viewer, dirOps, divAudit, deptAudit, posMgr, cooReza);
+        var auditorStaff = await EnsureOrgUserAsync("luthfi.audit", "luthfi.audit@starterpack.local", "Luthfi Hidayat (Internal Auditor)", "EMP-0026", "+62 811-2000-026", RoleNames.Viewer, dirOps, divAudit, deptAudit, posAuditor, auditHead);
+
+        // 6. Set HeadUserId (Bos tiap Direktorat, Divisi, & Departemen)
+        dirFinance.HeadUserId = cfoAngelica.Id;
+        dirTech.HeadUserId = ctoBudi.Id;
+        dirHrGa.HeadUserId = chroRina.Id;
+        dirOps.HeadUserId = cooReza.Id;
+
+        divAccounting.HeadUserId = vpAccounting.Id;
+        divTreasury.HeadUserId = headTreasury.Id;
+        divEngineering.HeadUserId = vpEng.Id;
+        divInfra.HeadUserId = headInfra.Id;
+        divHr.HeadUserId = hrSpv.Id;
+        divGa.HeadUserId = gaMgr.Id;
+        divProc.HeadUserId = procLead.Id;
+        divAudit.HeadUserId = auditHead.Id;
+
+        deptGl.HeadUserId = staffGl.Id;
+        deptTax.HeadUserId = staffTax.Id;
+        deptCash.HeadUserId = staffCash.Id;
+        deptFpna.HeadUserId = staffFpna.Id;
+        deptBe.HeadUserId = srBe.Id;
+        deptFe.HeadUserId = feEng.Id;
+        deptCloud.HeadUserId = devops.Id;
+        deptSec.HeadUserId = sysAdmin.Id;
+        deptPeople.HeadUserId = hrStaff.Id;
+        deptRecruit.HeadUserId = talentStaff.Id;
+        deptFacility.HeadUserId = gaStaff.Id;
+        deptProc.HeadUserId = procStaff.Id;
+        deptWh.HeadUserId = whStaff.Id;
+        deptAudit.HeadUserId = auditorStaff.Id;
+
+        // 7. Pastikan Permission Organization.View & Organization.Manage + Menu Struktur Organisasi (/organization)
+        var orgManagers = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            RoleNames.SuperAdmin, RoleNames.Admin, RoleNames.HRManager, RoleNames.HRSupervisor
+        };
+
+        foreach (var role in rolesByName.Values)
+        {
+            var permsToAdd = new List<string> { Permissions.Organization.View };
+            if (orgManagers.Contains(role.Name))
+            {
+                permsToAdd.Add(Permissions.Organization.Manage);
+            }
+
+            foreach (var code in permsToAdd)
+            {
+                if (!role.RolePermissions.Any(rp => rp.PermissionCode == code))
+                {
+                    await dbContext.RolePermissions.AddAsync(new RolePermission
+                    {
+                        RoleId = role.Id,
+                        PermissionCode = code,
+                        CreatedBy = "SystemSeeder"
+                    }, cancellationToken);
+                }
+            }
+        }
+
+        var existingMenus = await dbContext.MenuItems.ToListAsync(cancellationToken);
+        var existingRoleMenus = await dbContext.RoleMenus.ToListAsync(cancellationToken);
+        var orgMenu = existingMenus.FirstOrDefault(m => m.Code == "organization" || m.Path == "/organization");
+        if (orgMenu is null)
+        {
+            orgMenu = new MenuItem
+            {
+                Code = "organization",
+                Title = "Struktur Organisasi",
+                Path = "/organization",
+                Icon = "Network",
+                GroupName = "IDENTITY & RBAC",
+                SortOrder = 7,
+                RequiredPermission = Permissions.Organization.View,
+                IsVisible = true,
+                Description = "Pohon struktur Direktorat, Divisi, Departemen, dan Master Posisi karyawan",
+                CreatedBy = "SystemSeeder"
+            };
+            await dbContext.MenuItems.AddAsync(orgMenu, cancellationToken);
+        }
+
+        foreach (var role in rolesByName.Values)
+        {
+            if (!existingRoleMenus.Any(rm => rm.RoleId == role.Id && rm.MenuItemId == orgMenu.Id))
+            {
+                await dbContext.RoleMenus.AddAsync(new RoleMenu
+                {
+                    RoleId = role.Id,
+                    MenuItemId = orgMenu.Id,
+                    CreatedBy = "SystemSeeder"
+                }, cancellationToken);
+            }
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        logger.LogInformation("[Identity.Api] Organization Master (4 Directorates, 8 Divisions, 14 Departments, 10 Positions) & 26 corporate users seeded successfully!");
     }
 }

@@ -18,6 +18,18 @@ export interface CurrentUser {
   roles: string[];
   permissions: string[];
   lastLoginAt?: string;
+  employeeCode?: string | null;
+  directorateId?: string | null;
+  directorateName?: string | null;
+  divisionId?: string | null;
+  divisionName?: string | null;
+  departmentId?: string | null;
+  departmentName?: string | null;
+  positionId?: string | null;
+  positionName?: string | null;
+  positionLevel?: number | null;
+  managerUserId?: string | null;
+  managerFullName?: string | null;
 }
 
 export interface AuthResponse {
@@ -54,6 +66,118 @@ export interface UserItem {
   roles: string[];
   createdAt: string;
   lastLoginAt?: string;
+  employeeCode?: string | null;
+  directorateId?: string | null;
+  directorateName?: string | null;
+  divisionId?: string | null;
+  divisionName?: string | null;
+  departmentId?: string | null;
+  departmentName?: string | null;
+  positionId?: string | null;
+  positionName?: string | null;
+  positionLevel?: number | null;
+  managerUserId?: string | null;
+  managerFullName?: string | null;
+}
+
+export interface DirectorateItem {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  headUserId?: string | null;
+  headUsername?: string | null;
+  headFullName?: string | null;
+  headPositionName?: string | null;
+  isActive: boolean;
+  divisionCount: number;
+  userCount: number;
+}
+
+export interface DivisionItem {
+  id: string;
+  directorateId: string;
+  directorateName: string;
+  code: string;
+  name: string;
+  description: string;
+  headUserId?: string | null;
+  headUsername?: string | null;
+  headFullName?: string | null;
+  isActive: boolean;
+  departmentCount: number;
+  userCount: number;
+}
+
+export interface DepartmentItem {
+  id: string;
+  divisionId: string;
+  divisionName: string;
+  directorateId: string;
+  directorateName: string;
+  code: string;
+  name: string;
+  description: string;
+  headUserId?: string | null;
+  headUsername?: string | null;
+  headFullName?: string | null;
+  isActive: boolean;
+  userCount: number;
+}
+
+export interface PositionItem {
+  id: string;
+  code: string;
+  name: string;
+  level: number;
+  description: string;
+  isActive: boolean;
+  userCount: number;
+}
+
+export interface OrgMemberSummary {
+  id: string;
+  employeeCode?: string | null;
+  username: string;
+  fullName: string;
+  positionName?: string | null;
+  positionLevel?: number | null;
+  roles: string[];
+}
+
+export interface DepartmentTreeNode {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  headUserId?: string | null;
+  headFullName?: string | null;
+  userCount: number;
+  members: OrgMemberSummary[];
+}
+
+export interface DivisionTreeNode {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  headUserId?: string | null;
+  headFullName?: string | null;
+  userCount: number;
+  departments: DepartmentTreeNode[];
+}
+
+export interface DirectorateTreeNode {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  headUserId?: string | null;
+  headUsername?: string | null;
+  headFullName?: string | null;
+  headPositionName?: string | null;
+  userCount: number;
+  divisions: DivisionTreeNode[];
 }
 
 export interface RoleItem {

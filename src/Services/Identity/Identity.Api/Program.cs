@@ -58,6 +58,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddScoped<IMenuService, MenuService>();
+builder.Services.AddScoped<IOrganizationService, OrganizationService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddHttpClient<ICatalogStatsClient, CatalogStatsHttpClient>();
 builder.Services.AddScoped<IdentityDatabaseSeeder>();

@@ -248,6 +248,39 @@ export const ProfilePage: React.FC = () => {
         </div>
       )}
 
+      <div className="bg-gradient-to-r from-slate-950 via-teal-950 to-slate-900 rounded-2xl p-6 text-white border border-teal-800/40 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30 mb-1.5">
+              {user?.employeeCode || 'NO-NIK'} • PROFIL ORGANISASI
+            </span>
+            <h2 className="text-xl font-bold">{user?.fullName}</h2>
+            <p className="text-sm text-teal-300 font-semibold mt-0.5">
+              {user?.positionName || 'Posisi belum ditetapkan'}
+              {user?.positionLevel ? ` (Level ${user.positionLevel})` : ''}
+            </p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/10">
+              <p className="text-[10px] text-slate-300 uppercase">Direktorat</p>
+              <p className="font-bold text-white mt-0.5">{user?.directorateName || '-'}</p>
+            </div>
+            <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/10">
+              <p className="text-[10px] text-slate-300 uppercase">Divisi</p>
+              <p className="font-bold text-white mt-0.5">{user?.divisionName || '-'}</p>
+            </div>
+            <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/10">
+              <p className="text-[10px] text-slate-300 uppercase">Departemen</p>
+              <p className="font-bold text-white mt-0.5">{user?.departmentName || user?.department || '-'}</p>
+            </div>
+            <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/10">
+              <p className="text-[10px] text-slate-300 uppercase">Atasan Langsung</p>
+              <p className="font-bold text-amber-300 mt-0.5">{user?.managerFullName || 'Top Executive'}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
           <div className="flex items-center gap-2 mb-4">

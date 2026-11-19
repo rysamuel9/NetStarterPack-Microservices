@@ -29,6 +29,7 @@ Konfigurasi di [`src/ApiGateway/Gateway.Api/appsettings.json`](../src/ApiGateway
 | `/api/users` & `/api/users/{**catch-all}` | `identity-cluster` | `http://localhost:5081` (`Identity.Api`) | `NetStarterPack_IdentityDb` |
 | `/api/roles` & `/api/roles/{**catch-all}` | `identity-cluster` | `http://localhost:5081` (`Identity.Api`) | `NetStarterPack_IdentityDb` |
 | `/api/menus` & `/api/menus/{**catch-all}` | `identity-cluster` | `http://localhost:5081` (`Identity.Api`) | `NetStarterPack_IdentityDb` |
+| `/api/organizations` & `/api/organizations/{**catch-all}` | `identity-cluster` | `http://localhost:5081` (`Identity.Api`) | `NetStarterPack_IdentityDb` |
 | `/api/dashboard/{**catch-all}` | `identity-cluster` | `http://localhost:5081` (`Identity.Api`) | `NetStarterPack_IdentityDb` (+ HTTP Stats ke `Catalog.Api`) |
 | `/api/products` & `/api/products/{**catch-all}` | `catalog-cluster` | `http://localhost:5082` (`Catalog.Api`) | `NetStarterPack_CatalogDb` |
 | `/api/orders` & `/api/orders/{**catch-all}` | `order-cluster` | `http://localhost:5083` (`Order.Api`) | `NetStarterPack_OrderDb` |
@@ -120,7 +121,16 @@ X-Correlation-Id: 9a4f2c1b8e7d4a5b9c0d1e2f3a4b5c6d
 | `GET` | `/api/dashboard/summary` | `Dashboard.View` | Ringkasan metrik gabungan (`IdentityDb` + HTTP call ke `Catalog.Api`) |
 | `GET` | `/api/dashboard/audit-logs?limit=100` | `AuditLogs.View` | Riwayat log aktivitas terpusat dari seluruh microservice |
 
-### C. Endpoint Internal Service-to-Service (`Identity.Api :5081`)
+### C. Master Struktur Organisasi (`/api/organizations`)
+| Method | Endpoint | Permission | Fungsi |
+| :---: | :--- | :--- | :--- |
+| `GET` | `/api/organizations/tree` | `Organization.View` | Hirarki lengkap: Direktorat (+ Head/C-Level) -> Divisi -> Departemen -> Daftar Anggota |
+| `GET`/`POST`/`PUT`/`DELETE` | `/api/organizations/directorates` | `Organization.View` / `Organization.Manage` | CRUD Master Direktorat (termasuk assign `headUserId` / C-Level) |
+| `GET`/`POST`/`PUT`/`DELETE` | `/api/organizations/divisions` | `Organization.View` / `Organization.Manage` | CRUD Master Divisi (turunan Direktorat, mendukung filter `?directorateId=`) |
+| `GET`/`POST`/`PUT`/`DELETE` | `/api/organizations/departments` | `Organization.View` / `Organization.Manage` | CRUD Master Departemen (turunan Divisi, mendukung filter `?divisionId=`) |
+| `GET`/`POST`/`PUT`/`DELETE` | `/api/organizations/positions` | `Organization.View` / `Organization.Manage` | CRUD Master Posisi/Jabatan & Level (`1` = C-Level s/d `6` = Staff) |
+
+### D. Endpoint Internal Service-to-Service (`Identity.Api :5081`)
 | Method | Endpoint Internal | Proteksi | Fungsi |
 | :---: | :--- | :--- | :--- |
 | `POST` | `http://localhost:5081/api/internal/events/audit-log` | Header `X-Internal-Api-Key` | Menerima `AuditLogIntegrationEvent` dari `Catalog.Api` (atau microservice lain) melalui `HttpEventBus` |

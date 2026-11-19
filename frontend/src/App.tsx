@@ -13,6 +13,7 @@ import { WorkflowTrackingPage } from './pages/WorkflowTrackingPage';
 import { AnnouncementsPage } from './pages/AnnouncementsPage';
 import { AnnouncementDetailPage } from './pages/AnnouncementDetailPage';
 import { UnderDevelopmentPage } from './pages/UnderDevelopmentPage';
+import { OrganizationPage } from './pages/OrganizationPage';
 import { UsersPage } from './pages/UsersPage';
 import { RolesPage } from './pages/RolesPage';
 import { MenusPage } from './pages/MenusPage';
@@ -112,6 +113,14 @@ export const App: React.FC = () => {
               element={
                 <ProtectedRoute permission="Users.View">
                   <UsersPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="organization"
+              element={
+                <ProtectedRoute permission="Organization.View">
+                  <OrganizationPage />
                 </ProtectedRoute>
               }
             />

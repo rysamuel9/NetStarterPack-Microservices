@@ -23,7 +23,19 @@ public record CurrentUserDto(
     string Status,
     IReadOnlyList<string> Roles,
     IReadOnlyList<string> Permissions,
-    DateTime? LastLoginAt
+    DateTime? LastLoginAt,
+    string? EmployeeCode = null,
+    Guid? DirectorateId = null,
+    string? DirectorateName = null,
+    Guid? DivisionId = null,
+    string? DivisionName = null,
+    Guid? DepartmentId = null,
+    string? DepartmentName = null,
+    Guid? PositionId = null,
+    string? PositionName = null,
+    int? PositionLevel = null,
+    Guid? ManagerUserId = null,
+    string? ManagerFullName = null
 );
 
 public record UserDto(
@@ -36,7 +48,19 @@ public record UserDto(
     string Status,
     IReadOnlyList<string> Roles,
     DateTime CreatedAt,
-    DateTime? LastLoginAt
+    DateTime? LastLoginAt,
+    string? EmployeeCode = null,
+    Guid? DirectorateId = null,
+    string? DirectorateName = null,
+    Guid? DivisionId = null,
+    string? DivisionName = null,
+    Guid? DepartmentId = null,
+    string? DepartmentName = null,
+    Guid? PositionId = null,
+    string? PositionName = null,
+    int? PositionLevel = null,
+    Guid? ManagerUserId = null,
+    string? ManagerFullName = null
 );
 
 public record CreateUserRequest(
@@ -47,7 +71,13 @@ public record CreateUserRequest(
     string? PhoneNumber,
     string? Department,
     string Status,
-    List<string> Roles
+    List<string> Roles,
+    string? EmployeeCode = null,
+    Guid? DirectorateId = null,
+    Guid? DivisionId = null,
+    Guid? DepartmentId = null,
+    Guid? PositionId = null,
+    Guid? ManagerUserId = null
 );
 
 public record UpdateUserRequest(
@@ -57,7 +87,148 @@ public record UpdateUserRequest(
     string? Department,
     string Status,
     string? NewPassword,
-    List<string> Roles
+    List<string> Roles,
+    string? EmployeeCode = null,
+    Guid? DirectorateId = null,
+    Guid? DivisionId = null,
+    Guid? DepartmentId = null,
+    Guid? PositionId = null,
+    Guid? ManagerUserId = null
+);
+
+// === Organization Master DTOs (Directorate -> Division -> Department + Position) ===
+public record DirectorateDto(
+    Guid Id,
+    string Code,
+    string Name,
+    string Description,
+    Guid? HeadUserId,
+    string? HeadUsername,
+    string? HeadFullName,
+    string? HeadPositionName,
+    bool IsActive,
+    int DivisionCount,
+    int UserCount
+);
+
+public record CreateOrUpdateDirectorateRequest(
+    string Code,
+    string Name,
+    string? Description,
+    Guid? HeadUserId,
+    bool IsActive = true
+);
+
+public record DivisionDto(
+    Guid Id,
+    Guid DirectorateId,
+    string DirectorateName,
+    string Code,
+    string Name,
+    string Description,
+    Guid? HeadUserId,
+    string? HeadUsername,
+    string? HeadFullName,
+    bool IsActive,
+    int DepartmentCount,
+    int UserCount
+);
+
+public record CreateOrUpdateDivisionRequest(
+    Guid DirectorateId,
+    string Code,
+    string Name,
+    string? Description,
+    Guid? HeadUserId,
+    bool IsActive = true
+);
+
+public record DepartmentDto(
+    Guid Id,
+    Guid DivisionId,
+    string DivisionName,
+    Guid DirectorateId,
+    string DirectorateName,
+    string Code,
+    string Name,
+    string Description,
+    Guid? HeadUserId,
+    string? HeadUsername,
+    string? HeadFullName,
+    bool IsActive,
+    int UserCount
+);
+
+public record CreateOrUpdateDepartmentRequest(
+    Guid DivisionId,
+    string Code,
+    string Name,
+    string? Description,
+    Guid? HeadUserId,
+    bool IsActive = true
+);
+
+public record PositionDto(
+    Guid Id,
+    string Code,
+    string Name,
+    int Level,
+    string Description,
+    bool IsActive,
+    int UserCount
+);
+
+public record CreateOrUpdatePositionRequest(
+    string Code,
+    string Name,
+    int Level,
+    string? Description,
+    bool IsActive = true
+);
+
+public record OrgMemberSummaryDto(
+    Guid Id,
+    string? EmployeeCode,
+    string Username,
+    string FullName,
+    string? PositionName,
+    int? PositionLevel,
+    IReadOnlyList<string> Roles
+);
+
+public record DepartmentTreeNodeDto(
+    Guid Id,
+    string Code,
+    string Name,
+    string Description,
+    Guid? HeadUserId,
+    string? HeadFullName,
+    int UserCount,
+    IReadOnlyList<OrgMemberSummaryDto> Members
+);
+
+public record DivisionTreeNodeDto(
+    Guid Id,
+    string Code,
+    string Name,
+    string Description,
+    Guid? HeadUserId,
+    string? HeadFullName,
+    int UserCount,
+    IReadOnlyList<DepartmentTreeNodeDto> Departments
+);
+
+public record DirectorateTreeNodeDto(
+    Guid Id,
+    string Code,
+    string Name,
+    string Description,
+    Guid? HeadUserId,
+    string? HeadUsername,
+    string? HeadFullName,
+    string? HeadPositionName,
+    int UserCount,
+    IReadOnlyList<DivisionTreeNodeDto> Divisions
 );
 
 public record RoleDto(

@@ -62,6 +62,12 @@ public static class Permissions
         public const string Manage = "Announcements.Manage";
     }
 
+    public static class Organization
+    {
+        public const string View = "Organization.View";
+        public const string Manage = "Organization.Manage";
+    }
+
     public static class Reports
     {
         public const string View = "Reports.View";
@@ -105,6 +111,9 @@ public static class Permissions
 
         new(Announcements.View, "Lihat Pengumuman", "Announcements", "Melihat daftar, detail, notifikasi bel, like, dan komentar pengumuman (Announcement Microservice)"),
         new(Announcements.Manage, "Kelola Pengumuman (HR)", "Announcements", "Membuat, mengubah, menghapus pengumuman, upload banner/lampiran, dan on/off komentar (khusus Tim HR)"),
+
+        new(Organization.View, "Lihat Struktur Organisasi", "Organization", "Melihat pohon struktur Direktorat, Divisi, Departemen, dan Master Posisi (Identity Service)"),
+        new(Organization.Manage, "Kelola Master Organisasi", "Organization", "Membuat, mengubah, dan menghapus master Direktorat, Divisi, Departemen, dan Posisi (Identity Service)"),
 
         new(Reports.View, "Lihat Laporan & Analitik", "Reports", "Mengakses halaman laporan manajemen"),
         new(Reports.Export, "Ekspor Laporan", "Reports", "Mengunduh/mengekspor data laporan"),

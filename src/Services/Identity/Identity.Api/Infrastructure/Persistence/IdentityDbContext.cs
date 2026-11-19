@@ -17,6 +17,10 @@ public class IdentityDbContext(DbContextOptions<IdentityDbContext> options) : Db
     public DbSet<MenuItem> MenuItems => Set<MenuItem>();
     public DbSet<RoleMenu> RoleMenus => Set<RoleMenu>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<Directorate> Directorates => Set<Directorate>();
+    public DbSet<Division> Divisions => Set<Division>();
+    public DbSet<Department> Departments => Set<Department>();
+    public DbSet<Position> Positions => Set<Position>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -36,11 +40,84 @@ public class IdentityDbContext(DbContextOptions<IdentityDbContext> options) : Db
             entity.Property(x => x.Email).HasMaxLength(150).IsRequired();
             entity.Property(x => x.FullName).HasMaxLength(150).IsRequired();
             entity.Property(x => x.PasswordHash).HasMaxLength(500).IsRequired();
+            entity.Property(x => x.EmployeeCode).HasMaxLength(40);
             entity.Property(x => x.PhoneNumber).HasMaxLength(50);
             entity.Property(x => x.Department).HasMaxLength(100);
             entity.Property(x => x.AvatarUrl).HasMaxLength(500);
             entity.HasIndex(x => x.Username).IsUnique();
             entity.HasIndex(x => x.Email).IsUnique();
+            entity.HasOne(x => x.Directorate)
+                .WithMany(d => d.Users)
+                .HasForeignKey(x => x.DirectorateId)
+                .OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.Division)
+                .WithMany(d => d.Users)
+                .HasForeignKey(x => x.DivisionId)
+                .OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.DepartmentEntity)
+                .WithMany(d => d.Users)
+                .HasForeignKey(x => x.DepartmentId)
+                .OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.Position)
+                .WithMany(p => p.Users)
+                .HasForeignKey(x => x.PositionId)
+                .OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(x => x.Manager)
+                .WithMany()
+                .HasForeignKey(x => x.ManagerUserId)
+                .OnDelete(DeleteBehavior.NoAction);
+            entity.HasQueryFilter(x => !x.IsDeleted);
+        });
+
+        modelBuilder.Entity<Directorate>(entity =>
+        {
+            entity.ToTable("Directorates");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Code).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.Name).HasMaxLength(150).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(500);
+            entity.HasIndex(x => x.Code).IsUnique();
+            entity.HasQueryFilter(x => !x.IsDeleted);
+        });
+
+        modelBuilder.Entity<Division>(entity =>
+        {
+            entity.ToTable("Divisions");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Code).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.Name).HasMaxLength(150).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(500);
+            entity.HasIndex(x => x.Code).IsUnique();
+            entity.HasOne(x => x.Directorate)
+                .WithMany(d => d.Divisions)
+                .HasForeignKey(x => x.DirectorateId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasQueryFilter(x => !x.IsDeleted);
+        });
+
+        modelBuilder.Entity<Department>(entity =>
+        {
+            entity.ToTable("Departments");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Code).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.Name).HasMaxLength(150).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(500);
+            entity.HasIndex(x => x.Code).IsUnique();
+            entity.HasOne(x => x.Division)
+                .WithMany(d => d.Departments)
+                .HasForeignKey(x => x.DivisionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasQueryFilter(x => !x.IsDeleted);
+        });
+
+        modelBuilder.Entity<Position>(entity =>
+        {
+            entity.ToTable("Positions");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Code).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.Name).HasMaxLength(150).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(500);
+            entity.HasIndex(x => x.Code).IsUnique();
             entity.HasQueryFilter(x => !x.IsDeleted);
         });
 

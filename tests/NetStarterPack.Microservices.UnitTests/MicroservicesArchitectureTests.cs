@@ -251,7 +251,7 @@ public class MicroservicesArchitectureTests
 
         var summaryResult = await dashboardService.GetSummaryAsync();
         Assert.True(summaryResult.Succeeded);
-        Assert.Equal(10, summaryResult.Data!.TotalUsers);
+        Assert.Equal(26, summaryResult.Data!.TotalUsers);
         Assert.Equal(7, summaryResult.Data.TotalProducts);
         Assert.Contains(summaryResult.Data.RecentActivities, a => a.Action == "CREATE_PRODUCT");
     }
@@ -730,5 +730,48 @@ public class MicroservicesArchitectureTests
         Assert.Contains(realtime.Events, e => e == "CommentsToggled:False");
         Assert.Contains(realtime.Events, e => e == "CommentsToggled:True");
         Assert.Contains(realtime.Events, e => e.StartsWith($"CommentAdded:{reply1.Data.Id}:"));
+    }
+
+    [Fact]
+    public async Task IdentityService_OrganizationMasterHierarchy_ShouldSeedCfoAngelicaAndEnforceDeleteGuard()
+    {
+        var (_, identityUow, hasher, jwt) = await CreateSeededIdentityAsync();
+        var currentUser = new FakeCurrentUserService();
+        var cache = CreateTestCacheService();
+
+        var orgService = new OrganizationService(identityUow, currentUser, cache);
+        var authService = new AuthService(identityUow, jwt, hasher, currentUser, cache);
+
+        // 1. Cek pohon organisasi: 4 Direktorat, termasuk Direktorat Finance dengan bos CFO Angelica
+        var treeRes = await orgService.GetOrganizationTreeAsync();
+        Assert.True(treeRes.Succeeded);
+        Assert.Equal(4, treeRes.Data!.Count);
+
+        var financeDir = treeRes.Data.FirstOrDefault(d => d.Code == "DIR-FIN");
+        Assert.NotNull(financeDir);
+        Assert.Equal("angelica.cfo", financeDir!.HeadUsername);
+        Assert.Contains("Angelica", financeDir.HeadFullName);
+        Assert.Equal(2, financeDir.Divisions.Count);
+        Assert.Contains(financeDir.Divisions, dv => dv.Code == "DIV-ACC" && dv.Departments.Count == 2);
+        Assert.Contains(financeDir.Divisions, dv => dv.Code == "DIV-TRS" && dv.Departments.Count == 2);
+
+        // 2. Cek login sebagai CFO Angelica membawa profil organisasi lengkap
+        var loginRes = await authService.LoginAsync(new LoginRequest("angelica.cfo", "Password123!"));
+        Assert.True(loginRes.Succeeded);
+        Assert.Equal("EMP-0001", loginRes.Data!.User.EmployeeCode);
+        Assert.Equal("Direktorat Finance", loginRes.Data.User.DirectorateName);
+        Assert.Equal("Chief Financial Officer (CFO)", loginRes.Data.User.PositionName);
+        Assert.Equal(1, loginRes.Data.User.PositionLevel);
+
+        // 3. Cek 10 Master Posisi terurut berdasarkan Level
+        var posRes = await orgService.GetPositionsAsync();
+        Assert.True(posRes.Succeeded);
+        Assert.Equal(10, posRes.Data!.Count);
+        Assert.Equal(1, posRes.Data[0].Level);
+
+        // 4. Guard: Direktorat yang masih punya Divisi aktif tidak boleh dihapus (400)
+        var deleteBlocked = await orgService.DeleteDirectorateAsync(financeDir.Id);
+        Assert.False(deleteBlocked.Succeeded);
+        Assert.Equal(400, deleteBlocked.StatusCode);
     }
 }
