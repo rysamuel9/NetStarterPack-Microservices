@@ -42,6 +42,7 @@ public interface ICurrentUserService
 {
     Guid? UserId { get; }
     string? Username { get; }
+    string? FullName { get; }
     IReadOnlyList<string> Roles { get; }
     IReadOnlyList<string> Permissions { get; }
     string? IpAddress { get; }
@@ -55,3 +56,4 @@ public interface IEventBus
 {
     Task PublishAuditAsync(AuditLogIntegrationEvent auditEvent, CancellationToken cancellationToken = default);
 }
+

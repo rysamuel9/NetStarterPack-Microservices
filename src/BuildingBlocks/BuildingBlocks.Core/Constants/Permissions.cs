@@ -3,7 +3,7 @@
 public record PermissionDefinition(string Code, string Name, string Module, string Description);
 
 /// <summary>
-/// Konstanta permission granular yang dipakai bersama oleh Identity.Api, Catalog.Api, Order.Api, dan microservice lainnya.
+/// Konstanta permission granular yang dipakai bersama oleh Identity.Api, Catalog.Api, Order.Api, Workflow.Api, dan microservice lainnya.
 /// </summary>
 public static class Permissions
 {
@@ -48,6 +48,14 @@ public static class Permissions
         public const string Delete = "Orders.Delete";
     }
 
+    public static class Workflows
+    {
+        public const string View = "Workflows.View";
+        public const string Create = "Workflows.Create";
+        public const string Approve = "Workflows.Approve";
+        public const string ManageTemplates = "Workflows.ManageTemplates";
+    }
+
     public static class Reports
     {
         public const string View = "Reports.View";
@@ -83,6 +91,11 @@ public static class Permissions
         new(Orders.Create, "Buat Pesanan / Order", "Orders", "Membuat transaksi pesanan baru (Order Microservice)"),
         new(Orders.Edit, "Ubah Pesanan / Order", "Orders", "Mengubah status dan detail pesanan (Order Microservice)"),
         new(Orders.Delete, "Hapus Pesanan / Order", "Orders", "Menghapus/membatalkan data pesanan (Order Microservice)"),
+
+        new(Workflows.View, "Lihat Tracking Pengajuan", "Workflows", "Melihat tracking list & riwayat approval pengajuan form (Workflow Microservice)"),
+        new(Workflows.Create, "Buat Pengajuan Form", "Workflows", "Membuat dan men-submit formulir dinamis (Workflow Microservice)"),
+        new(Workflows.Approve, "Approval Working List", "Workflows", "Menyetujui, meminta revisi, atau menolak dokumen di Working List (Workflow Microservice)"),
+        new(Workflows.ManageTemplates, "Kelola Template Form", "Workflows", "Membuat dan mengubah skema form dinamis serta tahapan approval (Workflow Microservice)"),
 
         new(Reports.View, "Lihat Laporan & Analitik", "Reports", "Mengakses halaman laporan manajemen"),
         new(Reports.Export, "Ekspor Laporan", "Reports", "Mengunduh/mengekspor data laporan"),

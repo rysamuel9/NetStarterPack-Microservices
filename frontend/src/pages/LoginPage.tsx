@@ -16,31 +16,49 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     username: 'superadmin',
     roleLabel: 'SuperAdmin',
     badgeClass: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
-    description: 'God-mode lintas microservice: akses penuh Identity, Catalog, Order, Role, & Event Stream',
+    description: 'God-mode lintas microservice: akses penuh Identity, Catalog, Order, Workflow, & Event Stream',
   },
   {
     username: 'admin',
     roleLabel: 'Admin',
     badgeClass: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
-    description: 'Kelola user, CRUD penuh di Catalog.Api (:5082) & Order.Api (:5083), serta pantau audit log',
-  },
-  {
-    username: 'manager',
-    roleLabel: 'Manager (Dummy)',
-    badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
-    description: 'Lihat user, kelola katalog & pesanan, serta ekspor laporan analitik CSV',
+    description: 'Kelola user, buat template form dinamis baru, CRUD penuh Catalog/Order, & pantau audit log',
   },
   {
     username: 'staff',
-    roleLabel: 'Staff (Dummy)',
+    roleLabel: 'Staff (Pemohon)',
     badgeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-    description: 'Operasional harian: tambah & ubah item di Catalog.Api dan pesanan di Order.Api',
+    description: 'Pemohon pengajuan form (Laptop, Cuti, Barang Kantor) & operasional Catalog/Order',
+  },
+  {
+    username: 'manager',
+    roleLabel: 'Manager (Approver L1)',
+    badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+    description: 'Approver Level 1 untuk semua jenis pengajuan form (cek Working List untuk approve)',
+  },
+  {
+    username: 'itlead',
+    roleLabel: 'ITLead (Approver IT)',
+    badgeClass: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+    description: 'Approver Level 2 teknis untuk validasi spek perangkat pada Form Pengadaan Laptop',
+  },
+  {
+    username: 'hrmanager',
+    roleLabel: 'HRManager (Approver HR)',
+    badgeClass: 'bg-violet-500/20 text-violet-300 border-violet-500/30',
+    description: 'Approver Final (L2) untuk persetujuan Form Pengajuan Cuti karyawan',
+  },
+  {
+    username: 'financedirector',
+    roleLabel: 'FinanceDirector (Final)',
+    badgeClass: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
+    description: 'Approver Final budget untuk Pengadaan Laptop (L3) & Pengadaan Barang Kantor (L2)',
   },
   {
     username: 'viewer',
-    roleLabel: 'Viewer (Dummy)',
+    roleLabel: 'Viewer (Auditor)',
     badgeClass: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
-    description: 'Mode baca saja (read-only) untuk melihat dashboard, katalog, dan pesanan',
+    description: 'Mode baca saja (read-only) untuk melihat dashboard, tracking pengajuan, katalog, & pesanan',
   },
 ];
 
@@ -110,65 +128,70 @@ export const LoginPage: React.FC = () => {
             Waktu tekan <code>F5</code>, semua service langsung nyala bareng secara otomatis.
           </p>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-5 max-w-2xl text-xs">
-            <div className="p-3 rounded-xl bg-slate-900/90 border border-teal-500/30">
-              <div className="flex items-center gap-1.5 text-teal-400 font-bold">
-                <Network className="w-3.5 h-3.5" />
-                <span>Gateway.Api</span>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-5 max-w-2xl text-xs">
+            <div className="p-2.5 rounded-xl bg-slate-900/90 border border-teal-500/30">
+              <div className="flex items-center gap-1 text-teal-400 font-bold">
+                <Network className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Gateway</span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1 font-mono">Port :5080 (YARP)</p>
+              <p className="text-[10px] text-slate-400 mt-1 font-mono">:5080 YARP</p>
             </div>
-            <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800">
-              <div className="flex items-center gap-1.5 text-cyan-400 font-bold">
-                <Database className="w-3.5 h-3.5" />
-                <span>Identity.Api</span>
+            <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
+              <div className="flex items-center gap-1 text-cyan-400 font-bold">
+                <Database className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Identity</span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1 font-mono">:5081 • IdentityDb</p>
+              <p className="text-[10px] text-slate-400 mt-1 font-mono">:5081 DB</p>
             </div>
-            <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800">
-              <div className="flex items-center gap-1.5 text-emerald-400 font-bold">
-                <Database className="w-3.5 h-3.5" />
-                <span>Catalog.Api</span>
+            <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
+              <div className="flex items-center gap-1 text-emerald-400 font-bold">
+                <Database className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Catalog</span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1 font-mono">:5082 • CatalogDb</p>
+              <p className="text-[10px] text-slate-400 mt-1 font-mono">:5082 DB</p>
             </div>
-            <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800">
-              <div className="flex items-center gap-1.5 text-amber-400 font-bold">
-                <Database className="w-3.5 h-3.5" />
-                <span>Order.Api</span>
+            <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
+              <div className="flex items-center gap-1 text-amber-400 font-bold">
+                <Database className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Order</span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1 font-mono">:5083 • OrderDb</p>
+              <p className="text-[10px] text-slate-400 mt-1 font-mono">:5083 DB</p>
+            </div>
+            <div className="p-2.5 rounded-xl bg-slate-900/90 border border-violet-500/40 col-span-2 sm:col-span-1">
+              <div className="flex items-center gap-1 text-violet-400 font-bold">
+                <Database className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Workflow</span>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1 font-mono">:5084 DB</p>
             </div>
           </div>
 
           <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 max-w-2xl">
             <div className="flex items-center gap-2 text-xs font-semibold text-teal-400 mb-2.5">
               <Terminal className="w-4 h-4" />
-              <span>Quick Login 5 Role Bawaan Seeder (Klik buat langsung tes JWT Claims lintas service)</span>
+              <span>Quick Login 8 Akun Organisasi (Klik untuk tes Submit &rarr; Multi-Level Approval)</span>
             </div>
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
               {DEMO_ACCOUNTS.map((acc) => (
                 <button
                   key={acc.username}
                   type="button"
                   disabled={loading}
                   onClick={() => handleQuickLogin(acc.username)}
-                  className="w-full text-left p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800/90 border border-slate-800 hover:border-teal-500/40 transition-all flex items-center justify-between gap-4 group"
+                  className="w-full text-left p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800/90 border border-slate-800 hover:border-teal-500/40 transition-all flex items-center justify-between gap-2 group"
                 >
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span
-                        className={`px-2 py-0.5 text-[11px] font-semibold rounded border ${acc.badgeClass}`}
+                        className={`px-1.5 py-0.5 text-[10px] font-semibold rounded border ${acc.badgeClass}`}
                       >
                         {acc.roleLabel}
                       </span>
-                      <code className="text-xs text-slate-300 font-mono">{acc.username}</code>
+                      <code className="text-[11px] text-slate-300 font-mono">{acc.username}</code>
                     </div>
-                    <p className="text-xs text-slate-400 mt-1 truncate">{acc.description}</p>
+                    <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">{acc.description}</p>
                   </div>
-                  <span className="text-xs font-semibold text-teal-400 shrink-0 flex items-center gap-1">
-                    Masuk <ArrowRight className="w-3.5 h-3.5" />
-                  </span>
+                  <ArrowRight className="w-3.5 h-3.5 text-teal-400 shrink-0 opacity-70 group-hover:opacity-100" />
                 </button>
               ))}
             </div>

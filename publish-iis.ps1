@@ -5,11 +5,12 @@
 #   2. Publish Order.Api saja:             .\publish-iis.ps1 -Target Order
 #   3. Publish Catalog.Api saja:           .\publish-iis.ps1 -Target Catalog
 #   4. Publish Identity.Api saja:          .\publish-iis.ps1 -Target Identity
-#   5. Publish Gateway.Api saja:           .\publish-iis.ps1 -Target Gateway
-#   6. Publish Frontend React saja:        .\publish-iis.ps1 -Target Frontend
+#   5. Publish Workflow.Api saja:          .\publish-iis.ps1 -Target Workflow
+#   6. Publish Gateway.Api saja:           .\publish-iis.ps1 -Target Gateway
+#   7. Publish Frontend React saja:        .\publish-iis.ps1 -Target Frontend
 # ==============================================================================
 param(
-    [ValidateSet("All", "Gateway", "Identity", "Catalog", "Order", "Frontend")]
+    [ValidateSet("All", "Gateway", "Identity", "Catalog", "Order", "Workflow", "Frontend")]
     [string]$Target = "All",
     [string]$OutputRoot = "$PSScriptRoot\publish-iis"
 )
@@ -76,6 +77,9 @@ if ($Target -eq "All" -or $Target -eq "Catalog") {
 }
 if ($Target -eq "All" -or $Target -eq "Order") {
     Publish-DotnetService "Order.Api (:5083)" "src\Services\Order\Order.Api\Order.Api.csproj" "order-api"
+}
+if ($Target -eq "All" -or $Target -eq "Workflow") {
+    Publish-DotnetService "Workflow.Api (:5084)" "src\Services\Workflow\Workflow.Api\Workflow.Api.csproj" "workflow-api"
 }
 if ($Target -eq "All" -or $Target -eq "Frontend") {
     Publish-FrontendSpa

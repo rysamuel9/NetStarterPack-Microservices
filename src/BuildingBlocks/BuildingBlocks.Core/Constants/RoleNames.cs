@@ -1,7 +1,7 @@
-namespace BuildingBlocks.Core.Constants;
+﻿namespace BuildingBlocks.Core.Constants;
 
 /// <summary>
-/// Konstanta role bawaan yang dikenali lintas microservice.
+/// Konstanta role bawaan dan role organisasi perusahaan yang dikenali lintas microservice.
 /// SuperAdmin lolos seluruh pengecekan permission di semua microservice.
 /// </summary>
 public static class RoleNames
@@ -9,6 +9,9 @@ public static class RoleNames
     public const string SuperAdmin = "SuperAdmin";
     public const string Admin = "Admin";
     public const string Manager = "Manager";
+    public const string ITLead = "ITLead";
+    public const string HRManager = "HRManager";
+    public const string FinanceDirector = "FinanceDirector";
     public const string Staff = "Staff";
     public const string Viewer = "Viewer";
 
@@ -17,6 +20,9 @@ public static class RoleNames
         SuperAdmin,
         Admin,
         Manager,
+        ITLead,
+        HRManager,
+        FinanceDirector,
         Staff,
         Viewer
     ];

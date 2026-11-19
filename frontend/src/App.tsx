@@ -7,6 +7,9 @@ import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ProductsPage } from './pages/ProductsPage';
 import { OrdersPage } from './pages/OrdersPage';
+import { WorkflowCreatePage } from './pages/WorkflowCreatePage';
+import { WorkflowWorkingListPage } from './pages/WorkflowWorkingListPage';
+import { WorkflowTrackingPage } from './pages/WorkflowTrackingPage';
 import { UsersPage } from './pages/UsersPage';
 import { RolesPage } from './pages/RolesPage';
 import { MenusPage } from './pages/MenusPage';
@@ -49,6 +52,30 @@ export const App: React.FC = () => {
               element={
                 <ProtectedRoute permission="Orders.View">
                   <OrdersPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="workflow-create"
+              element={
+                <ProtectedRoute permission="Workflows.Create">
+                  <WorkflowCreatePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="workflow-working-list"
+              element={
+                <ProtectedRoute permission="Workflows.Approve">
+                  <WorkflowWorkingListPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="workflow-tracking"
+              element={
+                <ProtectedRoute permission="Workflows.View">
+                  <WorkflowTrackingPage />
                 </ProtectedRoute>
               }
             />

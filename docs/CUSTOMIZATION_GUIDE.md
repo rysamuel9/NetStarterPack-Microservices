@@ -2,9 +2,10 @@
 
 Dokumen ini adalah panduan komprehensif (*step-by-step*) dari **A sampai Z** untuk mengembangkan fitur di **NetStarterPack Microservices**.
 
-Karena arsitektur project ini mendukung **Maintainability secara Vertikal maupun Horizontal**, panduan ini dibagi menjadi **2 Skenario Utama**:
+Karena arsitektur project ini mendukung **Maintainability secara Vertikal maupun Horizontal**, panduan ini dibagi menjadi **3 Level Studi Kasus**:
 - **BAGIAN A (Vertical Scaling)**: Menambah modul/tabel CRUD baru di dalam microservice yang sudah ada (Studi Kasus: Modul **Pelanggan / `Customer`**).
-- **BAGIAN B (Horizontal Scaling)**: Membuat **Microservice Mandiri Baru** dari nol dengan port dan database terpisah (Studi Kasus: Microservice **`Order.Api` di Port `5083`** dengan database **`NetStarterPack_OrderDb`**), lalu menyambungkannya ke **YARP API Gateway (`:5080`)**, **Unified Swagger/Scalar**, dan **F5 Auto-Orchestrator**.
+- **BAGIAN B (Horizontal Scaling — Example 2)**: Membuat **Microservice Mandiri Baru** dari nol dengan port dan database terpisah (Studi Kasus: Microservice **`Order.Api` di Port `5083`** dengan database **`NetStarterPack_OrderDb`**), lalu menyambungkannya ke **YARP API Gateway (`:5080`)**, **Unified Swagger/Scalar**, dan **F5 Auto-Orchestrator**.
+- **BAGIAN C (Advanced Enterprise — Example 3)**: Membuat microservice kompleks dari A sampai Z dengan **4 tabel relasional + JSON Schema Form Dinamis + Multi-Level Approval State Machine + 7 Lapis Security Guard + 3 Halaman React** (Studi Kasus: **`Workflow.Api` di Port `5084`** dengan database **`NetStarterPack_WorkflowDb`**). *(Lihat juga diagram ERD, State Machine, Sequence Diagram, & Walkthrough Testing lengkapnya di [`docs/WORKFLOW_ADVANCED_EXAMPLE.md`](WORKFLOW_ADVANCED_EXAMPLE.md)).*
 
 ---
 
@@ -1078,3 +1079,371 @@ app.Run();
 3. **Buat Halaman React [`frontend/src/pages/OrdersPage.tsx`](../frontend/src/pages/OrdersPage.tsx)**:
    - Halaman ini mengambil daftar pesanan dari `GET /api/orders` (diteruskan YARP ke `Order.Api :5083`).
    - Saat modal **Buat Pesanan Baru** dibuka, ia juga memanggil `GET /api/products` (diteruskan YARP ke `Catalog.Api :5082`) untuk menampilkan dropdown pilihan produk yang otomatis mengisi SKU dan Harga Satuan!
+
+
+---
+
+# BAGIAN C (Example 3 — Advanced): Membuat Dynamic Form Builder & Multi-Level Approval Microservice (`Workflow.Api :5084`) dari A sampai Z
+
+Kalau **Bagian A (`Customer`)** adalah contoh *vertical scaling* (nambah tabel di service lama) dan **Bagian B (`Order.Api`)** adalah contoh *horizontal scaling* CRUD 1 tabel, maka **Bagian C (`Workflow.Api`)** ini adalah contoh **studi kasus Enterprise / Advanced** yang menyangkut:
+- **Relasi banyak tabel + skema data dinamis** (`FormTemplates`, `WorkflowRequests`, `WorkflowApprovalSteps`, `WorkflowHistoryLogs`)
+- **Formulir yang berubah-ubah sesuai tipe dokumen** (*Pengadaan Laptop*, *Pengajuan Cuti*, *Pengadaan Barang Kantor*, atau template buatan Admin)
+- **Multi-Level Approval lintas role organisasi** (`Staff` &rarr; `Manager` &rarr; `ITLead` / `HRManager` &rarr; `FinanceDirector`)
+- **Penanganan Keamanan Berlapis di Backend** (*Dynamic Schema Validation*, *Anti-Self-Approval*, *Anti-Queue-Jumping*, *Ownership Guard*, & *Immutable Audit Log*)
+- **Auto-Upgrade Database Existing** di `Identity.Api` untuk menambahkan role, akun user perusahaan, dan 3 menu baru tanpa `DROP DATABASE`!
+
+> **Catatan**: Seluruh kode pada **Bagian C** ini **sudah terimplementasi dan berjalan live** di branch `feature/workflow-approval-service` pada folder `src/Services/Workflow/Workflow.Api/` & `frontend/src/pages/Workflow*.tsx`. Untuk melihat **Diagram ERD, State Machine, Sequence Diagram, & Walkthrough Testing di Browser**, buka juga [`docs/WORKFLOW_ADVANCED_EXAMPLE.md`](WORKFLOW_ADVANCED_EXAMPLE.md).
+
+---
+
+## Checklist Lengkap File yang Disentuh (Bagian C — Example 3)
+
+| Langkah | Project / Layer | File yang Dibuat / Diubah | Peran Utama |
+| :---: | :--- | :--- | :--- |
+| **1** | Solution & Project | `src/Services/Workflow/Workflow.Api/` | Buat project Web API baru via Visual Studio / `dotnet` CLI (Port `5084`) |
+| **2.1** | `BuildingBlocks.Core` | [`Constants/RoleNames.cs`](../src/BuildingBlocks/BuildingBlocks.Core/Constants/RoleNames.cs) | Tambah 3 role perusahaan: `ITLead`, `HRManager`, `FinanceDirector` |
+| **2.2** | `BuildingBlocks.Core` | [`Constants/Permissions.cs`](../src/BuildingBlocks/BuildingBlocks.Core/Constants/Permissions.cs) | Tambah `Permissions.Workflows` (`View`, `Create`, `Approve`, `ManageTemplates`) |
+| **2.3** | `BuildingBlocks.Core` | [`Constants/CacheKeys.cs`](../src/BuildingBlocks/BuildingBlocks.Core/Constants/CacheKeys.cs), [`Contracts/IntegrationContracts.cs`](../src/BuildingBlocks/BuildingBlocks.Core/Contracts/IntegrationContracts.cs) | Tambah `WorkflowsPrefix` & `WorkflowStatsDto` |
+| **2.4** | `BuildingBlocks.Core` & `Security` | [`Interfaces/ICoreInterfaces.cs`](../src/BuildingBlocks/BuildingBlocks.Core/Interfaces/ICoreInterfaces.cs), [`CurrentUserService.cs`](../src/BuildingBlocks/BuildingBlocks.Security/CurrentUserService.cs) | Tambah properti `FullName` dari klaim JWT `"fullName"` (tanpa JOIN ke `IdentityDb`) |
+| **2.5** | `BuildingBlocks.Infrastructure` | [`Messaging/HttpEventBus.cs`](../src/BuildingBlocks/BuildingBlocks.Infrastructure/Messaging/HttpEventBus.cs) | Tambah `WorkflowServiceUrl` (`http://localhost:5084`) di `ServiceEndpointsSettings` |
+| **3** | `Workflow.Api/Domain` | [`Domain/Entities/WorkflowEntities.cs`](../src/Services/Workflow/Workflow.Api/Domain/Entities/WorkflowEntities.cs), [`Domain/Interfaces/IWorkflowUnitOfWork.cs`](../src/Services/Workflow/Workflow.Api/Domain/Interfaces/IWorkflowUnitOfWork.cs) | 4 Entity relasional+JSON, Enum State Machine, & `IWorkflowRequestRepository` |
+| **4** | `Workflow.Api/Application` | [`Application/DTOs/WorkflowDtos.cs`](../src/Services/Workflow/Workflow.Api/Application/DTOs/WorkflowDtos.cs), [`Interfaces/IWorkflowService.cs`](../src/Services/Workflow/Workflow.Api/Application/Interfaces/IWorkflowService.cs), [`Services/WorkflowService.cs`](../src/Services/Workflow/Workflow.Api/Application/Services/WorkflowService.cs) | Schema Validator, State Machine Approval, 7 Security Guards, Cache, & EventBus |
+| **5** | `Workflow.Api/Infrastructure` | [`Infrastructure/Persistence/WorkflowPersistence.cs`](../src/Services/Workflow/Workflow.Api/Infrastructure/Persistence/WorkflowPersistence.cs) | `WorkflowDbContext` (4 `DbSet`), `WorkflowRequestRepository`, `WorkflowUnitOfWork`, & `WorkflowDatabaseSeeder` |
+| **6** | `Workflow.Api/Controllers` & Host | [`Controllers/WorkflowsController.cs`](../src/Services/Workflow/Workflow.Api/Controllers/WorkflowsController.cs), [`Program.cs`](../src/Services/Workflow/Workflow.Api/Program.cs), [`appsettings.json`](../src/Services/Workflow/Workflow.Api/appsettings.json), [`Dockerfile`](../src/Services/Workflow/Workflow.Api/Dockerfile) | 11 Endpoint REST API + `[HasPermission]`, DB `NetStarterPack_WorkflowDb` (+ template komentar 1-DB) |
+| **7** | `Identity.Api` | [`Infrastructure/Persistence/IdentityDatabaseSeeder.cs`](../src/Services/Identity/Identity.Api/Infrastructure/Persistence/IdentityDatabaseSeeder.cs) | Seed 3 role & 3 user baru, 3 menu `WORKFLOW & APPROVAL`, & `EnsureWorkflowRolesUsersAndMenusAsync()` |
+| **8** | `Gateway.Api`, Docker, & IIS | [`Gateway.Api/appsettings.json`](../src/ApiGateway/Gateway.Api/appsettings.json), [`Gateway.Api/Program.cs`](../src/ApiGateway/Gateway.Api/Program.cs), [`docker-compose.yml`](../docker-compose.yml), [`publish-iis.ps1`](../publish-iis.ps1) | Route YARP `/api/workflows`, F5 Auto-Orchestrator, Unified Swagger, Health Probe, Docker & IIS |
+| **9** | `Frontend React` | `types/index.ts`, `DynamicIcon.tsx`, `App.tsx`, `Layout.tsx`, `LoginPage.tsx`, `DashboardPage.tsx`, `WorkflowCreatePage.tsx`, `WorkflowWorkingListPage.tsx`, `WorkflowTrackingPage.tsx` | 3 halaman workflow dinamis + 8 Quick Login akun korporat + Topologi 5 node |
+| **10** | `UnitTests` | [`tests/NetStarterPack.Microservices.UnitTests/MicroservicesArchitectureTests.cs`](../tests/NetStarterPack.Microservices.UnitTests/MicroservicesArchitectureTests.cs) | 3 test khusus Workflow: Schema Validation, 3-Level Approval + Anti-Bypass, & Anti-Self-Approval + Revisi |
+
+---
+
+## Langkah 1: Buat Project `Workflow.Api` (Visual Studio GUI atau CLI)
+
+Sama seperti di Example 2, **jangan edit file `.csproj` secara manual**. Gunakan salah satu cara standar berikut:
+
+### Cara 1: Visual Studio GUI
+1. Di **Solution Explorer**, klik kanan folder **`src/Services`** &rarr; **Add** &rarr; **New Project...** &rarr; pilih **ASP.NET Core Web API** &rarr; beri nama **`Workflow.Api`**, lokasi `src\Services\Workflow\`, centang **Use controllers**, Target Framework **.NET 10.0**.
+2. Klik kanan **Dependencies** pada `Workflow.Api` &rarr; **Add Project Reference...** &rarr; centang **`BuildingBlocks.Core`**, **`BuildingBlocks.Security`**, dan **`BuildingBlocks.Infrastructure`**.
+3. Klik kanan **Dependencies** &rarr; **Manage NuGet Packages...** &rarr; install:
+   - `Microsoft.EntityFrameworkCore.SqlServer` (`10.0.*`)
+   - `Microsoft.EntityFrameworkCore.Sqlite` (`10.0.*`)
+   - `Microsoft.EntityFrameworkCore.InMemory` (`10.0.*`)
+4. Klik kanan **`Gateway.Api`** &rarr; **Build Dependencies** &rarr; **Project Dependencies...** &rarr; centang **`Workflow.Api`** (supaya saat tekan `F5`, `Workflow.Api` otomatis ikut di-build!).
+5. Klik kanan **`NetStarterPack.Microservices.UnitTests`** &rarr; **Add Project Reference...** &rarr; centang **`Workflow.Api`**.
+
+### Cara 2: PowerShell (`dotnet` CLI)
+```powershell
+# 1. Buat project Web API baru & daftarkan ke Solution
+dotnet new webapi -n Workflow.Api -o src/Services/Workflow/Workflow.Api --use-controllers
+dotnet sln NetStarterPack.Microservices.sln add src/Services/Workflow/Workflow.Api/Workflow.Api.csproj --solution-folder Services
+
+# 2. Tambah referensi ke 3 Shared BuildingBlocks
+dotnet add src/Services/Workflow/Workflow.Api reference src/BuildingBlocks/BuildingBlocks.Core
+dotnet add src/Services/Workflow/Workflow.Api reference src/BuildingBlocks/BuildingBlocks.Security
+dotnet add src/Services/Workflow/Workflow.Api reference src/BuildingBlocks/BuildingBlocks.Infrastructure
+
+# 3. Install package EF Core
+dotnet add src/Services/Workflow/Workflow.Api package Microsoft.EntityFrameworkCore.SqlServer --version "10.0.*"
+dotnet add src/Services/Workflow/Workflow.Api package Microsoft.EntityFrameworkCore.Sqlite --version "10.0.*"
+dotnet add src/Services/Workflow/Workflow.Api package Microsoft.EntityFrameworkCore.InMemory --version "10.0.*"
+
+# 4. Hubungkan ke UnitTests
+dotnet add tests/NetStarterPack.Microservices.UnitTests reference src/Services/Workflow/Workflow.Api
+```
+
+---
+
+## Langkah 2: Update Shared Kernel (`BuildingBlocks`)
+
+Karena sistem approval melibatkan **role organisasi lintas service**, **permission baru**, dan **snapshot nama user dari JWT**, kita perbarui dulu shared contract di `BuildingBlocks`:
+
+### 2.1. Tambah Role Perusahaan di [`BuildingBlocks.Core/Constants/RoleNames.cs`](../src/BuildingBlocks/BuildingBlocks.Core/Constants/RoleNames.cs)
+```csharp
+public static class RoleNames
+{
+    public const string SuperAdmin = "SuperAdmin";
+    public const string Admin = "Admin";
+    public const string Manager = "Manager";
+    public const string ITLead = "ITLead";
+    public const string HRManager = "HRManager";
+    public const string FinanceDirector = "FinanceDirector";
+    public const string Staff = "Staff";
+    public const string Viewer = "Viewer";
+}
+```
+
+### 2.2. Tambah Permission Granular di [`BuildingBlocks.Core/Constants/Permissions.cs`](../src/BuildingBlocks/BuildingBlocks.Core/Constants/Permissions.cs)
+```csharp
+public static class Workflows
+{
+    public const string View = "Workflows.View";
+    public const string Create = "Workflows.Create";
+    public const string Approve = "Workflows.Approve";
+    public const string ManageTemplates = "Workflows.ManageTemplates";
+}
+
+// Daftarkan ke Permissions.GetAll():
+new(Workflows.View, "Lihat & Tracking Workflow", "Workflows", "Melihat daftar pengajuan & posisi approval"),
+new(Workflows.Create, "Buat Pengajuan Form", "Workflows", "Mengisi & mengajukan formulir dinamis"),
+new(Workflows.Approve, "Approval Working List", "Workflows", "Menyetujui, meminta revisi, atau menolak pengajuan"),
+new(Workflows.ManageTemplates, "Kelola Template Form", "Workflows", "Membuat & mengubah template form dinamis beserta alur approval"),
+```
+
+### 2.3. Tambah `FullName` di `ICurrentUserService` & `CurrentUserService`
+Kenapa ini penting di arsitektur Microservices?
+Karena `Workflow.Api` punya database sendiri (`NetStarterPack_WorkflowDb`) dan **tidak boleh melakukan SQL `JOIN` ke tabel `Users` di `NetStarterPack_IdentityDb`**. Untungnya `Identity.Api` sudah menaruh klaim `"fullName"` di dalam JWT Access Token! Jadi di `BuildingBlocks.Security/CurrentUserService.cs` kita cukup membaca klaim tersebut:
+```csharp
+public string? FullName =>
+    httpContextAccessor.HttpContext?.User?.FindFirstValue("fullName")
+    ?? Username;
+```
+Dengan begitu, saat `staff` submit form atau `itlead` menekan Approve, `Workflow.Api` langsung menyimpan snapshot `RequesterFullName` / `ActionByFullName` secara stateless tanpa perlu tembak HTTP ekstra ke `Identity.Api`.
+
+### 2.4. Tambah CacheKey, Stats Contract, & Service Endpoint
+- [`CacheKeys.cs`](../src/BuildingBlocks/BuildingBlocks.Core/Constants/CacheKeys.cs): Tambah `WorkflowsPrefix = "workflows:"`, `WorkflowTemplates()`, `WorkflowStats()`.
+- [`IntegrationContracts.cs`](../src/BuildingBlocks/BuildingBlocks.Core/Contracts/IntegrationContracts.cs): Tambah `WorkflowStatsDto(TotalRequests, InReviewRequests, ApprovedRequests, RejectedRequests, RevisionRequests, ActiveTemplates)`.
+- [`HttpEventBus.cs`](../src/BuildingBlocks/BuildingBlocks.Infrastructure/Messaging/HttpEventBus.cs): Tambah `public string WorkflowServiceUrl { get; set; } = "http://localhost:5084";` di `ServiceEndpointsSettings`.
+
+---
+
+## Langkah 3: Buat Layer `Domain/` di `Workflow.Api` (Desain Hybrid 4 Tabel)
+
+Inilah inti yang membedakan **Example 3** dari CRUD biasa:
+- **Jangan buat tabel terpisah** untuk setiap jenis formulir (nanti kalau ada 20 form baru harus migrasi 20 tabel).
+- Gunakan **Hybrid Relational + JSON Schema**:
+  1. `FormTemplate`: menyimpan definisi field (`FieldsJson`) dan urutan approver (`ApprovalFlowJson`).
+  2. `WorkflowRequest`: menyimpan header pengajuan, `FormDataJson`, status state-machine, `CurrentStepOrder`, & `CurrentApproverRole`.
+  3. `WorkflowApprovalStep`: menyimpan 1..N baris tahap approval per dokumen (`Waiting`, `Pending`, `Approved`, `RevisionRequested`, `Rejected`).
+  4. `WorkflowHistoryLog`: catatan *append-only* setiap transisi status.
+
+### 3.1. Buat [`Domain/Entities/WorkflowEntities.cs`](../src/Services/Workflow/Workflow.Api/Domain/Entities/WorkflowEntities.cs)
+```csharp
+public enum WorkflowStatus
+{
+    Draft = 0,
+    InReview = 1,
+    RevisionRequested = 2,
+    Approved = 3,
+    Rejected = 4
+}
+
+public enum ApprovalStepStatus
+{
+    Waiting = 0,
+    Pending = 1,
+    Approved = 2,
+    Rejected = 3,
+    RevisionRequested = 4
+}
+
+public class FormTemplate : BaseEntity
+{
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public string Icon { get; set; } = "FileText";
+    public string Description { get; set; } = string.Empty;
+    public string FieldsJson { get; set; } = "[]";
+    public string ApprovalFlowJson { get; set; } = "[]";
+    public bool IsActive { get; set; } = true;
+
+    public ICollection<WorkflowRequest> Requests { get; set; } = new List<WorkflowRequest>();
+}
+
+public class WorkflowRequest : BaseEntity
+{
+    public string RequestNumber { get; set; } = string.Empty;
+    public Guid FormTemplateId { get; set; }
+    public FormTemplate FormTemplate { get; set; } = null!;
+    public string TemplateCode { get; set; } = string.Empty;
+    public string TemplateName { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string FormDataJson { get; set; } = "{}";
+
+    // Snapshot identitas dari JWT Identity.Api (tanpa SQL JOIN lintas DB)
+    public Guid RequesterUserId { get; set; }
+    public string RequesterUsername { get; set; } = string.Empty;
+    public string RequesterFullName { get; set; } = string.Empty;
+
+    public WorkflowStatus Status { get; set; } = WorkflowStatus.Draft;
+    public int CurrentStepOrder { get; set; } = 0;
+    public string? CurrentApproverRole { get; set; }
+    public DateTime? SubmittedAt { get; set; }
+    public DateTime? CompletedAt { get; set; }
+
+    public ICollection<WorkflowApprovalStep> ApprovalSteps { get; set; } = new List<WorkflowApprovalStep>();
+    public ICollection<WorkflowHistoryLog> HistoryLogs { get; set; } = new List<WorkflowHistoryLog>();
+}
+```
+*(Detail lengkap `WorkflowApprovalStep` & `WorkflowHistoryLog` tersedia di [`WorkflowEntities.cs`](../src/Services/Workflow/Workflow.Api/Domain/Entities/WorkflowEntities.cs)).*
+
+### 3.2. Buat Custom Repository Contract [`Domain/Interfaces/IWorkflowUnitOfWork.cs`](../src/Services/Workflow/Workflow.Api/Domain/Interfaces/IWorkflowUnitOfWork.cs)
+Berbeda dengan `Order.Api` yang cukup pakai `IRepository<Order>` generik, `WorkflowRequest` butuh query dengan eager-loading `.Include(FormTemplate).Include(ApprovalSteps).Include(HistoryLogs)` untuk mengambil detail lengkap beserta stepper dan history log-nya:
+```csharp
+public interface IWorkflowRequestRepository : IRepository<WorkflowRequest>
+{
+    Task<WorkflowRequest?> GetByIdWithDetailsAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<WorkflowRequest>> GetWorkingListForRolesAsync(
+        IReadOnlyList<string> userRoles,
+        Guid? excludeRequesterUserId,
+        bool isSuperAdmin,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<WorkflowRequest>> GetTrackingListAsync(
+        string? scope,
+        Guid? currentUserId,
+        string? currentUsername,
+        string? status,
+        string? templateCode,
+        string? search,
+        CancellationToken cancellationToken = default);
+}
+```
+
+---
+
+## Langkah 4: Buat Layer `Application/` (Schema Validation, State Machine, & 7 Security Guards)
+
+Di dalam `Workflow.Api/Application/`, buat:
+1. [`DTOs/WorkflowDtos.cs`](../src/Services/Workflow/Workflow.Api/Application/DTOs/WorkflowDtos.cs): Record DTO untuk definisi field (`FormFieldDefinitionDto`), alur approval (`ApprovalFlowStepDefinitionDto`), request submit/resubmit/approve, dan response `WorkflowRequestDto` (menyertakan `TemplateFields` agar UI bisa me-render label & format rupiah secara otomatis).
+2. [`Interfaces/IWorkflowService.cs`](../src/Services/Workflow/Workflow.Api/Application/Interfaces/IWorkflowService.cs): Kontrak 11 use-case bisnis.
+3. [`Services/WorkflowService.cs`](../src/Services/Workflow/Workflow.Api/Application/Services/WorkflowService.cs): Di sinilah seluruh **aturan bisnis dan security guard** ditegakkan keras di server:
+
+### A. Backend Dynamic Schema Validation (Anti-Bypass Postman/Swagger)
+Saat `CreateRequestAsync` atau `ResubmitRequestAsync` dipanggil, server membaca `template.FieldsJson` dan memvalidasi setiap key di `request.FormData`:
+- Jika `field.Required == true` dan isinya kosong &rarr; tolak (`400 Bad Request`).
+- Jika `field.Type` adalah `"number"` atau `"currency"` &rarr; pastikan `decimal.TryParse(...)` valid dan tidak negatif.
+- Jika `field.Type == "select"` &rarr; pastikan nilainya termasuk dalam daftar `field.Options`.
+
+### B. Security Guard saat Approve / Revisi / Reject (`ValidateApprovalAuthority`)
+Sebelum mengubah state dokumen, backend selalu menjalankan 3 cek wajib ini:
+```csharp
+// 1. Pastikan status dokumen memang sedang InReview (cegah double-approve / ubah dokumen final)
+if (request.Status != WorkflowStatus.InReview)
+    return Result<WorkflowRequestDto>.Failure("Pengajuan ini tidak sedang dalam status menunggu approval.", 400);
+
+// 2. ANTI-SELF-APPROVAL: Pembuat form dilarang menyetujui/menolak pengajuannya sendiri!
+if (!isSuperAdmin && request.RequesterUserId == currentUser.UserId)
+    return Result<WorkflowRequestDto>.Failure(
+        "Akses ditolak (Anti-Self-Approval): Pembuat pengajuan tidak diperbolehkan memproses approval untuk dokumennya sendiri.", 403);
+
+// 3. STRICT STEP ROLE GUARD (Anti-Queue-Jumping):
+// Hanya role yang sedang memegang CurrentStepOrder saat ini yang boleh memproses!
+var activeStep = request.ApprovalSteps.FirstOrDefault(s => s.StepOrder == request.CurrentStepOrder);
+if (activeStep is null || (!isSuperAdmin && !currentUser.Roles.Contains(activeStep.ApproverRole, StringComparer.OrdinalIgnoreCase)))
+    return Result<WorkflowRequestDto>.Failure(
+        $"Akses ditolak: Dokumen saat ini sedang menunggu persetujuan '{activeStep?.ApproverRole}', bukan giliran role Anda.", 403);
+```
+
+### C. State-Machine Transisi & Cross-Service EventBus
+- **Approve Step N**:
+  - Jika masih ada `StepOrder == CurrentStepOrder + 1` &rarr; naikkan `CurrentStepOrder`, ubah step berikutnya menjadi `Pending`, update `CurrentApproverRole`, tulis `WorkflowHistoryLog`, dan kirim event `APPROVED_STEP` ke `IEventBus`.
+  - Jika itu step terakhir &rarr; ubah `request.Status = WorkflowStatus.Approved`, set `CompletedAt = DateTime.UtcNow`, kosongkan `CurrentApproverRole`, dan kirim event `FULLY_APPROVED` ke `IEventBus`.
+- **Request Revision**:
+  - Catatan wajib diisi (`400` jika kosong) &rarr; ubah status menjadi `RevisionRequested`, kosongkan `CurrentApproverRole`, dan buka akses edit kembali khusus untuk pemilik dokumen (`RequesterUserId == currentUser.UserId`).
+- **Resubmit**:
+  - Cek Ownership Guard (`403` jika bukan pembuat aslinya) &rarr; validasi ulang schema dinamis &rarr; reset semua `ApprovalSteps` (Step 1 jadi `Pending`, Step 2..N jadi `Waiting`) &rarr; kembalikan status menjadi `InReview`.
+
+---
+
+## Langkah 5: Buat Layer `Infrastructure/` (`WorkflowDbContext` & `WorkflowDatabaseSeeder`)
+
+Di [`Infrastructure/Persistence/WorkflowPersistence.cs`](../src/Services/Workflow/Workflow.Api/Infrastructure/Persistence/WorkflowPersistence.cs):
+1. **`WorkflowDbContext`**:
+   - Konfigurasikan 4 `DbSet` (`FormTemplates`, `WorkflowRequests`, `WorkflowApprovalSteps`, `WorkflowHistoryLogs`).
+   - Pasang unique index pada `FormTemplate.Code` & `WorkflowRequest.RequestNumber`.
+   - Pasang `HasQueryFilter(x => !x.IsDeleted)` pada seluruh entitas agar fitur *soft-delete* aktif otomatis.
+   - Sediakan blok komentar `// [TEMPLATE OPSI 1 DATABASE BERSAMA]` (`modelBuilder.HasDefaultSchema("workflow")`) agar konsisten dengan microservice lain.
+2. **`WorkflowDatabaseSeeder`**:
+   - Otomatis membuat database `NetStarterPack_WorkflowDb` saat startup.
+   - Melakukan seeding **3 template dinamis** (`LAPTOP_PROCUREMENT`, `LEAVE_REQUEST`, `OFFICE_SUPPLY`) dan **3 contoh pengajuan live** di berbagai tahap (ada yang masih di Step 1 `Manager`, ada yang sudah sampai Step 2 `ITLead`, dan ada yang sudah `Approved`) supaya saat pertama kali dibuka user langsung melihat data realistis!
+
+---
+
+## Langkah 6: Buat `WorkflowsController.cs`, `Program.cs`, & `appsettings.json` (`Port 5084`)
+
+1. **[`Controllers/WorkflowsController.cs`](../src/Services/Workflow/Workflow.Api/Controllers/WorkflowsController.cs)**:
+   - Mewarisi `BaseApiController`, memetakan 11 endpoint `/api/workflows/*` (`/templates`, `/working-list`, `/tracking`, `/stats`, `/{id}`, `POST /`, `PUT /{id}/resubmit`, `POST /{id}/approve`, `POST /{id}/request-revision`, `POST /{id}/reject`), masing-masing diamankan dengan `[HasPermission(Permissions.Workflows.*)]`.
+2. **[`Program.cs`](../src/Services/Workflow/Workflow.Api/Program.cs)**:
+   - Sama bersihnya dengan `Order.Api`: panggil `AddSharedJwtSecurity`, `AddSharedInfrastructure`, `AddDbContext<WorkflowDbContext>`, daftarkan `IWorkflowUnitOfWork`, `IWorkflowService`, `WorkflowDatabaseSeeder`, jalankan auto-seed + pre-warm cache, lalu panggil `app.UseSharedMicroservicePipeline(...)`.
+3. **[`appsettings.json`](../src/Services/Workflow/Workflow.Api/appsettings.json)**:
+   - Set `"Urls": "http://localhost:5084"` dan `DefaultConnection` ke `NetStarterPack_WorkflowDb` (plus template komentar `NetStarterPack_SharedDb`).
+
+---
+
+## Langkah 7: Update `Identity.Api` (Role Organisasi, User Baru, 3 Menu, & Auto-Upgrade DB)
+
+Karena kita butuh role approver korporat yang realistis (`ITLead`, `HRManager`, `FinanceDirector`), perbarui [`IdentityDatabaseSeeder.cs`](../src/Services/Identity/Identity.Api/Infrastructure/Persistence/IdentityDatabaseSeeder.cs):
+
+1. **Untuk Database Baru (`SeedAsync`)**:
+   - Tambahkan 3 role baru (`ITLead`, `HRManager`, `FinanceDirector`) & 3 akun demo (`itlead`, `hrmanager`, `financedirector`, password `Password123!`).
+   - Petakan permission `Workflows.*` ke 8 role (`Staff` dapat `View`+`Create`, para Approver dapat `View`+`Create`+`Approve`, `Admin`/`SuperAdmin` dapat semua termasuk `ManageTemplates`, `Viewer` hanya `View`).
+   - Tambahkan 3 menu sidebar di grup **`WORKFLOW & APPROVAL`**:
+     - `workflow-create` &rarr; `/workflow-create` (Icon: `FilePlus2`, Permission: `Workflows.Create`)
+     - `workflow-working-list` &rarr; `/workflow-working-list` (Icon: `ClipboardCheck`, Permission: `Workflows.Approve`)
+     - `workflow-tracking` &rarr; `/workflow-tracking` (Icon: `GitBranch`, Permission: `Workflows.View`)
+2. **Untuk Database Existing (`EnsureWorkflowRolesUsersAndMenusAsync`)**:
+   - Tips penting di dunia nyata: developer/tim lain mungkin sudah punya database `NetStarterPack_IdentityDb` dari versi sebelumnya!
+   - Method `EnsureWorkflowRolesUsersAndMenusAsync()` otomatis mengecek apakah role `ITLead` dan menu `workflow-working-list` sudah ada; jika belum, ia otomatis *insert* 3 role, 3 user, permission `Workflows.*`, dan 3 menu tersebut secara *idempotent* **tanpa perlu menghapus/reset database lama**.
+
+---
+
+## Langkah 8: Sambungkan ke `Gateway.Api (:5080)`, Docker, & IIS Publisher
+
+1. **[`Gateway.Api/appsettings.json`](../src/ApiGateway/Gateway.Api/appsettings.json)**:
+   - Tambah `"WorkflowPort": 5084`, `"WorkflowServiceUrl": "http://localhost:5084"`.
+   - Tambah route YARP `workflows-route` (`/api/workflows/{**catch-all}`) & `workflows-root-route` (`/api/workflows`) mengarah ke cluster `workflow-cluster` (`http://localhost:5084`).
+2. **[`Gateway.Api/Program.cs`](../src/ApiGateway/Gateway.Api/Program.cs)**:
+   - Tambah `TryStartDotnetMicroservice("Workflow.Api", workflowPort, ...)` agar otomatis nyala saat tekan `F5`.
+   - Tambah `MergeMicroserviceOpenApiAsync(client, $"{workflowUrl}/openapi/v1.json", ...)` agar 11 endpoint `/api/workflows/*` otomatis tampil di Unified Swagger (`:5080/swagger`) & Scalar (`:5080/scalar/v1`).
+   - Tambah `ProbeServiceAsync(..., "Workflow.Api", ...)` pada endpoint `/api/health`.
+3. **[`docker-compose.yml`](../docker-compose.yml)** & **[`publish-iis.ps1`](../publish-iis.ps1)**:
+   - Tambah container `workflow-api` (`5084:5084`) di `docker-compose.yml` dan target `-Target Workflow` di `publish-iis.ps1` supaya bisa di-deploy secara independen ke IIS!
+
+---
+
+## Langkah 9: Bangun 3 Halaman React Frontend (`frontend/src/`)
+
+1. **Tipe Data & Ikon**:
+   - Tambahkan interface `FormTemplateItem`, `FormFieldDefinition`, `WorkflowRequestItem`, `WorkflowApprovalStepItem`, `WorkflowHistoryLogItem`, dan `WorkflowStats` di [`frontend/src/types/index.ts`](../frontend/src/types/index.ts).
+   - Daftarkan ikon `FilePlus2`, `ClipboardCheck`, `GitBranch`, `Laptop`, `Calendar`, `Briefcase` di [`frontend/src/components/DynamicIcon.tsx`](../frontend/src/components/DynamicIcon.tsx).
+2. **Halaman 1 — [`WorkflowCreatePage.tsx`](../frontend/src/pages/WorkflowCreatePage.tsx) (`/workflow-create`)**:
+   - Menampilkan kartu pilihan template (`GET /api/workflows/templates`).
+   - **Dynamic Form Renderer**: melakukan `.map()` terhadap `selectedTemplate.fields` dan otomatis merender `<input type="text|number|date">`, `<textarea>`, atau `<select>` (plus format rupiah live untuk tipe `currency`).
+   - Panel kanan menampilkan **Preview Alur Approval** real-time sebelum user klik **Simpan Draft** atau **Submit Pengajuan Sekarang**.
+   - Jika `hasPermission('Workflows.ManageTemplates')` bernilai `true` (`Admin`/`SuperAdmin`), muncul tombol **+ Buat Template Form Baru** untuk menambah jenis formulir baru langsung dari UI!
+3. **Halaman 2 — [`WorkflowWorkingListPage.tsx`](../frontend/src/pages/WorkflowWorkingListPage.tsx) (`/workflow-working-list`)**:
+   - Memanggil `GET /api/workflows/working-list` — hanya menampilkan dokumen yang saat ini sedang antre di role user login.
+   - Modal **Review & Proses Approval** menampilkan semua jawaban dinamis, stepper progres, textarea komentar, serta 3 tombol aksi: **Approve Step Ini**, **Minta Revisi**, dan **Reject Final**.
+4. **Halaman 3 — [`WorkflowTrackingPage.tsx`](../frontend/src/pages/WorkflowTrackingPage.tsx) (`/workflow-tracking`)**:
+   - Menyediakan tab filter (*Semua / Pengajuan Saya / Pernah Saya Proses*), dropdown status, dan kotak pencarian.
+   - Setiap dokumen menampilkan **Visual Approval Stepper** per level (`L1: Manager` &rarr; `L2: ITLead` &rarr; `L3: FinanceDirector`) supaya langsung kelihatan bola sedang berhenti di approver mana.
+   - Menyediakan modal **Detail & Riwayat Audit** serta tombol **Edit & Submit Ulang** khusus bagi pembuat dokumen yang statusnya `Draft` atau `RevisionRequested`.
+5. **Routing, Quick Login, & Dashboard**:
+   - Daftarkan 3 route terlindungi (`<ProtectedRoute permission="Workflows.*">`) di [`frontend/src/App.tsx`](../frontend/src/App.tsx).
+   - Perbarui [`LoginPage.tsx`](../frontend/src/pages/LoginPage.tsx) (tambah Quick Login 8 akun organisasi), [`Layout.tsx`](../frontend/src/components/Layout.tsx) (badge 5 service termasuk `:5084`), dan [`DashboardPage.tsx`](../frontend/src/pages/DashboardPage.tsx) (node topologi ke-5 + KPI card `WorkflowDb :5084`).
+
+---
+
+## Langkah 10: Tulis Unit Test Lintas Role & Security (`xUnit`)
+
+Tambahkan 3 test otomatis di [`tests/NetStarterPack.Microservices.UnitTests/MicroservicesArchitectureTests.cs`](../tests/NetStarterPack.Microservices.UnitTests/MicroservicesArchitectureTests.cs) menggunakan EF Core In-Memory + `FakeCurrentUserService` + `InMemoryEventBus`:
+
+1. **`WorkflowService_DynamicSchemaValidation_ShouldRejectMissingRequiredFields`**:
+   - Memastikan submit form `LAPTOP_PROCUREMENT` dengan field wajib kosong ditolak dengan HTTP `400`.
+2. **`WorkflowService_MultiLevelApproval_FromStaffToFullyApproved_WithSecurityGuards`**:
+   - `staff` submit pengadaan laptop &rarr; `financedirector` coba lompat antrean di Step 1 (**harus ditolak `403`**) &rarr; `manager` approve (Step 1) &rarr; `itlead` approve (Step 2) &rarr; `financedirector` approve (Step 3) &rarr; status menjadi **`Approved`** (`FULLY_APPROVED` terkirim ke `IEventBus`).
+3. **`WorkflowService_AntiSelfApproval_And_RevisionResubmitCycle_ShouldEnforceSecurity`**:
+   - `manager` submit cuti sendiri lalu coba approve sendiri (**harus ditolak `403` Anti-Self-Approval**).
+   - `staff` submit barang kantor &rarr; `manager` minta revisi (`RevisionRequested`) &rarr; orang lain coba edit (**ditolak `403` Ownership Guard**) &rarr; `staff` edit & resubmit &rarr; kembali ke `InReview` Step 1.
+
+Verifikasi akhir dari terminal root:
+```powershell
+# 1. Jalankan seluruh backend build & 7 unit test (0 Warning, 0 Error)
+dotnet test NetStarterPack.Microservices.sln
+
+# 2. Verifikasi kompilasi TypeScript & bundle Vite React
+cd frontend
+npm run build
+```
+
+> 👉 **Langkah Berikutnya**: Ingin melihat diagram **ERD 4 Tabel**, **State Machine**, **Sequence Diagram**, dan **Walkthrough Cara Coba End-to-End di Browser**? Lanjut baca [`docs/WORKFLOW_ADVANCED_EXAMPLE.md`](WORKFLOW_ADVANCED_EXAMPLE.md)!

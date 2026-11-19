@@ -15,6 +15,7 @@ public class ServiceEndpointsSettings
     public string IdentityServiceUrl { get; set; } = "http://localhost:5081";
     public string CatalogServiceUrl { get; set; } = "http://localhost:5082";
     public string OrderServiceUrl { get; set; } = "http://localhost:5083";
+    public string WorkflowServiceUrl { get; set; } = "http://localhost:5084";
 }
 
 /// <summary>
@@ -67,4 +68,5 @@ public class HttpEventBus(
         }
     }
 }
+
 

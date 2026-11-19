@@ -52,6 +52,12 @@ export const Layout: React.FC = () => {
         return 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30';
       case 'manager':
         return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+      case 'itlead':
+        return 'bg-sky-500/20 text-sky-300 border-sky-500/30';
+      case 'hrmanager':
+        return 'bg-violet-500/20 text-violet-300 border-violet-500/30';
+      case 'financedirector':
+        return 'bg-teal-500/20 text-teal-300 border-teal-500/30';
       case 'staff':
         return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
       default:
@@ -159,7 +165,7 @@ export const Layout: React.FC = () => {
               <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
               Active Cluster Nodes
             </span>
-            <span className="text-teal-400 font-mono">4 Services</span>
+            <span className="text-teal-400 font-mono">5 Services</span>
           </div>
           <div className="grid grid-cols-2 gap-1 text-[10px] font-mono text-slate-300 pt-1">
             <a href="http://localhost:5080/swagger" target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 truncate">
@@ -173,6 +179,9 @@ export const Layout: React.FC = () => {
             </a>
             <a href="http://localhost:5083/swagger" target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 truncate">
               :5083 Order
+            </a>
+            <a href="http://localhost:5084/swagger" target="_blank" rel="noreferrer" className="col-span-2 px-2 py-1 rounded bg-teal-950/70 hover:bg-teal-900/80 border border-teal-800/70 text-teal-300 truncate">
+              :5084 Workflow (Approval Engine)
             </a>
           </div>
         </div>
@@ -201,7 +210,7 @@ export const Layout: React.FC = () => {
               <Network className="w-3.5 h-3.5 text-teal-600" />
               <span className="font-medium">YARP Gateway (:5080)</span>
               <span className="text-teal-400">&rarr;</span>
-              <span className="font-mono text-[11px] text-teal-700">Identity (:5081) • Catalog (:5082) • Order (:5083)</span>
+              <span className="font-mono text-[11px] text-teal-700">Identity (:5081) • Catalog (:5082) • Order (:5083) • Workflow (:5084)</span>
             </div>
           </div>
 

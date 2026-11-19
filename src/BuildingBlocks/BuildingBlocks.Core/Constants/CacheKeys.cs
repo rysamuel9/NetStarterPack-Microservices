@@ -7,6 +7,7 @@ public static class CacheKeys
 {
     public const string ProductsPrefix = "products:";
     public const string OrdersPrefix = "orders:";
+    public const string WorkflowsPrefix = "workflows:";
     public const string MenusPrefix = "menus:";
     public const string RolesPrefix = "roles:";
     public const string UsersPrefix = "users:";
@@ -29,6 +30,12 @@ public static class CacheKeys
 
     public static string OrderStats() =>
         $"{OrdersPrefix}stats";
+
+    public static string WorkflowTemplates() =>
+        $"{WorkflowsPrefix}templates:all";
+
+    public static string WorkflowStats() =>
+        $"{WorkflowsPrefix}stats";
 
     public static string MenusByRoles(IEnumerable<string> roles) =>
         $"{MenusPrefix}roles:{string.Join(",", roles.OrderBy(r => r).Select(r => r.ToLowerInvariant()))}";

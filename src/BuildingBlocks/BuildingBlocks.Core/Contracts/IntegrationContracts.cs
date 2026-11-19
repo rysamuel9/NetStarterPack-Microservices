@@ -2,7 +2,7 @@
 
 /// <summary>
 /// Event integrasi lintas microservice untuk mencatat Audit Log secara terpusat di Identity.Api.
-/// Dikirim melalui IEventBus setiap kali microservice bisnis (seperti Catalog.Api atau Order.Api) melakukan perubahan data.
+/// Dikirim melalui IEventBus setiap kali microservice bisnis melakukan perubahan data.
 /// </summary>
 public record AuditLogIntegrationEvent(
     Guid? UserId,
@@ -16,9 +16,6 @@ public record AuditLogIntegrationEvent(
     DateTime? Timestamp = null
 );
 
-/// <summary>
-/// Kontrak ringkasan metrik dari Catalog.Api untuk diagregasi oleh Dashboard di Identity.Api.
-/// </summary>
 public record CatalogStatsDto(
     int TotalProducts,
     decimal TotalInventoryValue,
@@ -26,9 +23,6 @@ public record CatalogStatsDto(
     int OutOfStockProducts
 );
 
-/// <summary>
-/// Kontrak ringkasan metrik dari Order.Api (Microservice ke-3).
-/// </summary>
 public record OrderStatsDto(
     int TotalOrders,
     decimal TotalRevenue,
@@ -36,9 +30,15 @@ public record OrderStatsDto(
     int CompletedOrders
 );
 
-/// <summary>
-/// Kontrak status kesehatan (health probe) masing-masing microservice pada YARP API Gateway.
-/// </summary>
+public record WorkflowStatsDto(
+    int TotalRequests,
+    int InReviewRequests,
+    int ApprovedRequests,
+    int RejectedRequests,
+    int RevisionRequests,
+    int ActiveTemplates
+);
+
 public record ServiceHealthNode(
     string Service,
     int Port,

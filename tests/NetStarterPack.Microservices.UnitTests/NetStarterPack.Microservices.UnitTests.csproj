@@ -14,6 +14,7 @@
     <ProjectReference Include="..\..\src\Services\Identity\Identity.Api\Identity.Api.csproj" />
     <ProjectReference Include="..\..\src\Services\Catalog\Catalog.Api\Catalog.Api.csproj" />
     <ProjectReference Include="..\..\src\Services\Order\Order.Api\Order.Api.csproj" />
+    <ProjectReference Include="..\..\src\Services\Workflow\Workflow.Api\Workflow.Api.csproj" />
   </ItemGroup>
 
   <ItemGroup>

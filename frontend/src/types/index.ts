@@ -157,3 +157,89 @@ export interface GatewayHealthResponse {
   services: ServiceNodeHealth[];
   timestamp: string;
 }
+
+export interface FormFieldDefinition {
+  key: string;
+  label: string;
+  type: 'text' | 'textarea' | 'number' | 'currency' | 'date' | 'select' | string;
+  required: boolean;
+  placeholder?: string;
+  options?: string[];
+}
+
+export interface ApprovalFlowStepDefinition {
+  stepOrder: number;
+  stepName: string;
+  approverRole: string;
+  description: string;
+}
+
+export interface FormTemplateItem {
+  id: string;
+  code: string;
+  name: string;
+  category: string;
+  icon: string;
+  description: string;
+  fields: FormFieldDefinition[];
+  approvalFlow: ApprovalFlowStepDefinition[];
+  isActive: boolean;
+}
+
+export interface WorkflowApprovalStepItem {
+  id: string;
+  stepOrder: number;
+  stepName: string;
+  approverRole: string;
+  description: string;
+  status: 'Waiting' | 'Pending' | 'Approved' | 'Rejected' | 'RevisionRequested' | string;
+  actionByUsername?: string | null;
+  actionByFullName?: string | null;
+  comment?: string | null;
+  actionAt?: string | null;
+}
+
+export interface WorkflowHistoryLogItem {
+  id: string;
+  action: string;
+  actorUsername: string;
+  actorFullName: string;
+  actorRole: string;
+  fromStatus: string;
+  toStatus: string;
+  notes: string;
+  timestamp: string;
+}
+
+export interface WorkflowRequestItem {
+  id: string;
+  requestNumber: string;
+  formTemplateId: string;
+  templateCode: string;
+  templateName: string;
+  templateCategory: string;
+  title: string;
+  formData: Record<string, string>;
+  templateFields: FormFieldDefinition[];
+  requesterUserId: string;
+  requesterUsername: string;
+  requesterFullName: string;
+  status: 'Draft' | 'InReview' | 'RevisionRequested' | 'Approved' | 'Rejected' | string;
+  currentStepOrder: number;
+  totalSteps: number;
+  currentApproverRole?: string | null;
+  createdAt: string;
+  submittedAt?: string | null;
+  completedAt?: string | null;
+  approvalSteps: WorkflowApprovalStepItem[];
+  historyLogs: WorkflowHistoryLogItem[];
+}
+
+export interface WorkflowStats {
+  totalRequests: number;
+  inReviewRequests: number;
+  approvedRequests: number;
+  rejectedRequests: number;
+  revisionRequests: number;
+  activeTemplates: number;
+}

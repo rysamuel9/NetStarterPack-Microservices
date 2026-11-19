@@ -21,6 +21,8 @@ public class CurrentUserService(IHttpContextAccessor httpContextAccessor) : ICur
 
     public string? Username => User?.FindFirstValue(ClaimTypes.Name);
 
+    public string? FullName => User?.FindFirstValue("fullName") ?? Username;
+
     public IReadOnlyList<string> Roles =>
         User?.FindAll(ClaimTypes.Role).Select(c => c.Value).Distinct().ToList() ?? [];
 
@@ -36,3 +38,4 @@ public class CurrentUserService(IHttpContextAccessor httpContextAccessor) : ICur
         ?? httpContextAccessor.HttpContext?.TraceIdentifier
         ?? Guid.NewGuid().ToString("N");
 }
+
