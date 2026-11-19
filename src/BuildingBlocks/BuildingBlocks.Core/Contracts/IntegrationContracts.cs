@@ -35,3 +35,15 @@ public record OrderStatsDto(
     int PendingOrders,
     int CompletedOrders
 );
+
+/// <summary>
+/// Kontrak status kesehatan (health probe) masing-masing microservice pada YARP API Gateway.
+/// </summary>
+public record ServiceHealthNode(
+    string Service,
+    int Port,
+    string Url,
+    string Status,
+    string Database,
+    long LatencyMs
+);

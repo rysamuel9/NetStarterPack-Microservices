@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Text.Json.Nodes;
 using System.Threading.RateLimiting;
 using BuildingBlocks.Core.Common;
+using BuildingBlocks.Core.Contracts;
 using BuildingBlocks.Infrastructure.Middleware;
 using Scalar.AspNetCore;
 
@@ -451,11 +452,4 @@ static async Task<ServiceHealthNode> ProbeServiceAsync(
     }
 }
 
-internal record ServiceHealthNode(
-    string Service,
-    int Port,
-    string Url,
-    string Status,
-    string Database,
-    long LatencyMs
-);
+
