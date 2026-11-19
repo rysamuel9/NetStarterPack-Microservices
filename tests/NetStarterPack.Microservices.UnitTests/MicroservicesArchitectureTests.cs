@@ -251,7 +251,7 @@ public class MicroservicesArchitectureTests
 
         var summaryResult = await dashboardService.GetSummaryAsync();
         Assert.True(summaryResult.Succeeded);
-        Assert.Equal(26, summaryResult.Data!.TotalUsers);
+        Assert.Equal(63, summaryResult.Data!.TotalUsers);
         Assert.Equal(7, summaryResult.Data.TotalProducts);
         Assert.Contains(summaryResult.Data.RecentActivities, a => a.Action == "CREATE_PRODUCT");
     }
@@ -754,6 +754,18 @@ public class MicroservicesArchitectureTests
         Assert.Equal(2, financeDir.Divisions.Count);
         Assert.Contains(financeDir.Divisions, dv => dv.Code == "DIV-ACC" && dv.Departments.Count == 2);
         Assert.Contains(financeDir.Divisions, dv => dv.Code == "DIV-TRS" && dv.Departments.Count == 2);
+
+        // Pastikan seluruh 8 Divisi punya Div Head & seluruh 14 Departemen punya Dept Head + Staff
+        var allDivs = treeRes.Data.SelectMany(d => d.Divisions).ToList();
+        var allDepts = allDivs.SelectMany(dv => dv.Departments).ToList();
+        Assert.Equal(8, allDivs.Count);
+        Assert.Equal(14, allDepts.Count);
+        Assert.All(allDivs, dv => Assert.NotNull(dv.HeadUserId));
+        Assert.All(allDepts, dp =>
+        {
+            Assert.NotNull(dp.HeadUserId);
+            Assert.True(dp.UserCount >= 3, $"Department {dp.Code} should have Dept Head + Staff (>=3), found {dp.UserCount}");
+        });
 
         // 2. Cek login sebagai CFO Angelica membawa profil organisasi lengkap
         var loginRes = await authService.LoginAsync(new LoginRequest("angelica.cfo", "Password123!"));

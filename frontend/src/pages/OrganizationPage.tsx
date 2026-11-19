@@ -311,9 +311,10 @@ export const OrganizationPage: React.FC = () => {
                         </div>
                         <h3 className="font-bold text-slate-900 text-sm mt-1">{div.name}</h3>
                         {div.headFullName && (
-                          <p className="text-xs text-teal-700 font-semibold mt-0.5">
-                            Head: {div.headFullName}
-                          </p>
+                          <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-50 border border-cyan-200 text-xs text-cyan-900">
+                            <span className="text-[10px] font-bold uppercase tracking-wide text-cyan-700">Div Head:</span>
+                            <span className="font-semibold">{div.headFullName}</span>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -322,29 +323,45 @@ export const OrganizationPage: React.FC = () => {
                     <div className="space-y-2.5">
                       {div.departments.map((dept) => (
                         <div key={dept.id} className="rounded-xl bg-white border border-slate-200 p-3 space-y-2">
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-start justify-between gap-2">
                             <div>
                               <span className="text-[10px] font-mono text-slate-400">{dept.code}</span>
                               <p className="text-xs font-bold text-slate-800">{dept.name}</p>
+                              {dept.headFullName && (
+                                <p className="text-[11px] text-indigo-700 font-semibold mt-0.5">
+                                  Dept Head: {dept.headFullName}
+                                </p>
+                              )}
                             </div>
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold shrink-0">
                               <Users className="w-3 h-3" /> {dept.userCount}
                             </span>
                           </div>
 
                           {dept.members.length > 0 && (
                             <div className="flex flex-wrap gap-1.5 pt-1">
-                              {dept.members.map((m) => (
-                                <span
-                                  key={m.id}
-                                  className="px-2.5 py-1 rounded-lg bg-teal-50/70 border border-teal-200/70 text-[11px] text-slate-700"
-                                >
-                                  <strong className="text-slate-900">{m.fullName}</strong>
-                                  {m.positionName && (
-                                    <span className="text-teal-700"> • {m.positionName}</span>
-                                  )}
-                                </span>
-                              ))}
+                              {dept.members.map((m) => {
+                                const isDeptHead = dept.headUserId === m.id;
+                                return (
+                                  <span
+                                    key={m.id}
+                                    className={`px-2.5 py-1 rounded-lg border text-[11px] ${
+                                      isDeptHead
+                                        ? 'bg-indigo-50 border-indigo-200 text-indigo-950'
+                                        : 'bg-teal-50/70 border-teal-200/70 text-slate-700'
+                                    }`}
+                                  >
+                                    <strong className={isDeptHead ? 'text-indigo-950' : 'text-slate-900'}>
+                                      {m.fullName}
+                                    </strong>
+                                    {m.positionName && (
+                                      <span className={isDeptHead ? 'text-indigo-700 font-medium' : 'text-teal-700'}>
+                                        {' '}• {m.positionName}
+                                      </span>
+                                    )}
+                                  </span>
+                                );
+                              })}
                             </div>
                           )}
                         </div>
