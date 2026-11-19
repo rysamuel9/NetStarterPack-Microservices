@@ -26,6 +26,7 @@ Seluruh panduan teknis sudah disusun secara mendalam di dalam folder [`docs/`](d
    *Struktur modular unit test untuk `BuildingBlocks`, 5 microservice (`Identity`, `Catalog`, `Order`, `Workflow`, `Announcement`), dan `CrossService` menggunakan xUnit + EF Core In-Memory + `TestDbFactory` + `InMemoryEventBus`.*
 8. 🚀 **[Panduan Publish & Deploy ke Windows Server IIS (`docs/IIS_DEPLOYMENT_GUIDE.md`)](docs/IIS_DEPLOYMENT_GUIDE.md)**
    *Panduan first-time deploy seluruh service & Frontend React ke IIS lengkap dengan studi kasus selective deploy per fitur menggunakan `publish-iis.ps1`.*
+   - 🧯 **[Catatan Lapangan & Playbook Troubleshooting IIS (`docs/IIS_TROUBLESHOOTING_AND_PLAYBOOK.md`)](docs/IIS_TROUBLESHOOTING_AND_PLAYBOOK.md)** — *Solusi cepat untuk `NETSDK1152`, `404 /api/auth/login` (ARR Proxy vs `VITE_API_URL`), error SQL `IIS APPPOOL\*` (3 opsi: SSMS Login, SQL Auth, Custom Identity), WebSocket SignalR, & debug `500.30`.*
 9. 📡 **[Referensi Endpoint API, Routing YARP, & Kontrak JSON (`docs/API_REFERENCE.md`)](docs/API_REFERENCE.md)**
    *Tabel pemetaan route YARP Gateway, daftar seluruh endpoint API publik & internal, format standar `Result<T>`, daftar HTTP Status Code (termasuk `429 Rate Limit`), dan cara testing lewat Unified Swagger / Scalar UI.*
 10. 📖 **[Kamus Istilah / Glosarium Arsitektur (`docs/GLOSSARY.md`)](docs/GLOSSARY.md)**

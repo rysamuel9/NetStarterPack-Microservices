@@ -27,6 +27,9 @@ function Publish-DotnetService($Name, $ProjectPath, $FolderName) {
     $dest = Join-Path $OutputRoot $FolderName
     Write-Host "`n[PUBLISH] Compiling $Name -> $dest ..." -ForegroundColor Yellow
     dotnet publish "$PSScriptRoot\$ProjectPath" -c Release -o $dest /p:UseAppHost=false
+    if ($LASTEXITCODE -ne 0) {
+        throw "[ERROR] Gagal publish $Name (exit code $LASTEXITCODE)."
+    }
     Write-Host "[OK] $Name berhasil di-publish ke $dest" -ForegroundColor Green
 }
 
@@ -35,8 +38,14 @@ function Publish-FrontendSpa() {
     $feDir = Join-Path $PSScriptRoot "frontend"
     Write-Host "`n[PUBLISH] Building React 19 Frontend SPA -> $dest ..." -ForegroundColor Yellow
     Push-Location $feDir
-    npm run build
-    Pop-Location
+    try {
+        npm run build
+        if ($LASTEXITCODE -ne 0) {
+            throw "[ERROR] Gagal build Frontend React (exit code $LASTEXITCODE)."
+        }
+    } finally {
+        Pop-Location
+    }
 
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
     Copy-Item -Path "$feDir\dist\*" -Destination $dest -Recurse -Force
