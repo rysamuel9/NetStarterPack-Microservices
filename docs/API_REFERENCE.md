@@ -15,6 +15,7 @@ Ketika aplikasi berjalan, kamu bisa mengetes API lewat **Unified Gateway** (semu
 | **3. Catalog Microservice (Standalone)** | `http://localhost:5082/swagger` | `http://localhost:5082/scalar/v1` | `http://localhost:5082/openapi/v1.json` |
 | **4. Order Microservice (Standalone)** | `http://localhost:5083/swagger` | `http://localhost:5083/scalar/v1` | `http://localhost:5083/openapi/v1.json` |
 | **5. Workflow Microservice (Standalone)** | `http://localhost:5084/swagger` | `http://localhost:5084/scalar/v1` | `http://localhost:5084/openapi/v1.json` |
+| **6. Announcement Microservice (Standalone)** | `http://localhost:5085/swagger` | `http://localhost:5085/scalar/v1` | `http://localhost:5085/openapi/v1.json` |
 
 ---
 
@@ -32,7 +33,9 @@ Konfigurasi di [`src/ApiGateway/Gateway.Api/appsettings.json`](../src/ApiGateway
 | `/api/products` & `/api/products/{**catch-all}` | `catalog-cluster` | `http://localhost:5082` (`Catalog.Api`) | `NetStarterPack_CatalogDb` |
 | `/api/orders` & `/api/orders/{**catch-all}` | `order-cluster` | `http://localhost:5083` (`Order.Api`) | `NetStarterPack_OrderDb` |
 | `/api/workflows` & `/api/workflows/{**catch-all}` | `workflow-cluster` | `http://localhost:5084` (`Workflow.Api`) | `NetStarterPack_WorkflowDb` |
-| `/api/health` | *(Ditangani langsung oleh Gateway)* | Aggregated Health Probe ke `:5081`, `:5082`, `:5083`, & `:5084` | — |
+| `/api/announcements` & `/api/announcements/{**catch-all}` | `announcement-cluster` | `http://localhost:5085` (`Announcement.Api`) | `NetStarterPack_AnnouncementDb` |
+| `/hubs/announcements` & `/hubs/announcements/{**catch-all}` *(WebSocket/SignalR)* | `announcement-cluster` | `http://localhost:5085` (`Announcement.Api`) | Realtime SignalR Hub (`?access_token=<JWT>`) |
+| `/api/health` | *(Ditangani langsung oleh Gateway)* | Aggregated Health Probe ke `:5081`, `:5082`, `:5083`, `:5084`, & `:5085` | — |
 
 ---
 
@@ -165,3 +168,24 @@ X-Correlation-Id: 9a4f2c1b8e7d4a5b9c0d1e2f3a4b5c6d
 | `POST` | `/api/workflows/{id}/request-revision` | `Workflows.Approve` | Kembalikan pengajuan ke pemohon untuk direvisi (catatan wajib diisi) |
 | `POST` | `/api/workflows/{id}/reject` | `Workflows.Approve` | Tolak pengajuan secara final (alasan wajib diisi) |
 | `GET` | `/api/workflows/stats` | Publik / Aggregator | Ambil ringkasan `WorkflowStatsDto` untuk Dashboard |
+
+---
+
+## 9. Endpoint `Announcement.Api` (`Port 5085` — HR Newsroom, Lewat Gateway `Port 5080`)
+
+| Method | Endpoint | Permission / Role | Fungsi |
+| :---: | :--- | :--- | :--- |
+| `GET` | `/api/announcements?page=1&pageSize=10&type=&search=` | `Announcements.View` | Feed pengumuman berhalaman (default 10/halaman, pinned dulu lalu terbaru) |
+| `GET` | `/api/announcements/bell` | `[Authorize]` | Feed notifikasi bel: jumlah unread + daftar belum dibaca / 3 terbaru |
+| `GET` | `/api/announcements/{id}` | `Announcements.View` | Detail pengumuman + otomatis menandai sudah dibaca user login |
+| `POST` | `/api/announcements` | `Announcements.Manage` *(Tim HR)* | Publish pengumuman baru (rich text sanitized, banner, lampiran, on/off komentar) |
+| `PUT` | `/api/announcements/{id}` | `Announcements.Manage` *(Tim HR)* | Edit pengumuman, banner, lampiran, & pengaturan komentar |
+| `DELETE` | `/api/announcements/{id}` | `Announcements.Manage` *(Tim HR)* | Hapus pengumuman (*soft-delete*) |
+| `PATCH` | `/api/announcements/{id}/toggle-comments` | `Announcements.Manage` *(Tim HR)* | Aktifkan/matikan komentar kapan saja setelah dipublish |
+| `POST` | `/api/announcements/{id}/like` | `Announcements.View` | Toggle like / unlike pengumuman |
+| `POST` | `/api/announcements/{id}/comments` | `Announcements.View` | Tambah komentar baru atau balasan berjenjang (`parentCommentId`) beserta emoji (ditolak `400` jika komentar sedang off) |
+| `DELETE` | `/api/announcements/{id}/comments/{commentId}` | `Announcements.View` | Hapus komentar (khusus pemilik komentar atau Tim HR) |
+| `POST` | `/api/announcements/mark-all-read` | `[Authorize]` | Tandai seluruh pengumuman sudah dibaca |
+| `POST` | `/api/announcements/upload?kind=Banner\|Image\|File` | `Announcements.Manage` *(Tim HR)* | Upload banner, lampiran gambar, atau lampiran file (maks. 10 MB) |
+| `GET` | `/api/announcements/files/{storedFileName}` | Publik / Static Stream | Menampilkan gambar banner/lampiran atau download file (`?download=true`) |
+| `GET` | `/api/announcements/stats` | Publik / Aggregator | Statistik ringkas `AnnouncementStatsDto` |

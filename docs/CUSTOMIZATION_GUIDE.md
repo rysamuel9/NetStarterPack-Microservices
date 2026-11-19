@@ -675,7 +675,7 @@ Kalau kamu malas klik-klik di Visual Studio, cukup copy-paste perintah `dotnet` 
 ```powershell
 # 1. Buat project Web API baru & masukkan ke Solution
 dotnet new webapi -n Order.Api -o src/Services/Order/Order.Api --use-controllers
-dotnet sln NetStarterPack.Microservices.sln add src/Services/Order/Order.Api/Order.Api.csproj --solution-folder Services
+dotnet sln NetStarterPack.Microservices.sln add src/Services/Order/Order.Api/Order.Api.csproj --solution-folder src/Services
 
 # 2. Tambahkan reference ke BuildingBlocks
 dotnet add src/Services/Order/Order.Api reference src/BuildingBlocks/BuildingBlocks.Core
@@ -1156,7 +1156,7 @@ Sama seperti di Example 2, **jangan edit file `.csproj` secara manual**. Gunakan
 ```powershell
 # 1. Buat project Web API baru & daftarkan ke Solution
 dotnet new webapi -n Workflow.Api -o src/Services/Workflow/Workflow.Api --use-controllers
-dotnet sln NetStarterPack.Microservices.sln add src/Services/Workflow/Workflow.Api/Workflow.Api.csproj --solution-folder Services
+dotnet sln NetStarterPack.Microservices.sln add src/Services/Workflow/Workflow.Api/Workflow.Api.csproj --solution-folder src/Services
 
 # 2. Tambah referensi ke 3 Shared BuildingBlocks
 dotnet add src/Services/Workflow/Workflow.Api reference src/BuildingBlocks/BuildingBlocks.Core

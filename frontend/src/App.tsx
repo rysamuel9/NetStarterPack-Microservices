@@ -10,6 +10,9 @@ import { OrdersPage } from './pages/OrdersPage';
 import { WorkflowCreatePage } from './pages/WorkflowCreatePage';
 import { WorkflowWorkingListPage } from './pages/WorkflowWorkingListPage';
 import { WorkflowTrackingPage } from './pages/WorkflowTrackingPage';
+import { AnnouncementsPage } from './pages/AnnouncementsPage';
+import { AnnouncementDetailPage } from './pages/AnnouncementDetailPage';
+import { UnderDevelopmentPage } from './pages/UnderDevelopmentPage';
 import { UsersPage } from './pages/UsersPage';
 import { RolesPage } from './pages/RolesPage';
 import { MenusPage } from './pages/MenusPage';
@@ -80,6 +83,23 @@ export const App: React.FC = () => {
               }
             />
             <Route
+              path="announcements"
+              element={
+                <ProtectedRoute permission="Announcements.View">
+                  <AnnouncementsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="announcement" element={<Navigate to="/announcements" replace />} />
+            <Route
+              path="announcements/:id"
+              element={
+                <ProtectedRoute permission="Announcements.View">
+                  <AnnouncementDetailPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="reports"
               element={
                 <ProtectedRoute permission="Reports.View">
@@ -120,7 +140,7 @@ export const App: React.FC = () => {
               }
             />
             <Route path="profile" element={<ProfilePage />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<UnderDevelopmentPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

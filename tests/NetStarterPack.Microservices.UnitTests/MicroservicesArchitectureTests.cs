@@ -1,4 +1,8 @@
-﻿using BuildingBlocks.Core.Constants;
+﻿using Announcement.Api.Application.DTOs;
+using Announcement.Api.Application.Interfaces;
+using Announcement.Api.Application.Services;
+using Announcement.Api.Infrastructure.Persistence;
+using BuildingBlocks.Core.Constants;
 using BuildingBlocks.Core.Contracts;
 using BuildingBlocks.Core.Interfaces;
 using BuildingBlocks.Infrastructure.Caching;
@@ -14,6 +18,8 @@ using Identity.Api.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Order.Api.Application.DTOs;
@@ -245,7 +251,7 @@ public class MicroservicesArchitectureTests
 
         var summaryResult = await dashboardService.GetSummaryAsync();
         Assert.True(summaryResult.Succeeded);
-        Assert.Equal(8, summaryResult.Data!.TotalUsers);
+        Assert.Equal(10, summaryResult.Data!.TotalUsers);
         Assert.Equal(7, summaryResult.Data.TotalProducts);
         Assert.Contains(summaryResult.Data.RecentActivities, a => a.Action == "CREATE_PRODUCT");
     }
@@ -468,5 +474,261 @@ public class MicroservicesArchitectureTests
         Assert.True(resubmitRes.Succeeded);
         Assert.Equal("InReview", resubmitRes.Data!.Status);
         Assert.Equal(1, resubmitRes.Data.CurrentStepOrder);
+    }
+
+    private sealed class FakeHostEnvironment : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = "Development";
+        public string ApplicationName { get; set; } = "Announcement.Api.Tests";
+        public string ContentRootPath { get; set; } = Path.Combine(Path.GetTempPath(), "nsp-ann-tests");
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+    }
+
+    private static async Task<(AnnouncementDbContext Db, AnnouncementUnitOfWork Uow)> CreateSeededAnnouncementAsync()
+    {
+        var options = new DbContextOptionsBuilder<AnnouncementDbContext>()
+            .UseInMemoryDatabase($"AnnouncementTestDb_{Guid.NewGuid()}")
+            .Options;
+
+        var db = new AnnouncementDbContext(options);
+        var seeder = new AnnouncementDatabaseSeeder(db, new FakeHostEnvironment(), NullLogger<AnnouncementDatabaseSeeder>.Instance);
+        await seeder.SeedAsync();
+
+        var uow = new AnnouncementUnitOfWork(db);
+        return (db, uow);
+    }
+
+    [Fact]
+    public async Task AnnouncementService_HrRoleGuard_And_XssSanitization_ShouldBlockNonHrAndSanitizeHtml()
+    {
+        var (_, uow) = await CreateSeededAnnouncementAsync();
+        var cache = CreateTestCacheService();
+        var eventBus = new InMemoryEventBus();
+
+        // 1. Non-HR (Staff biasa) mencoba publish -> HARUS 403 Forbidden!
+        var currentUser = new FakeCurrentUserService
+        {
+            UserId = Guid.NewGuid(),
+            Username = "staff",
+            FullName = "Dewi Lestari (Staff)",
+            Roles = [RoleNames.Staff],
+            Permissions = [Permissions.Announcements.View]
+        };
+
+        var service = new AnnouncementService(uow, currentUser, cache, eventBus);
+        var blocked = await service.CreateAnnouncementAsync(new CreateOrUpdateAnnouncementRequest(
+            Title: "Pengumuman Ilegal Staff",
+            Summary: null,
+            Type: "General",
+            ContentHtml: "<p>Coba publish</p>",
+            BannerUrl: null,
+            AllowComments: true));
+
+        Assert.False(blocked.Succeeded);
+        Assert.Equal(403, blocked.StatusCode);
+
+        // 2. HRStaff publish dengan tag <script> berbahaya -> HARUS sukses 201 & tag <script> dibersihkan!
+        currentUser.Username = "hrstaff";
+        currentUser.FullName = "Nadia Putri (HR Staff)";
+        currentUser.Roles = [RoleNames.HRStaff];
+        currentUser.Permissions = [Permissions.Announcements.View, Permissions.Announcements.Manage];
+
+        var created = await service.CreateAnnouncementAsync(new CreateOrUpdateAnnouncementRequest(
+            Title: "Pengumuman Resmi HR",
+            Summary: null,
+            Type: "HRPolicy",
+            ContentHtml: "<p><strong>Penting:</strong> <em>Wajib baca</em></p><script>alert('xss')</script>",
+            BannerUrl: "/api/announcements/files/seed-banner-hr-policy.svg",
+            AllowComments: true));
+
+        Assert.True(created.Succeeded);
+        Assert.Equal(201, created.StatusCode);
+        Assert.DoesNotContain("<script>", created.Data!.ContentHtml, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<strong>Penting:</strong>", created.Data.ContentHtml);
+        Assert.Contains(eventBus.PublishedEvents, e => e.Action == "PUBLISH_ANNOUNCEMENT" && e.SourceService == "Announcement.Api");
+    }
+
+    [Fact]
+    public async Task AnnouncementService_Pagination10PerPage_BellUnread_And_MarkRead_ShouldWork()
+    {
+        var (_, uow) = await CreateSeededAnnouncementAsync();
+        var currentUser = new FakeCurrentUserService
+        {
+            UserId = Guid.NewGuid(),
+            Username = "staff",
+            FullName = "Dewi Lestari (Staff)",
+            Roles = [RoleNames.Staff],
+            Permissions = [Permissions.Announcements.View]
+        };
+
+        var service = new AnnouncementService(uow, currentUser, CreateTestCacheService(), new InMemoryEventBus());
+
+        // 1. Total 12 seeded items -> Page 1 harus 10 item, Page 2 harus 2 item
+        var page1 = await service.GetAnnouncementsAsync(page: 1, pageSize: 10);
+        var page2 = await service.GetAnnouncementsAsync(page: 2, pageSize: 10);
+
+        Assert.True(page1.Succeeded);
+        Assert.Equal(12, page1.Data!.TotalCount);
+        Assert.Equal(2, page1.Data.TotalPages);
+        Assert.Equal(10, page1.Data.Items.Count);
+        Assert.Equal(2, page2.Data!.Items.Count);
+
+        // 2. Bell dropdown awal menunjukkan 12 belum dibaca
+        var bellBefore = await service.GetBellFeedAsync();
+        Assert.Equal(12, bellBefore.Data!.UnreadCount);
+        Assert.NotEmpty(bellBefore.Data.Items);
+
+        // 3. Buka 1 detail -> otomatis tertandai sudah dibaca (UnreadCount jadi 11)
+        var firstId = page1.Data.Items[0].Id;
+        var detail = await service.GetAnnouncementByIdAsync(firstId, markAsRead: true);
+        Assert.True(detail.Succeeded);
+        Assert.True(detail.Data!.IsReadByMe);
+
+        var bellAfterOne = await service.GetBellFeedAsync();
+        Assert.Equal(11, bellAfterOne.Data!.UnreadCount);
+
+        // 4. Mark all read -> UnreadCount 0, Bell tetap menampilkan 3 pengumuman terbaru
+        await service.MarkAllAsReadAsync();
+        var bellAfterAll = await service.GetBellFeedAsync();
+        Assert.Equal(0, bellAfterAll.Data!.UnreadCount);
+        Assert.Equal(3, bellAfterAll.Data.Items.Count);
+    }
+
+    private sealed class FakeAnnouncementRealtimeNotifier : IAnnouncementRealtimeNotifier
+    {
+        public List<string> Events { get; } = new();
+
+        public Task NotifyAnnouncementPublishedAsync(AnnouncementSummaryDto summary, CancellationToken cancellationToken = default)
+        {
+            Events.Add($"Published:{summary.Id}");
+            return Task.CompletedTask;
+        }
+
+        public Task NotifyCommentAddedAsync(Guid announcementId, AnnouncementCommentDto comment, int totalCommentCount, CancellationToken cancellationToken = default)
+        {
+            Events.Add($"CommentAdded:{comment.Id}:{totalCommentCount}");
+            return Task.CompletedTask;
+        }
+
+        public Task NotifyCommentDeletedAsync(Guid announcementId, IReadOnlyList<Guid> deletedCommentIds, int totalCommentCount, CancellationToken cancellationToken = default)
+        {
+            Events.Add($"CommentDeleted:{deletedCommentIds.Count}:{totalCommentCount}");
+            return Task.CompletedTask;
+        }
+
+        public Task NotifyLikeUpdatedAsync(Guid announcementId, int likeCount, Guid actorUserId, bool isLiked, CancellationToken cancellationToken = default)
+        {
+            Events.Add($"LikeUpdated:{likeCount}:{isLiked}");
+            return Task.CompletedTask;
+        }
+
+        public Task NotifyCommentsToggledAsync(Guid announcementId, bool allowComments, CancellationToken cancellationToken = default)
+        {
+            Events.Add($"CommentsToggled:{allowComments}");
+            return Task.CompletedTask;
+        }
+    }
+
+    [Fact]
+    public async Task AnnouncementService_LikeToggle_And_PostPublishCommentToggle_ShouldEnforceState()
+    {
+        var (_, uow) = await CreateSeededAnnouncementAsync();
+        var cache = CreateTestCacheService();
+        var eventBus = new InMemoryEventBus();
+        var realtime = new FakeAnnouncementRealtimeNotifier();
+
+        var hrSupervisorId = Guid.NewGuid();
+        var staffId = Guid.NewGuid();
+
+        var currentUser = new FakeCurrentUserService
+        {
+            UserId = hrSupervisorId,
+            Username = "hrsupervisor",
+            FullName = "Dimas Prakoso (HR Supervisor)",
+            Roles = [RoleNames.HRSupervisor],
+            Permissions = [Permissions.Announcements.View, Permissions.Announcements.Manage]
+        };
+
+        var service = new AnnouncementService(uow, currentUser, cache, eventBus, realtime);
+
+        // 1. HRSupervisor buat pengumuman dengan AllowComments = true
+        var created = await service.CreateAnnouncementAsync(new CreateOrUpdateAnnouncementRequest(
+            Title: "Info Gathering Tahunan",
+            Summary: "Diskusi lokasi gathering.",
+            Type: "Event",
+            ContentHtml: "<p>Yuk vote lokasi gathering di komentar!</p>",
+            BannerUrl: null,
+            AllowComments: true));
+
+        var annId = created.Data!.Id;
+
+        // 2. Staff melakukan Like & tambah Komentar -> Sukses
+        currentUser.UserId = staffId;
+        currentUser.Username = "staff";
+        currentUser.FullName = "Dewi Lestari (Staff)";
+        currentUser.Roles = [RoleNames.Staff];
+        currentUser.Permissions = [Permissions.Announcements.View];
+
+        var like1 = await service.ToggleLikeAsync(annId);
+        Assert.True(like1.Data!.IsLiked);
+        Assert.Equal(1, like1.Data.LikeCount);
+
+        var comment1 = await service.AddCommentAsync(annId, new CreateCommentRequest("Usul di Bandung aja!"));
+        Assert.True(comment1.Succeeded);
+        Assert.Equal(201, comment1.StatusCode);
+
+        // 3. Setelah dipublish, HRSupervisor mematikan komentar -> Staff tidak bisa komentar lagi (400)
+        currentUser.UserId = hrSupervisorId;
+        currentUser.Username = "hrsupervisor";
+        currentUser.Roles = [RoleNames.HRSupervisor];
+        currentUser.Permissions = [Permissions.Announcements.View, Permissions.Announcements.Manage];
+
+        var toggleOff = await service.ToggleCommentsAsync(annId, new ToggleCommentsRequest(false));
+        Assert.True(toggleOff.Succeeded);
+        Assert.False(toggleOff.Data!.AllowComments);
+
+        currentUser.UserId = staffId;
+        currentUser.Username = "staff";
+        currentUser.Roles = [RoleNames.Staff];
+        currentUser.Permissions = [Permissions.Announcements.View];
+
+        var blockedComment = await service.AddCommentAsync(annId, new CreateCommentRequest("Coba komentar pas mati"));
+        Assert.False(blockedComment.Succeeded);
+        Assert.Equal(400, blockedComment.StatusCode);
+
+        // 4. HRManager mengaktifkan komentar lagi -> Staff bisa komentar lagi!
+        currentUser.UserId = Guid.NewGuid();
+        currentUser.Username = "hrmanager";
+        currentUser.Roles = [RoleNames.HRManager];
+        currentUser.Permissions = [Permissions.Announcements.View, Permissions.Announcements.Manage];
+
+        var toggleOn = await service.ToggleCommentsAsync(annId, new ToggleCommentsRequest(true));
+        Assert.True(toggleOn.Succeeded);
+        Assert.True(toggleOn.Data!.AllowComments);
+
+        currentUser.UserId = staffId;
+        currentUser.Username = "staff";
+        currentUser.Roles = [RoleNames.Staff];
+        currentUser.Permissions = [Permissions.Announcements.View];
+
+        var comment2 = await service.AddCommentAsync(annId, new CreateCommentRequest("Sip sudah dibuka lagi!"));
+        Assert.True(comment2.Succeeded);
+
+        // 5. Reply berjenjang + emoji (ParentCommentId) & auto-flatten jika reply-to-reply
+        var reply1 = await service.AddCommentAsync(annId, new CreateCommentRequest("Setuju banget! 🎉🔥", comment1.Data!.Id));
+        Assert.True(reply1.Succeeded);
+        Assert.Equal(comment1.Data.Id, reply1.Data!.ParentCommentId);
+        Assert.Contains("🎉🔥", reply1.Data.Content);
+
+        var replyToReply = await service.AddCommentAsync(annId, new CreateCommentRequest("Ikutan juga ya 👍", reply1.Data.Id));
+        Assert.True(replyToReply.Succeeded);
+        Assert.Equal(comment1.Data.Id, replyToReply.Data!.ParentCommentId);
+
+        // 6. Pastikan seluruh SignalR Realtime Notifier events terpanggil sesuai aksi
+        Assert.Contains(realtime.Events, e => e.StartsWith("Published:"));
+        Assert.Contains(realtime.Events, e => e == "LikeUpdated:1:True");
+        Assert.Contains(realtime.Events, e => e == "CommentsToggled:False");
+        Assert.Contains(realtime.Events, e => e == "CommentsToggled:True");
+        Assert.Contains(realtime.Events, e => e.StartsWith($"CommentAdded:{reply1.Data.Id}:"));
     }
 }

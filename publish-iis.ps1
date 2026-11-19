@@ -10,7 +10,7 @@
 #   7. Publish Frontend React saja:        .\publish-iis.ps1 -Target Frontend
 # ==============================================================================
 param(
-    [ValidateSet("All", "Gateway", "Identity", "Catalog", "Order", "Workflow", "Frontend")]
+    [ValidateSet("All", "Gateway", "Identity", "Catalog", "Order", "Workflow", "Announcement", "Frontend")]
     [string]$Target = "All",
     [string]$OutputRoot = "$PSScriptRoot\publish-iis"
 )
@@ -80,6 +80,9 @@ if ($Target -eq "All" -or $Target -eq "Order") {
 }
 if ($Target -eq "All" -or $Target -eq "Workflow") {
     Publish-DotnetService "Workflow.Api (:5084)" "src\Services\Workflow\Workflow.Api\Workflow.Api.csproj" "workflow-api"
+}
+if ($Target -eq "All" -or $Target -eq "Announcement") {
+    Publish-DotnetService "Announcement.Api (:5085)" "src\Services\Announcement\Announcement.Api\Announcement.Api.csproj" "announcement-api"
 }
 if ($Target -eq "All" -or $Target -eq "Frontend") {
     Publish-FrontendSpa

@@ -11,6 +11,8 @@ public static class RoleNames
     public const string Manager = "Manager";
     public const string ITLead = "ITLead";
     public const string HRManager = "HRManager";
+    public const string HRSupervisor = "HRSupervisor";
+    public const string HRStaff = "HRStaff";
     public const string FinanceDirector = "FinanceDirector";
     public const string Staff = "Staff";
     public const string Viewer = "Viewer";
@@ -22,6 +24,8 @@ public static class RoleNames
         Manager,
         ITLead,
         HRManager,
+        HRSupervisor,
+        HRStaff,
         FinanceDirector,
         Staff,
         Viewer
