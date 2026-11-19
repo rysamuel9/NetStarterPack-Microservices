@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Search, Pencil, Trash2, Users, Shield, X, Building2 } from 'lucide-react';
-import { api, getErrorMessage } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { api, getErrorMessage } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import type {
   ApiResult,
   DepartmentItem,
@@ -10,7 +10,7 @@ import type {
   PositionItem,
   RoleItem,
   UserItem,
-} from '../types';
+} from '../../types';
 
 export const UsersPage: React.FC = () => {
   const { hasPermission } = useAuth();

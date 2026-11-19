@@ -11,9 +11,10 @@ import {
   ShieldAlert,
   X,
 } from 'lucide-react';
-import { api, getErrorMessage } from '../services/api';
-import { useAuth } from '../context/AuthContext';
-import type { ApiResult, WorkflowRequestItem } from '../types';
+import { api, getErrorMessage } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { formatWorkflowFieldValue as formatFieldValue } from '../../utils/workflowMeta';
+import type { ApiResult, WorkflowRequestItem } from '../../types';
 
 export const WorkflowWorkingListPage: React.FC = () => {
   const { user } = useAuth();
@@ -86,21 +87,6 @@ export const WorkflowWorkingListPage: React.FC = () => {
     } finally {
       setActing(false);
     }
-  };
-
-  const formatFieldValue = (type: string, val?: string) => {
-    if (!val) return '-';
-    if (type === 'currency') {
-      const num = Number(val);
-      if (!Number.isNaN(num)) {
-        return new Intl.NumberFormat('id-ID', {
-          style: 'currency',
-          currency: 'IDR',
-          maximumFractionDigits: 0,
-        }).format(num);
-      }
-    }
-    return val;
   };
 
   return (

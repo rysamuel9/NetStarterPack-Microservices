@@ -1,8 +1,8 @@
 ﻿import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Boxes, Lock, User, ArrowRight, Terminal, AlertCircle, Network, Database } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import { getErrorMessage } from '../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { getErrorMessage } from '../../services/api';
 
 interface DemoAccount {
   username: string;

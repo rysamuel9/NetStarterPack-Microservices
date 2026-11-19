@@ -8,14 +8,13 @@ import {
   Plus,
   Pencil,
   Trash2,
-  Users,
-  Crown,
-  X,
   AlertCircle,
   CheckCircle2,
 } from 'lucide-react';
-import { api, getErrorMessage } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { api, getErrorMessage } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { OrganizationTreeView } from './OrganizationTreeView';
+import { OrganizationFormModal, type OrganizationModalKind } from './OrganizationFormModal';
 import type {
   ApiResult,
   DepartmentItem,
@@ -24,7 +23,7 @@ import type {
   DivisionItem,
   PositionItem,
   UserItem,
-} from '../types';
+} from '../../types';
 
 type TabKey = 'tree' | 'directorates' | 'divisions' | 'departments' | 'positions';
 
@@ -43,8 +42,7 @@ export const OrganizationPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  // Modal state
-  const [modalKind, setModalKind] = useState<'directorate' | 'division' | 'department' | 'position' | null>(null);
+  const [modalKind, setModalKind] = useState<OrganizationModalKind | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formCode, setFormCode] = useState('');
   const [formName, setFormName] = useState('');
@@ -85,7 +83,7 @@ export const OrganizationPage: React.FC = () => {
   }, []);
 
   const openModal = (
-    kind: 'directorate' | 'division' | 'department' | 'position',
+    kind: OrganizationModalKind,
     existing?: DirectorateItem | DivisionItem | DepartmentItem | PositionItem
   ) => {
     setModalKind(kind);
@@ -108,8 +106,7 @@ export const OrganizationPage: React.FC = () => {
     setFormName(existing.name);
     setFormDesc(existing.description || '');
     if (kind === 'directorate') {
-      const d = existing as DirectorateItem;
-      setFormHeadUserId(d.headUserId || '');
+      setFormHeadUserId((existing as DirectorateItem).headUserId || '');
     } else if (kind === 'division') {
       const dv = existing as DivisionItem;
       setFormParentId(dv.directorateId);
@@ -119,8 +116,7 @@ export const OrganizationPage: React.FC = () => {
       setFormParentId(dp.divisionId);
       setFormHeadUserId(dp.headUserId || '');
     } else if (kind === 'position') {
-      const p = existing as PositionItem;
-      setFormLevel(p.level);
+      setFormLevel((existing as PositionItem).level);
     }
   };
 
@@ -178,7 +174,6 @@ export const OrganizationPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="bg-gradient-to-r from-slate-950 via-teal-950 to-slate-900 rounded-3xl p-6 text-white border border-teal-800/50 shadow-lg flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full text-[11px] font-mono font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30 mb-2">
@@ -213,7 +208,6 @@ export const OrganizationPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="flex flex-wrap items-center gap-2">
         {[
           { id: 'tree', label: 'Pohon Organisasi', icon: Network },
@@ -260,121 +254,8 @@ export const OrganizationPage: React.FC = () => {
           Memuat struktur organisasi dari Identity.Api...
         </div>
       ) : activeTab === 'tree' ? (
-        /* TAB 1: VISUAL ORG TREE */
-        <div className="space-y-5">
-          {tree.map((dir) => (
-            <div key={dir.id} className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
-              {/* Directorate Header + Boss C-Level */}
-              <div className="p-5 bg-gradient-to-r from-slate-900 to-teal-950 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded bg-teal-500/20 text-teal-300 border border-teal-500/30 text-[10px] font-mono font-bold">
-                      {dir.code}
-                    </span>
-                    <span className="text-xs text-slate-300">
-                      {dir.divisions.length} Divisi • {dir.userCount} Karyawan
-                    </span>
-                  </div>
-                  <h2 className="text-lg font-bold mt-1">{dir.name}</h2>
-                  <p className="text-xs text-slate-300 mt-0.5">{dir.description}</p>
-                </div>
-
-                {dir.headFullName && (
-                  <div className="px-4 py-2.5 rounded-2xl bg-white/10 border border-white/15 flex items-center gap-3 shrink-0">
-                    <div className="w-9 h-9 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center">
-                      <Crown className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wider text-amber-300 font-bold">
-                        Kepala Direktorat
-                      </p>
-                      <p className="text-sm font-bold text-white">{dir.headFullName}</p>
-                      <p className="text-[11px] text-teal-200">
-                        {dir.headPositionName || 'Director'} (@{dir.headUsername})
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Divisions Grid */}
-              <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {dir.divisions.map((div) => (
-                  <div key={div.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
-                    <div className="flex items-start justify-between gap-2 pb-3 border-b border-slate-200">
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="px-2 py-0.5 rounded bg-cyan-100 text-cyan-800 text-[10px] font-mono font-bold">
-                            {div.code}
-                          </span>
-                          <span className="text-[11px] text-slate-500">{div.userCount} orang</span>
-                        </div>
-                        <h3 className="font-bold text-slate-900 text-sm mt-1">{div.name}</h3>
-                        {div.headFullName && (
-                          <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-50 border border-cyan-200 text-xs text-cyan-900">
-                            <span className="text-[10px] font-bold uppercase tracking-wide text-cyan-700">Div Head:</span>
-                            <span className="font-semibold">{div.headFullName}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Departments under this Division */}
-                    <div className="space-y-2.5">
-                      {div.departments.map((dept) => (
-                        <div key={dept.id} className="rounded-xl bg-white border border-slate-200 p-3 space-y-2">
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <span className="text-[10px] font-mono text-slate-400">{dept.code}</span>
-                              <p className="text-xs font-bold text-slate-800">{dept.name}</p>
-                              {dept.headFullName && (
-                                <p className="text-[11px] text-indigo-700 font-semibold mt-0.5">
-                                  Dept Head: {dept.headFullName}
-                                </p>
-                              )}
-                            </div>
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold shrink-0">
-                              <Users className="w-3 h-3" /> {dept.userCount}
-                            </span>
-                          </div>
-
-                          {dept.members.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 pt-1">
-                              {dept.members.map((m) => {
-                                const isDeptHead = dept.headUserId === m.id;
-                                return (
-                                  <span
-                                    key={m.id}
-                                    className={`px-2.5 py-1 rounded-lg border text-[11px] ${
-                                      isDeptHead
-                                        ? 'bg-indigo-50 border-indigo-200 text-indigo-950'
-                                        : 'bg-teal-50/70 border-teal-200/70 text-slate-700'
-                                    }`}
-                                  >
-                                    <strong className={isDeptHead ? 'text-indigo-950' : 'text-slate-900'}>
-                                      {m.fullName}
-                                    </strong>
-                                    {m.positionName && (
-                                      <span className={isDeptHead ? 'text-indigo-700 font-medium' : 'text-teal-700'}>
-                                        {' '}• {m.positionName}
-                                      </span>
-                                    )}
-                                  </span>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+        <OrganizationTreeView tree={tree} />
       ) : activeTab === 'directorates' ? (
-        /* TAB 2: MASTER DIRECTORATES */
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
           <div className="p-4 border-b border-slate-200 flex items-center justify-between">
             <h2 className="font-bold text-slate-900 text-sm">Master Direktorat</h2>
@@ -432,7 +313,6 @@ export const OrganizationPage: React.FC = () => {
           </div>
         </div>
       ) : activeTab === 'divisions' ? (
-        /* TAB 3: MASTER DIVISIONS */
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
           <div className="p-4 border-b border-slate-200 flex items-center justify-between">
             <h2 className="font-bold text-slate-900 text-sm">Master Divisi (Turunan Direktorat)</h2>
@@ -481,7 +361,6 @@ export const OrganizationPage: React.FC = () => {
           </div>
         </div>
       ) : activeTab === 'departments' ? (
-        /* TAB 4: MASTER DEPARTMENTS */
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
           <div className="p-4 border-b border-slate-200 flex items-center justify-between">
             <h2 className="font-bold text-slate-900 text-sm">Master Departemen (Turunan Divisi)</h2>
@@ -533,7 +412,6 @@ export const OrganizationPage: React.FC = () => {
           </div>
         </div>
       ) : (
-        /* TAB 5: MASTER POSITIONS */
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
           <div className="p-4 border-b border-slate-200 flex items-center justify-between">
             <h2 className="font-bold text-slate-900 text-sm">Master Posisi / Jabatan</h2>
@@ -585,133 +463,29 @@ export const OrganizationPage: React.FC = () => {
         </div>
       )}
 
-      {/* Unified CRUD Modal */}
       {modalKind && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-              <h3 className="font-bold text-slate-900">
-                {editingId ? 'Edit' : 'Tambah'} Master{' '}
-                {modalKind === 'directorate'
-                  ? 'Direktorat'
-                  : modalKind === 'division'
-                  ? 'Divisi'
-                  : modalKind === 'department'
-                  ? 'Departemen'
-                  : 'Posisi'}
-              </h3>
-              <button onClick={() => setModalKind(null)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSave} className="mt-4 space-y-3.5">
-              {modalKind === 'division' && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Direktorat Induk *</label>
-                  <select
-                    required
-                    value={formParentId}
-                    onChange={(e) => setFormParentId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white"
-                  >
-                    {directorates.map((d) => (
-                      <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {modalKind === 'department' && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Divisi Induk *</label>
-                  <select
-                    required
-                    value={formParentId}
-                    onChange={(e) => setFormParentId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white"
-                  >
-                    {divisions.map((dv) => (
-                      <option key={dv.id} value={dv.id}>{dv.name} — {dv.directorateName}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Kode Unik *</label>
-                  <input
-                    required
-                    value={formCode}
-                    onChange={(e) => setFormCode(e.target.value)}
-                    placeholder="DIR-MKT"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm font-mono uppercase"
-                  />
-                </div>
-                {modalKind === 'position' && (
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Level (1=Tertinggi) *</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={10}
-                      required
-                      value={formLevel}
-                      onChange={(e) => setFormLevel(Number(e.target.value))}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm"
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Nama *</label>
-                <input
-                  required
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm"
-                />
-              </div>
-
-              {modalKind !== 'position' && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Kepala / Bos (User)</label>
-                  <select
-                    value={formHeadUserId}
-                    onChange={(e) => setFormHeadUserId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white"
-                  >
-                    <option value="">-- Belum Ditetapkan --</option>
-                    {users.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.fullName} (@{u.username})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Deskripsi</label>
-                <textarea
-                  rows={2}
-                  value={formDesc}
-                  onChange={(e) => setFormDesc(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                <button type="button" onClick={() => setModalKind(null)} className="px-4 py-2 rounded-xl border border-slate-300 text-sm">Batal</button>
-                <button type="submit" disabled={saving} className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-sm font-semibold">
-                  {saving ? 'Menyimpan...' : 'Simpan'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <OrganizationFormModal
+          modalKind={modalKind}
+          editingId={editingId}
+          formCode={formCode}
+          formName={formName}
+          formDesc={formDesc}
+          formParentId={formParentId}
+          formHeadUserId={formHeadUserId}
+          formLevel={formLevel}
+          saving={saving}
+          directorates={directorates}
+          divisions={divisions}
+          users={users}
+          onChangeCode={setFormCode}
+          onChangeName={setFormName}
+          onChangeDesc={setFormDesc}
+          onChangeParentId={setFormParentId}
+          onChangeHeadUserId={setFormHeadUserId}
+          onChangeLevel={setFormLevel}
+          onClose={() => setModalKind(null)}
+          onSubmit={handleSave}
+        />
       )}
     </div>
   );

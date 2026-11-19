@@ -1,7 +1,7 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Construction, ArrowLeft, LayoutDashboard, Menu as MenuIcon, Code2 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 
 export const UnderDevelopmentPage: React.FC = () => {
   const location = useLocation();

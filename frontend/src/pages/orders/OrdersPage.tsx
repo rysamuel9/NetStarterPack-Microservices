@@ -11,9 +11,10 @@ import {
   CheckCircle2,
   Clock,
 } from 'lucide-react';
-import { api, getErrorMessage } from '../services/api';
-import { useAuth } from '../context/AuthContext';
-import type { ApiResult, OrderItem, OrderStats, ProductItem } from '../types';
+import { api, getErrorMessage } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { formatCurrency } from '../../utils/formatters';
+import type { ApiResult, OrderItem, OrderStats, ProductItem } from '../../types';
 
 export const OrdersPage: React.FC = () => {
   const { hasPermission } = useAuth();
@@ -165,13 +166,6 @@ export const OrdersPage: React.FC = () => {
       setError(getErrorMessage(err));
     }
   };
-
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      maximumFractionDigits: 0,
-    }).format(val);
 
   const statusBadge = (status: string) => {
     switch (status) {

@@ -181,4 +181,4 @@ Frontend dibangun menggunakan **React 19 + TypeScript + Vite 8 + Tailwind CSS v4
 - **`vite.config.ts`**: Mem-proxy seluruh panggilan `/api` dari port `5173` ke **YARP API Gateway (`http://localhost:5080`)**. Frontend sama sekali tidak direpotkan dengan urusan port microservice di belakang layar.
 - **`frontend/src/services/api.ts`**: Axios client dengan sistem **Auto-Refresh Token Rotation** dan antrean `failedQueue` saat menerima HTTP `401`.
 - **`frontend/src/context/AuthContext.tsx`**: Mengelola sesi user, daftar menu sidebar dinamis (`/api/menus/my-menus`), serta helper `hasPermission(code)` dan `hasRole(role)`.
-- **`frontend/src/pages/DashboardPage.tsx`**: Menampilkan kartu topologi arsitektur Microservices (`Gateway.Api :5080`, `Identity.Api :5081`, `Catalog.Api :5082`), metrik gabungan lintas database, matriks permission JWT, dan log aktivitas terpusat.
+- **`frontend/src/pages/dashboard/DashboardPage.tsx`**: Menampilkan kartu topologi arsitektur Microservices (`Gateway.Api :5080`, `Identity.Api :5081`, `Catalog.Api :5082`, dst.), metrik gabungan lintas database, matriks permission JWT, dan log aktivitas terpusat.

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { ShieldCheck, Plus, Save, Trash2, CheckSquare, Square, Menu as MenuIcon } from 'lucide-react';
-import { api, getErrorMessage } from '../services/api';
-import { useAuth } from '../context/AuthContext';
-import type { ApiResult, MenuItem, PermissionItem, RoleItem } from '../types';
+import { api, getErrorMessage } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import type { ApiResult, MenuItem, PermissionItem, RoleItem } from '../../types';
 
 export const RolesPage: React.FC = () => {
   const { hasPermission, refreshUserAndMenus } = useAuth();

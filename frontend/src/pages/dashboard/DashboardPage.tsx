@@ -13,15 +13,16 @@ import {
   ExternalLink,
   Radio,
 } from 'lucide-react';
-import { api } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { api } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { formatCurrency } from '../../utils/formatters';
 import type {
   ApiResult,
   DashboardSummary,
   GatewayHealthResponse,
   OrderStats,
   WorkflowStats,
-} from '../types';
+} from '../../types';
 
 export const DashboardPage: React.FC = () => {
   const { user, menus } = useAuth();
@@ -59,13 +60,6 @@ export const DashboardPage: React.FC = () => {
     };
     load();
   }, []);
-
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      maximumFractionDigits: 0,
-    }).format(val);
 
   return (
     <div className="space-y-6">

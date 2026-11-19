@@ -61,7 +61,7 @@ Misalkan kita ingin menambahkan tabel dan fitur **Data Pelanggan (`Customer`)** 
 | **5.1** | `Catalog.Api/Controllers` | `src/Services/Catalog/Catalog.Api/Controllers/CustomersController.cs` | Buat Baru | Endpoint HTTP `/api/customers` + `[HasPermission]` |
 | **5.2** | `Gateway.Api` | [`src/ApiGateway/Gateway.Api/appsettings.json`](../src/ApiGateway/Gateway.Api/appsettings.json) | Edit | Tambah route YARP `/api/customers` ke `catalog-cluster` |
 | **6.1** | `UnitTests` | `tests/NetStarterPack.Microservices.UnitTests/Services/Catalog/CustomerServiceTests.cs` | Buat Baru | Unit test CRUD, Cache, Soft-Delete, & `InMemoryEventBus` |
-| **7.1** | `Frontend React` | `frontend/src/types/index.ts`, `pages/CustomersPage.tsx`, `App.tsx` | Buat/Edit | Tampilan tabel, modal CRUD, & proteksi `hasPermission` |
+| **7.1** | `Frontend React` | `frontend/src/types/index.ts`, `pages/catalog/CustomersPage.tsx`, `App.tsx` | Buat/Edit | Tampilan tabel, modal CRUD, & proteksi `hasPermission` |
 
 ---
 
@@ -589,7 +589,7 @@ Di sisi Frontend React (`:5173`), langkahnya **100% sama mudahnya** dengan edisi
      createdBy?: string;
    }
    ```
-2. **Buat Halaman `frontend/src/pages/CustomersPage.tsx`**:
+2. **Buat Halaman `frontend/src/pages/catalog/CustomersPage.tsx`**:
    Gunakan `const { hasPermission } = useAuth();` untuk mengecek `Customers.Create`, `Customers.Edit`, dan `Customers.Delete`, lalu panggil `api.get('/customers')`, `api.post('/customers', form)`, `api.put(...)`, dan `api.delete(...)`.
 3. **Daftarkan Route di [`frontend/src/App.tsx`](../frontend/src/App.tsx)**:
    ```tsx
@@ -636,7 +636,7 @@ Di sisi Frontend React (`:5173`), langkahnya **100% sama mudahnya** dengan edisi
 > - **Backend Microservice**: [`src/Services/Order/Order.Api/`](../src/Services/Order/Order.Api/)
 > - **YARP Gateway Route**: [`src/ApiGateway/Gateway.Api/appsettings.json`](../src/ApiGateway/Gateway.Api/appsettings.json) (`orders-route` $\rightarrow$ `http://localhost:5083`)
 > - **Unit Test**: [`tests/NetStarterPack.Microservices.UnitTests/Services/Order/OrderServiceTests.cs`](../tests/NetStarterPack.Microservices.UnitTests/Services/Order/OrderServiceTests.cs)
-> - **Frontend React UI**: [`frontend/src/pages/OrdersPage.tsx`](../frontend/src/pages/OrdersPage.tsx) (Menu: **Pesanan (Order.Api)** di `/orders`)
+> - **Frontend React UI**: [`frontend/src/pages/orders/OrdersPage.tsx`](../frontend/src/pages/orders/OrdersPage.tsx) (Menu: **Pesanan (Order.Api)** di `/orders`)
 
 ---
 
@@ -1097,7 +1097,7 @@ app.Run();
 2. **Daftarkan ke Orchestrator & OpenAPI Merger di [`Gateway.Api/Program.cs`](../src/ApiGateway/Gateway.Api/Program.cs)**:
    - Panggil `TryStartDotnetMicroservice("Order.Api", 5083, ...)` agar otomatis ikut menyala saat tekan `F5`.
    - Panggil `MergeMicroserviceOpenApiAsync(client, "http://localhost:5083/openapi/v1.json", ...)` agar endpoint `/api/orders` otomatis tampil di Unified Swagger (`http://localhost:5080/swagger`).
-3. **Buat Halaman React [`frontend/src/pages/OrdersPage.tsx`](../frontend/src/pages/OrdersPage.tsx)**:
+3. **Buat Halaman React [`frontend/src/pages/orders/OrdersPage.tsx`](../frontend/src/pages/orders/OrdersPage.tsx)**:
    - Halaman ini mengambil daftar pesanan dari `GET /api/orders` (diteruskan YARP ke `Order.Api :5083`).
    - Saat modal **Buat Pesanan Baru** dibuka, ia juga memanggil `GET /api/products` (diteruskan YARP ke `Catalog.Api :5082`) untuk menampilkan dropdown pilihan produk yang otomatis mengisi SKU dan Harga Satuan!
 
@@ -1113,7 +1113,7 @@ Kalau **Bagian A (`Customer`)** adalah contoh *vertical scaling* (nambah tabel d
 - **Penanganan Keamanan Berlapis di Backend** (*Dynamic Schema Validation*, *Anti-Self-Approval*, *Anti-Queue-Jumping*, *Ownership Guard*, & *Immutable Audit Log*)
 - **Auto-Upgrade Database Existing** di `Identity.Api` untuk menambahkan role, akun user perusahaan, dan 3 menu baru tanpa `DROP DATABASE`!
 
-> **Catatan**: Seluruh kode pada **Bagian C** ini **sudah terimplementasi dan berjalan live** di branch `feature/workflow-approval-service` pada folder `src/Services/Workflow/Workflow.Api/` & `frontend/src/pages/Workflow*.tsx`. Untuk melihat **Diagram ERD, State Machine, Sequence Diagram, & Walkthrough Testing di Browser**, buka juga [`docs/WORKFLOW_ADVANCED_EXAMPLE.md`](WORKFLOW_ADVANCED_EXAMPLE.md).
+> **Catatan**: Seluruh kode pada **Bagian C** ini **sudah terimplementasi dan berjalan live** pada folder `src/Services/Workflow/Workflow.Api/` & `frontend/src/pages/workflow/`. Untuk melihat **Diagram ERD, State Machine, Sequence Diagram, & Walkthrough Testing di Browser**, buka juga [`docs/WORKFLOW_ADVANCED_EXAMPLE.md`](WORKFLOW_ADVANCED_EXAMPLE.md).
 
 ---
 
@@ -1427,21 +1427,21 @@ Karena kita butuh role approver korporat yang realistis (`ITLead`, `HRManager`, 
 1. **Tipe Data & Ikon**:
    - Tambahkan interface `FormTemplateItem`, `FormFieldDefinition`, `WorkflowRequestItem`, `WorkflowApprovalStepItem`, `WorkflowHistoryLogItem`, dan `WorkflowStats` di [`frontend/src/types/index.ts`](../frontend/src/types/index.ts).
    - Daftarkan ikon `FilePlus2`, `ClipboardCheck`, `GitBranch`, `Laptop`, `Calendar`, `Briefcase` di [`frontend/src/components/DynamicIcon.tsx`](../frontend/src/components/DynamicIcon.tsx).
-2. **Halaman 1 — [`WorkflowCreatePage.tsx`](../frontend/src/pages/WorkflowCreatePage.tsx) (`/workflow-create`)**:
+2. **Halaman 1 — [`WorkflowCreatePage.tsx`](../frontend/src/pages/workflow/WorkflowCreatePage.tsx) & [`WorkflowTemplateModal.tsx`](../frontend/src/pages/workflow/WorkflowTemplateModal.tsx) (`/workflow-create`)**:
    - Menampilkan kartu pilihan template (`GET /api/workflows/templates`).
    - **Dynamic Form Renderer**: melakukan `.map()` terhadap `selectedTemplate.fields` dan otomatis merender `<input type="text|number|date">`, `<textarea>`, atau `<select>` (plus format rupiah live untuk tipe `currency`).
    - Panel kanan menampilkan **Preview Alur Approval** real-time sebelum user klik **Simpan Draft** atau **Submit Pengajuan Sekarang**.
    - Jika `hasPermission('Workflows.ManageTemplates')` bernilai `true` (`Admin`/`SuperAdmin`), muncul tombol **+ Buat Template Form Baru** untuk menambah jenis formulir baru langsung dari UI!
-3. **Halaman 2 — [`WorkflowWorkingListPage.tsx`](../frontend/src/pages/WorkflowWorkingListPage.tsx) (`/workflow-working-list`)**:
+3. **Halaman 2 — [`WorkflowWorkingListPage.tsx`](../frontend/src/pages/workflow/WorkflowWorkingListPage.tsx) (`/workflow-working-list`)**:
    - Memanggil `GET /api/workflows/working-list` — hanya menampilkan dokumen yang saat ini sedang antre di role user login.
    - Modal **Review & Proses Approval** menampilkan semua jawaban dinamis, stepper progres, textarea komentar, serta 3 tombol aksi: **Approve Step Ini**, **Minta Revisi**, dan **Reject Final**.
-4. **Halaman 3 — [`WorkflowTrackingPage.tsx`](../frontend/src/pages/WorkflowTrackingPage.tsx) (`/workflow-tracking`)**:
+4. **Halaman 3 — [`WorkflowTrackingPage.tsx`](../frontend/src/pages/workflow/WorkflowTrackingPage.tsx) (`/workflow-tracking`)**:
    - Menyediakan tab filter (*Semua / Pengajuan Saya / Pernah Saya Proses*), dropdown status, dan kotak pencarian.
    - Setiap dokumen menampilkan **Visual Approval Stepper** per level (`L1: Manager` &rarr; `L2: ITLead` &rarr; `L3: FinanceDirector`) supaya langsung kelihatan bola sedang berhenti di approver mana.
    - Menyediakan modal **Detail & Riwayat Audit** serta tombol **Edit & Submit Ulang** khusus bagi pembuat dokumen yang statusnya `Draft` atau `RevisionRequested`.
 5. **Routing, Quick Login, & Dashboard**:
-   - Daftarkan 3 route terlindungi (`<ProtectedRoute permission="Workflows.*">`) di [`frontend/src/App.tsx`](../frontend/src/App.tsx).
-   - Perbarui [`LoginPage.tsx`](../frontend/src/pages/LoginPage.tsx) (tambah Quick Login 8 akun organisasi), [`Layout.tsx`](../frontend/src/components/Layout.tsx) (badge 5 service termasuk `:5084`), dan [`DashboardPage.tsx`](../frontend/src/pages/DashboardPage.tsx) (node topologi ke-5 + KPI card `WorkflowDb :5084`).
+   - Daftarkan 3 route terlindungi (`<ProtectedRoute permission="Workflows.*">`) dengan `React.lazy()` di [`frontend/src/App.tsx`](../frontend/src/App.tsx).
+   - Perbarui [`LoginPage.tsx`](../frontend/src/pages/auth/LoginPage.tsx) (tambah Quick Login 8 akun organisasi), [`Layout.tsx`](../frontend/src/components/Layout.tsx) (badge 5 service termasuk `:5084`), dan [`DashboardPage.tsx`](../frontend/src/pages/dashboard/DashboardPage.tsx) (node topologi ke-5 + KPI card `WorkflowDb :5084`).
 
 ---
 

@@ -14,9 +14,14 @@ import {
   Send,
   History,
 } from 'lucide-react';
-import { api, getErrorMessage } from '../services/api';
-import { useAuth } from '../context/AuthContext';
-import type { ApiResult, WorkflowRequestItem } from '../types';
+import { api, getErrorMessage } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import {
+  formatWorkflowFieldValue as formatFieldValue,
+  workflowStatusBadge as statusBadge,
+  workflowStatusLabel as statusLabel,
+} from '../../utils/workflowMeta';
+import type { ApiResult, WorkflowRequestItem } from '../../types';
 
 export const WorkflowTrackingPage: React.FC = () => {
   const { user } = useAuth();
@@ -100,51 +105,6 @@ export const WorkflowTrackingPage: React.FC = () => {
     } finally {
       setResubmitting(false);
     }
-  };
-
-  const statusBadge = (status: string) => {
-    switch (status) {
-      case 'Approved':
-        return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-      case 'InReview':
-        return 'bg-cyan-100 text-cyan-800 border-cyan-200';
-      case 'RevisionRequested':
-        return 'bg-amber-100 text-amber-800 border-amber-300';
-      case 'Rejected':
-        return 'bg-rose-100 text-rose-800 border-rose-200';
-      default:
-        return 'bg-slate-100 text-slate-700 border-slate-200';
-    }
-  };
-
-  const statusLabel = (req: WorkflowRequestItem) => {
-    switch (req.status) {
-      case 'Approved':
-        return 'Fully Approved';
-      case 'InReview':
-        return `Menunggu ${req.currentApproverRole || 'Approver'}`;
-      case 'RevisionRequested':
-        return 'Perlu Revisi Pemohon';
-      case 'Rejected':
-        return 'Ditolak (Rejected)';
-      default:
-        return 'Draft';
-    }
-  };
-
-  const formatFieldValue = (type: string, val?: string) => {
-    if (!val) return '-';
-    if (type === 'currency') {
-      const num = Number(val);
-      if (!Number.isNaN(num)) {
-        return new Intl.NumberFormat('id-ID', {
-          style: 'currency',
-          currency: 'IDR',
-          maximumFractionDigits: 0,
-        }).format(num);
-      }
-    }
-    return val;
   };
 
   return (

@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, Eye, EyeOff, X } from 'lucide-react';
-import { api, getErrorMessage } from '../services/api';
-import { useAuth } from '../context/AuthContext';
-import { AVAILABLE_ICON_NAMES, DynamicIcon } from '../components/DynamicIcon';
-import type { ApiResult, MenuItem, PermissionItem, RoleItem } from '../types';
+import { api, getErrorMessage } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { AVAILABLE_ICON_NAMES, DynamicIcon } from '../../components/DynamicIcon';
+import type { ApiResult, MenuItem, PermissionItem, RoleItem } from '../../types';
 
 export const MenusPage: React.FC = () => {
   const { hasPermission, refreshUserAndMenus } = useAuth();

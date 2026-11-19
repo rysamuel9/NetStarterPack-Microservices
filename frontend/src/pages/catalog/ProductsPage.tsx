@@ -1,8 +1,9 @@
 ﻿import React, { useEffect, useState } from 'react';
 import { Plus, Search, Pencil, Trash2, Package, X, Database, ExternalLink } from 'lucide-react';
-import { api, getErrorMessage } from '../services/api';
-import { useAuth } from '../context/AuthContext';
-import type { ApiResult, ProductItem } from '../types';
+import { api, getErrorMessage } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { formatCurrency } from '../../utils/formatters';
+import type { ApiResult, ProductItem } from '../../types';
 
 export const ProductsPage: React.FC = () => {
   const { hasPermission } = useAuth();
@@ -112,13 +113,6 @@ export const ProductsPage: React.FC = () => {
       setError(getErrorMessage(err));
     }
   };
-
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      maximumFractionDigits: 0,
-    }).format(val);
 
   return (
     <div className="space-y-6">

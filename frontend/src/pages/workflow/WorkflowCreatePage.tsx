@@ -8,38 +8,15 @@ import {
   AlertCircle,
   ArrowRight,
   Plus,
-  Trash2,
-  X,
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
-import { api, getErrorMessage } from '../services/api';
-import { useAuth } from '../context/AuthContext';
-import { DynamicIcon } from '../components/DynamicIcon';
-import type {
-  ApiResult,
-  ApprovalFlowStepDefinition,
-  FormFieldDefinition,
-  FormTemplateItem,
-  WorkflowRequestItem,
-} from '../types';
-
-const AVAILABLE_APPROVER_ROLES = [
-  'Manager',
-  'ITLead',
-  'HRManager',
-  'FinanceDirector',
-  'Admin',
-];
-
-const FIELD_TYPES = [
-  { value: 'text', label: 'Teks Singkat (text)' },
-  { value: 'textarea', label: 'Teks Panjang (textarea)' },
-  { value: 'number', label: 'Angka (number)' },
-  { value: 'currency', label: 'Nominal Rupiah (currency)' },
-  { value: 'date', label: 'Tanggal (date)' },
-  { value: 'select', label: 'Dropdown Pilihan (select)' },
-];
+import { api, getErrorMessage } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { DynamicIcon } from '../../components/DynamicIcon';
+import { formatRupiahHint } from '../../utils/formatters';
+import { WorkflowTemplateModal } from './WorkflowTemplateModal';
+import type { ApiResult, FormTemplateItem, WorkflowRequestItem } from '../../types';
 
 export const WorkflowCreatePage: React.FC = () => {
   const { hasPermission } = useAuth();
@@ -53,23 +30,7 @@ export const WorkflowCreatePage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-
-  // Admin modal: Buat Template Form Dinamis Baru
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
-  const [tplCode, setTplCode] = useState('');
-  const [tplName, setTplName] = useState('');
-  const [tplCategory, setTplCategory] = useState('Operasional');
-  const [tplIcon, setTplIcon] = useState('FileText');
-  const [tplDesc, setTplDesc] = useState('');
-  const [tplFields, setTplFields] = useState<FormFieldDefinition[]>([
-    { key: 'itemDetail', label: 'Detail Kebutuhan', type: 'text', required: true, placeholder: 'Masukkan detail...' },
-    { key: 'estimatedBudget', label: 'Estimasi Biaya (Rp)', type: 'currency', required: true, placeholder: '2500000' },
-  ]);
-  const [tplSteps, setTplSteps] = useState<ApprovalFlowStepDefinition[]>([
-    { stepOrder: 1, stepName: 'Approval Atasan Langsung', approverRole: 'Manager', description: 'Validasi kebutuhan operasional.' },
-    { stepOrder: 2, stepName: 'Approval Budget Finance', approverRole: 'FinanceDirector', description: 'Persetujuan akhir anggaran.' },
-  ]);
-  const [savingTemplate, setSavingTemplate] = useState(false);
 
   const canManageTemplates = hasPermission('Workflows.ManageTemplates');
 
@@ -144,47 +105,11 @@ export const WorkflowCreatePage: React.FC = () => {
     }
   };
 
-  const handleCreateTemplate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSavingTemplate(true);
-    setError(null);
-    try {
-      const normalizedSteps = tplSteps.map((s, idx) => ({ ...s, stepOrder: idx + 1 }));
-      const res = await api.post<ApiResult<FormTemplateItem>>('/workflows/templates', {
-        code: tplCode.trim().toUpperCase().replace(/\s+/g, '_'),
-        name: tplName.trim(),
-        category: tplCategory.trim(),
-        icon: tplIcon,
-        description: tplDesc.trim(),
-        fields: tplFields,
-        approvalFlow: normalizedSteps,
-        isActive: true,
-      });
-
-      if (res.data.succeeded && res.data.data) {
-        setTemplateModalOpen(false);
-        setTplCode('');
-        setTplName('');
-        setTplDesc('');
-        await loadTemplates();
-        setSelectedCode(res.data.data.code);
-        setSuccessMsg(`Template baru "${res.data.data.name}" berhasil dibuat & langsung siap dipakai!`);
-      }
-    } catch (err) {
-      setError(getErrorMessage(err, 'Gagal membuat template form baru.'));
-    } finally {
-      setSavingTemplate(false);
-    }
-  };
-
-  const formatRupiahHint = (raw: string) => {
-    const num = Number(raw);
-    if (!raw || Number.isNaN(num)) return null;
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      maximumFractionDigits: 0,
-    }).format(num);
+  const handleTemplateCreated = async (created: FormTemplateItem) => {
+    setTemplateModalOpen(false);
+    await loadTemplates();
+    setSelectedCode(created.code);
+    setSuccessMsg(`Template baru "${created.name}" berhasil dibuat & langsung siap dipakai!`);
   };
 
   return (
@@ -225,7 +150,6 @@ export const WorkflowCreatePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Feedback Alerts */}
       {error && (
         <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm flex items-start gap-2.5">
           <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
@@ -305,7 +229,6 @@ export const WorkflowCreatePage: React.FC = () => {
       {/* Step 2: Dynamic Form + Live Approval Chain Preview */}
       {selectedTemplate && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Form Renderer */}
           <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-3">
@@ -322,7 +245,6 @@ export const WorkflowCreatePage: React.FC = () => {
               </span>
             </div>
 
-            {/* Judul Umum */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Judul Pengajuan <span className="text-rose-500">*</span>
@@ -336,7 +258,6 @@ export const WorkflowCreatePage: React.FC = () => {
               />
             </div>
 
-            {/* Dynamic Fields */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {selectedTemplate.fields.map((field) => {
                 const value = formData[field.key] ?? '';
@@ -405,7 +326,6 @@ export const WorkflowCreatePage: React.FC = () => {
               })}
             </div>
 
-            {/* Action Buttons */}
             <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-end gap-3">
               <button
                 type="button"
@@ -428,7 +348,6 @@ export const WorkflowCreatePage: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Panel: Approval Pipeline Preview */}
           <div className="space-y-4">
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
               <div className="flex items-center gap-2 mb-3">
@@ -441,10 +360,7 @@ export const WorkflowCreatePage: React.FC = () => {
 
               <div className="space-y-3">
                 {selectedTemplate.approvalFlow.map((step, idx) => (
-                  <div
-                    key={step.stepOrder}
-                    className="relative pl-8 pb-3 last:pb-0"
-                  >
+                  <div key={step.stepOrder} className="relative pl-8 pb-3 last:pb-0">
                     {idx < selectedTemplate.approvalFlow.length - 1 && (
                       <div className="absolute left-3 top-7 bottom-0 w-0.5 bg-teal-200" />
                     )}
@@ -480,229 +396,12 @@ export const WorkflowCreatePage: React.FC = () => {
         </div>
       )}
 
-      {/* Modal Buat Template Dinamis Baru (Admin / SuperAdmin) */}
       {templateModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-xl my-8 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">Buat Template Form Dinamis Baru</h3>
-                <p className="text-xs text-slate-500">
-                  Template ini langsung disimpan ke <code>FormTemplates</code> tanpa ubah kodingan atau bikin tabel baru.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setTemplateModalOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateTemplate} className="mt-4 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Kode Unik *</label>
-                  <input
-                    required
-                    value={tplCode}
-                    onChange={(e) => setTplCode(e.target.value)}
-                    placeholder="REIMBURSEMENT_TRAVEL"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm font-mono uppercase"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Nama Formulir *</label>
-                  <input
-                    required
-                    value={tplName}
-                    onChange={(e) => setTplName(e.target.value)}
-                    placeholder="Form Klaim Perjalanan Dinas"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Kategori *</label>
-                  <input
-                    required
-                    value={tplCategory}
-                    onChange={(e) => setTplCategory(e.target.value)}
-                    placeholder="Finance & Travel"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Ikon</label>
-                  <select
-                    value={tplIcon}
-                    onChange={(e) => setTplIcon(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white"
-                  >
-                    <option value="FileText">FileText</option>
-                    <option value="Laptop">Laptop</option>
-                    <option value="Calendar">Calendar</option>
-                    <option value="Briefcase">Briefcase</option>
-                    <option value="Package">Package</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Deskripsi Singkat</label>
-                <input
-                  value={tplDesc}
-                  onChange={(e) => setTplDesc(e.target.value)}
-                  placeholder="Jelaskan kegunaan formulir ini..."
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm"
-                />
-              </div>
-
-              {/* Builder Field Dinamis */}
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800">Daftar Field Formulir</span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setTplFields((prev) => [
-                        ...prev,
-                        { key: `field${prev.length + 1}`, label: `Field ${prev.length + 1}`, type: 'text', required: true },
-                      ])
-                    }
-                    className="text-xs font-semibold text-teal-700 hover:underline inline-flex items-center gap-1"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Tambah Field
-                  </button>
-                </div>
-                {tplFields.map((f, idx) => (
-                  <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-                    <input
-                      value={f.key}
-                      onChange={(e) =>
-                        setTplFields((prev) => prev.map((item, i) => (i === idx ? { ...item, key: e.target.value } : item)))
-                      }
-                      placeholder="key"
-                      className="col-span-3 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono bg-white"
-                    />
-                    <input
-                      value={f.label}
-                      onChange={(e) =>
-                        setTplFields((prev) => prev.map((item, i) => (i === idx ? { ...item, label: e.target.value } : item)))
-                      }
-                      placeholder="Label Field"
-                      className="col-span-4 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white"
-                    />
-                    <select
-                      value={f.type}
-                      onChange={(e) =>
-                        setTplFields((prev) => prev.map((item, i) => (i === idx ? { ...item, type: e.target.value } : item)))
-                      }
-                      className="col-span-3 px-2 py-1.5 rounded-lg border border-slate-300 text-xs bg-white"
-                    >
-                      {FIELD_TYPES.map((ft) => (
-                        <option key={ft.value} value={ft.value}>
-                          {ft.value}
-                        </option>
-                      ))}
-                    </select>
-                    <label className="col-span-1 flex items-center justify-center text-[10px] gap-0.5">
-                      <input
-                        type="checkbox"
-                        checked={f.required}
-                        onChange={(e) =>
-                          setTplFields((prev) => prev.map((item, i) => (i === idx ? { ...item, required: e.target.checked } : item)))
-                        }
-                      />
-                      Wjb
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setTplFields((prev) => prev.filter((_, i) => i !== idx))}
-                      className="col-span-1 text-rose-500 hover:text-rose-700 flex justify-center"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              {/* Builder Alur Approval */}
-              <div className="p-4 rounded-xl bg-teal-50/50 border border-teal-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-teal-900">Tahapan Approval Berjenjang</span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setTplSteps((prev) => [
-                        ...prev,
-                        {
-                          stepOrder: prev.length + 1,
-                          stepName: `Approval Tahap ${prev.length + 1}`,
-                          approverRole: 'FinanceDirector',
-                          description: 'Review lanjutan.',
-                        },
-                      ])
-                    }
-                    className="text-xs font-semibold text-teal-700 hover:underline inline-flex items-center gap-1"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Tambah Level Approval
-                  </button>
-                </div>
-                {tplSteps.map((s, idx) => (
-                  <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-                    <span className="col-span-1 text-xs font-bold text-teal-700">L{idx + 1}</span>
-                    <input
-                      value={s.stepName}
-                      onChange={(e) =>
-                        setTplSteps((prev) => prev.map((item, i) => (i === idx ? { ...item, stepName: e.target.value } : item)))
-                      }
-                      placeholder="Nama Step"
-                      className="col-span-6 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white"
-                    />
-                    <select
-                      value={s.approverRole}
-                      onChange={(e) =>
-                        setTplSteps((prev) => prev.map((item, i) => (i === idx ? { ...item, approverRole: e.target.value } : item)))
-                      }
-                      className="col-span-4 px-2 py-1.5 rounded-lg border border-slate-300 text-xs bg-white"
-                    >
-                      {AVAILABLE_APPROVER_ROLES.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => setTplSteps((prev) => prev.filter((_, i) => i !== idx))}
-                      className="col-span-1 text-rose-500 hover:text-rose-700 flex justify-center"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setTemplateModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 text-sm text-slate-700"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingTemplate}
-                  className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-sm font-semibold disabled:opacity-50"
-                >
-                  {savingTemplate ? 'Menyimpan...' : 'Simpan Template'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <WorkflowTemplateModal
+          onClose={() => setTemplateModalOpen(false)}
+          onCreated={handleTemplateCreated}
+          onError={(msg) => setError(msg)}
+        />
       )}
     </div>
   );

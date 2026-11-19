@@ -24,7 +24,8 @@ import {
   stopAnnouncementHub,
 } from '../services/announcementHub';
 import { DynamicIcon } from './DynamicIcon';
-import { announcementTypeStyle, formatRelativeTime } from '../pages/AnnouncementsPage';
+import { announcementTypeStyle } from '../utils/announcementMeta';
+import { formatRelativeTime } from '../utils/formatters';
 import type { AnnouncementBellResponse, AnnouncementSummaryItem, ApiResult, MenuItem } from '../types';
 
 export const Layout: React.FC = () => {
