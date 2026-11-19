@@ -142,8 +142,8 @@ Arsitektur cache 2 tingkat di `BuildingBlocks.Infrastructure/Caching/Distributed
 ### Axios Interceptor & Antrean `failedQueue` (`frontend/src/services/api.ts`)
 Menempelkan JWT secara otomatis ke setiap request yang menuju API Gateway (`:5080`), serta menahan request paralel di `failedQueue` saat terjadi `401` untuk melakukan *Refresh Token Rotation* otomatis ke `/api/auth/refresh`.
 
-### `InMemoryEventBus` & `FakeCurrentUserService` (`MicroservicesArchitectureTests.cs`)
-Komponen *test double* di `tests/NetStarterPack.Microservices.UnitTests/` untuk menguji logika bisnis lintas microservice (`Identity.Api` dan `Catalog.Api`) secara cepat di RAM tanpa memerlukan server SQL Server atau koneksi HTTP nyata.
+### `InMemoryEventBus`, `FakeCurrentUserService`, & `TestDbFactory` (`tests/NetStarterPack.Microservices.UnitTests/Common/`)
+Komponen *test double* dan factory di `tests/NetStarterPack.Microservices.UnitTests/Common/` (`TestDoubles/` & `Factories/`) untuk menguji logika bisnis di masing-masing microservice maupun alur lintas service secara cepat di RAM tanpa memerlukan SQL Server, Redis, atau koneksi HTTP nyata.
 
 ---
 

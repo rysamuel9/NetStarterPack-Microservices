@@ -23,7 +23,7 @@ Seluruh panduan teknis sudah disusun secara mendalam di dalam folder [`docs/`](d
 6. ⚡ **[Panduan Hybrid Caching L1/L2 & Shared Redis di Microservices (`docs/CACHING_AND_REDIS.md`)](docs/CACHING_AND_REDIS.md)**
    *Analogi dasar caching, arsitektur Hybrid L1 (`IMemoryCache`) + L2 (`IDistributedCache` / Shared Redis), pola Cache-Aside (`GetOrCreateAsync`), mekanisme `RemoveByPrefixAsync`, invalidasi cache lintas service saat ada event audit, dan cara menyambungkan ke server Redis.*
 7. 🧪 **[Panduan Unit Testing Lintas Microservice (`docs/UNIT_TESTING_GUIDE.md`)](docs/UNIT_TESTING_GUIDE.md)**
-   *Cara menguji seluruh microservice (`Identity`, `Catalog`, `Order`, `Workflow`) menggunakan xUnit + EF Core In-Memory Database + `FakeCurrentUserService` + `InMemoryEventBus`.*
+   *Struktur modular unit test untuk `BuildingBlocks`, 5 microservice (`Identity`, `Catalog`, `Order`, `Workflow`, `Announcement`), dan `CrossService` menggunakan xUnit + EF Core In-Memory + `TestDbFactory` + `InMemoryEventBus`.*
 8. 🚀 **[Panduan Publish & Deploy ke Windows Server IIS (`docs/IIS_DEPLOYMENT_GUIDE.md`)](docs/IIS_DEPLOYMENT_GUIDE.md)**
    *Panduan first-time deploy seluruh service & Frontend React ke IIS lengkap dengan studi kasus selective deploy per fitur menggunakan `publish-iis.ps1`.*
 9. 📡 **[Referensi Endpoint API, Routing YARP, & Kontrak JSON (`docs/API_REFERENCE.md`)](docs/API_REFERENCE.md)**
@@ -116,7 +116,7 @@ net-starterpack-microservice/
 │       └── Catalog/
 │           └── Catalog.Api/                      # [PORT 5082] Compact Onion (Domain/, Application/, Infrastructure/, Controllers/)
 ├── tests/
-│   └── NetStarterPack.Microservices.UnitTests/   # Unit tests untuk Identity, Catalog, EventBus, & Caching
+│   └── NetStarterPack.Microservices.UnitTests/   # Unit tests modular: Common/, BuildingBlocks/, Services/*, & CrossService/
 └── frontend/                                     # React 19 + TypeScript + Vite 8 + Tailwind CSS v4 (Port 5173)
 ```
 

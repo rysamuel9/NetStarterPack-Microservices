@@ -196,13 +196,14 @@ Setelah menjalankan `Gateway.Api` (`F5` di Visual Studio) dan membuka React Fron
 
 ## 6. Verifikasi Otomatis via Unit Test (`xUnit`)
 
-Semua aturan inti dan celah keamanan di atas sudah dicover oleh unit test otomatis di `tests/NetStarterPack.Microservices.UnitTests/MicroservicesArchitectureTests.cs`:
+Semua aturan inti dan celah keamanan di atas sudah dicover oleh unit test otomatis di [`tests/NetStarterPack.Microservices.UnitTests/Services/Workflow/WorkflowServiceTests.cs`](../tests/NetStarterPack.Microservices.UnitTests/Services/Workflow/WorkflowServiceTests.cs):
 
-- `WorkflowService_DynamicSchemaValidation_ShouldRejectMissingRequiredFields`
-- `WorkflowService_MultiLevelApproval_FromStaffToFullyApproved_WithSecurityGuards` (mencakup uji `403` saat `FinanceDirector` mencoba bypass Step 1!)
-- `WorkflowService_AntiSelfApproval_And_RevisionResubmitCycle_ShouldEnforceSecurity` (mencakup uji `403` Anti-Self-Approval, `403` edit dokumen milik orang lain, serta siklus *Request Revision* &rarr; *Resubmit*)
+- `DynamicSchemaValidation_ShouldRejectMissingRequiredFields`
+- `MultiLevelApproval_FromStaffToFullyApproved_ShouldAdvance3StepsAndBlockQueueJumping` (mencakup uji `403` saat `FinanceDirector` mencoba bypass Step 1)
+- `AntiSelfApproval_ShouldRejectApprovingOwnSubmissionWith403`
+- `RevisionAndResubmitCycle_ShouldBlockNonOwnerEditAndReturnToStep1OnOwnerResubmit` (mencakup uji `403` edit dokumen milik orang lain serta siklus *Request Revision* &rarr; *Resubmit*)
 
 Jalankan dari root repository:
 ```powershell
-dotnet test NetStarterPack.Microservices.sln
+dotnet test --filter "FullyQualifiedName~Services.Workflow"
 ```
