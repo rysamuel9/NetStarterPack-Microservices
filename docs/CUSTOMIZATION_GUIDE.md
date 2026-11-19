@@ -602,9 +602,30 @@ Di sisi Frontend React (`:5173`), langkahnya **100% sama mudahnya** dengan edisi
      }
    />
    ```
-4. **Daftarkan ke Menu Sidebar**:
-   - Bisa ditambahkan secara permanen di [`IdentityDatabaseSeeder.cs`](../src/Services/Identity/Identity.Api/Infrastructure/Persistence/IdentityDatabaseSeeder.cs) (milik `Identity.Api`), **ATAU**
-   - Langsung login sebagai `superadmin` di web (`http://localhost:5173`), buka halaman **Manajemen Menu (`/menus`)** $\rightarrow$ klik **Tambah Menu** (`/customers`, permission `Customers.View`), lalu centang hak aksesnya di halaman **Role & Hak Akses (`/roles`)**!
+4. **Daftarkan ke Menu Sidebar (2 Pilihan: Lewat UI `/menus` atau Lewat Seeder)**:
+
+   > ⚠️ **Penting — Urutan yang Benar**:
+   > **Selalu buat halaman React (`XPage.tsx`) dan daftarkan `<Route>`-nya di `App.tsx` dulu**, baru daftarkan menunya di sidebar!
+   > Kalau kamu langsung klik **+ Tambah Menu** dengan path `/customers` tapi di `App.tsx` belum ada `<Route path="customers" ... />`, menunya memang langsung muncul di sidebar, tapi saat diklik React Router akan me-redirect balik ke `/dashboard`.
+
+   - **Cara A — Langsung lewat UI Frontend (`/menus`) *(Paling Cepat untuk DB yang Sudah Jalan)***:
+     1. Login sebagai `superadmin` (atau role yang punya permission `Menus.Manage`) di `http://localhost:5173`.
+     2. Buka halaman **Manajemen Menu (`/menus`)** &rarr; klik tombol **+ Tambah Menu** (*Tambah Menu Navigasi Baru*).
+     3. Isi form modal sesuai halaman yang baru kamu buat:
+        - **Judul Menu**: Nama yang tampil di sidebar (misal: `Data Pelanggan`).
+        - **Path URL Frontend**: **Wajib sama persis** dengan `path` di `App.tsx` dengan diawali `/` (misal: `/customers`).
+        - **Grup Sidebar**: Nama kelompok di sidebar (misal: `OPERATIONAL`, `MICROSERVICES`, atau `WORKFLOW & APPROVAL`).
+        - **Ikon**: Pilih dari daftar ikon yang sudah didaftarkan di [`frontend/src/components/DynamicIcon.tsx`](../frontend/src/components/DynamicIcon.tsx).
+        - **Urutan**: Angka posisi tampilan menu dari atas ke bawah.
+        - **Permission Wajib (Opsional)**: Pilih misal `Customers.View` (daftar ini otomatis ditarik dari `BuildingBlocks.Core/Constants/Permissions.cs`).
+        - **Tampilkan Menu Ini untuk Role**: Klik/pilih role mana saja yang boleh melihat menu ini.
+        - **Tampilkan di Sidebar Navigasi**: Centang untuk langsung tampil (atau matikan centang dulu kalau mau *Dark Launch* / sembunyikan sementara saat maintenance).
+     4. Klik **Simpan Menu** — menu langsung tersimpan ke `NetStarterPack_IdentityDb`, cache menu otomatis ter-invalidate, dan sidebar langsung berubah tanpa perlu edit kode `Layout.tsx` atau rebuild Frontend!
+     5. Jangan lupa cek halaman **Role & Hak Akses (`/roles`)** untuk memastikan role terkait juga sudah dicentang permission `Customers.View` / `Create` / `Edit` / `Delete`-nya.
+
+   - **Cara B — Lewat Kode di [`IdentityDatabaseSeeder.cs`](../src/Services/Identity/Identity.Api/Infrastructure/Persistence/IdentityDatabaseSeeder.cs)**:
+     - Cocok kalau kamu ingin menu fitur barumu **otomatis langsung ada** setiap kali project ini dijalankan di komputer baru / database baru yang masih kosong (seperti contoh `orders` dan `workflow-*` di `IdentityDatabaseSeeder.cs`).
+     - Untuk aplikasi yang sudah terlanjur live di server dengan DB existing, **Cara A (via UI `/menus`)** atau method *idempotent auto-upgrade* (seperti `EnsureWorkflowRolesUsersAndMenusAsync()`) adalah cara paling aman tanpa perlu drop database.
 
 ---
 

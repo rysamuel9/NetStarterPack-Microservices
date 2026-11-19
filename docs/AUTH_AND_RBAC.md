@@ -169,6 +169,18 @@ sequenceDiagram
 
 Sama seperti edisi Monolith, sistem RBAC memisahkan **Role (Jabatan Dinamis)** dan **Permission (Kode Aksi Granular di `BuildingBlocks.Core/Constants/Permissions.cs`)**, serta menjaga aplikasi di 3 titik:
 
-1. **Titik 1 — Endpoint Microservice (`[HasPermission]`)**: Dijaga oleh `PermissionAuthorizationHandler` di masing-masing microservice (`Identity.Api` maupun `Catalog.Api`). Role **`SuperAdmin`** otomatis lolos semua pengecekan permission di seluruh microservice.
+1. **Titik 1 — Endpoint Microservice (`[HasPermission]`)**: Dijaga oleh `PermissionAuthorizationHandler` di masing-masing microservice (`Identity.Api`, `Catalog.Api`, `Order.Api`, `Workflow.Api`). Role **`SuperAdmin`** otomatis lolos semua pengecekan permission di seluruh microservice.
 2. **Titik 2 — Route Halaman React (`<ProtectedRoute permission="...">`)**: Dijaga di [`frontend/src/App.tsx`](../frontend/src/App.tsx).
 3. **Titik 3 — Visibilitas Tombol Aksi UI (`hasPermission('...')`)**: Mengatur muncul/tidaknya tombol Tambah, Edit, dan Hapus di tiap halaman React.
+
+### Cara Kerja Menu Sidebar Dinamis (`/menus` — Database-Driven Navigation)
+
+Sidebar di [`frontend/src/components/Layout.tsx`](../frontend/src/components/Layout.tsx) **tidak di-hardcode**. Setiap kali user login, `AuthContext.tsx` memanggil `GET /api/menus/my-menus` ke `Identity.Api (:5081)` yang memfilter tabel `MenuItems` & `RoleMenus` berdasarkan role + permission user tersebut.
+
+**Catatan penting alur kerja fitur "Tambah Menu" di halaman `/menus`**:
+- **Halaman & Route tetap dibuat di code React dulu** (`pages/XPage.tsx` + `<Route path="/..." />` di `App.tsx`). Form **+ Tambah Menu** di UI `/menus` fungsinya untuk **mendaftarkan & mengatur navigasinya**, bukan men-generate halaman React dari nol.
+- **Keuntungan utama pola ini di Microservices**:
+  1. **Ubah label, ikon, grup, & urutan tanpa deploy ulang**: Cukup edit dari UI `/menus`, tidak perlu ubah kode sidebar atau rebuild Frontend.
+  2. **Pengaturan akses lintas Role yang fleksibel**: Saat organisasi menambah role baru (misal `ITLead`, `HRManager`, `FinanceDirector`), Admin cukup klik-centang role mana yang boleh melihat tiap menu langsung dari UI.
+  3. ***Dark Launch* / *Feature Toggle***: Developer bisa deploy halaman fitur baru dulu, lalu saat hari-H rilis (atau saat fitur sedang maintenance), Admin tinggal aktifkan/nonaktifkan centang **Tampilkan di Sidebar Navigasi** dari UI `/menus`.
+  4. **Hub Navigasi Terpusat**: Meski backend terpecah di banyak microservice (`Catalog :5082`, `Order :5083`, `Workflow :5084`), seluruh navigasi dan RBAC tetap diatur dari satu tempat (`Identity.Api :5081`).
