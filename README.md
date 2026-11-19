@@ -11,23 +11,25 @@ Tujuannya simpel: memberikan fondasi Microservices modern yang **clean, reliable
 Seluruh panduan teknis sudah disusun secara mendalam di dalam folder [`docs/`](docs/):
 
 1. 🛠️ **[Panduan A–Z Membuat Modul & Microservice Baru (`docs/CUSTOMIZATION_GUIDE.md`)](docs/CUSTOMIZATION_GUIDE.md)**
-   *Contekan lengkap langkah demi langkah untuk 2 skenario: (A) Menambah tabel/modul CRUD baru di dalam microservice yang sudah ada, dan (B) Membuat microservice baru dari nol (Example 2: `Order.Api` di port `5083`) lengkap dengan koneksi ke `BuildingBlocks`, routing YARP Gateway, Unit Test, hingga halaman React & Menu Sidebar.*
+   *Contekan lengkap langkah demi langkah untuk 3 level studi kasus: (A) Menambah modul CRUD di service lama (`Customer`), (B) Membuat microservice baru (`Order.Api :5083`), dan (C) Example 3 Advanced (`Workflow.Api :5084`).*
 2. 🧩 **[Example 3 (Advanced): Dynamic Form Builder & Multi-Level Approval Workflow (`docs/WORKFLOW_ADVANCED_EXAMPLE.md`)](docs/WORKFLOW_ADVANCED_EXAMPLE.md)**
-   *Studi kasus level enterprise (`Workflow.Api` di port `5084`, DB `NetStarterPack_WorkflowDb`): form dinamis berbasis tipe dokumen (Pengadaan Laptop, Cuti, Barang Kantor), alur approval berjenjang lintas role (`Staff` &rarr; `Manager` &rarr; `ITLead` / `HRManager` &rarr; `FinanceDirector`), menu Create Form, Working List, & Tracking List, serta 7 lapisan security handling (Anti-Self-Approval, Anti-Queue-Jumping, Schema Validation Backend).*
-2. 🏛️ **[Bedah Arsitektur Microservices, Compact Onion, & YARP Gateway (`docs/ARCHITECTURE.md`)](docs/ARCHITECTURE.md)**
+   *Studi kasus level enterprise (`Workflow.Api` di port `5084`, DB `NetStarterPack_WorkflowDb`): diagram ERD 4 tabel, State Machine, Sequence Diagram 3-level approval, 7 lapisan security handling, & walkthrough testing di browser.*
+3. 🗂️ **[Peta Lengkap Project & Subfolder — Tujuan & Kapan Dipakai (`docs/PROJECT_STRUCTURE_GUIDE.md`)](docs/PROJECT_STRUCTURE_GUIDE.md)**
+   *Panduan navigasi harian tiap project & subfolder (`BuildingBlocks.Core/Contracts`, `BuildingBlocks.Infrastructure/Middleware`, `Caching`, `Messaging`, `Persistence`, `Infrastructure/Clients`, `Domain/`, `Application/`, hingga `frontend/src/`): jelasin fungsi tiap folder, isi file, kasus nyata kapan dipakai, dan apa yang tidak boleh ditaruh di sana.*
+4. 🏛️ **[Bedah Arsitektur Microservices, Compact Onion, & YARP Gateway (`docs/ARCHITECTURE.md`)](docs/ARCHITECTURE.md)**
    *Penjelasan hubungan Microservices (level makro) vs Onion Architecture (level mikro), Sequence Diagram alur request lintas service, YARP Reverse Proxy, Database-per-Service, Resilient EventBus, Distributed Tracing (`X-Correlation-Id`), dan arsitektur Frontend React.*
-3. 🔐 **[Zero-Trust JWT, Refresh Token, RBAC Lintas Service, & Menu Dinamis (`docs/AUTH_AND_RBAC.md`)](docs/AUTH_AND_RBAC.md)**
+5. 🔐 **[Zero-Trust JWT, Refresh Token, RBAC Lintas Service, & Menu Dinamis (`docs/AUTH_AND_RBAC.md`)](docs/AUTH_AND_RBAC.md)**
    *ERD database `IdentityDb`, cara kerja `PBKDF2-SHA256`, validasi JWT mandiri di tiap microservice lewat `BuildingBlocks.Security`, proteksi endpoint internal (`X-Internal-Api-Key`), serta 3 lapis proteksi (`[HasPermission]`, `<ProtectedRoute>`, dan `hasPermission()`).*
-4. ⚡ **[Panduan Hybrid Caching L1/L2 & Shared Redis di Microservices (`docs/CACHING_AND_REDIS.md`)](docs/CACHING_AND_REDIS.md)**
+6. ⚡ **[Panduan Hybrid Caching L1/L2 & Shared Redis di Microservices (`docs/CACHING_AND_REDIS.md`)](docs/CACHING_AND_REDIS.md)**
    *Analogi dasar caching, arsitektur Hybrid L1 (`IMemoryCache`) + L2 (`IDistributedCache` / Shared Redis), pola Cache-Aside (`GetOrCreateAsync`), mekanisme `RemoveByPrefixAsync`, invalidasi cache lintas service saat ada event audit, dan cara menyambungkan ke server Redis.*
-5. 🧪 **[Panduan Unit Testing Lintas Microservice (`docs/UNIT_TESTING_GUIDE.md`)](docs/UNIT_TESTING_GUIDE.md)**
-   *Cara menguji `Identity.Api` dan `Catalog.Api` sekaligus menggunakan xUnit + EF Core In-Memory Database + `FakeCurrentUserService` + `InMemoryEventBus`, lengkap dengan 6 skenario test standar.*
-6. 📡 **[Referensi Endpoint API, Routing YARP, & Kontrak JSON (`docs/API_REFERENCE.md`)](docs/API_REFERENCE.md)**
+7. 🧪 **[Panduan Unit Testing Lintas Microservice (`docs/UNIT_TESTING_GUIDE.md`)](docs/UNIT_TESTING_GUIDE.md)**
+   *Cara menguji seluruh microservice (`Identity`, `Catalog`, `Order`, `Workflow`) menggunakan xUnit + EF Core In-Memory Database + `FakeCurrentUserService` + `InMemoryEventBus`.*
+8. 🚀 **[Panduan Publish & Deploy ke Windows Server IIS (`docs/IIS_DEPLOYMENT_GUIDE.md`)](docs/IIS_DEPLOYMENT_GUIDE.md)**
+   *Panduan first-time deploy seluruh service & Frontend React ke IIS lengkap dengan studi kasus selective deploy per fitur menggunakan `publish-iis.ps1`.*
+9. 📡 **[Referensi Endpoint API, Routing YARP, & Kontrak JSON (`docs/API_REFERENCE.md`)](docs/API_REFERENCE.md)**
    *Tabel pemetaan route YARP Gateway, daftar seluruh endpoint API publik & internal, format standar `Result<T>`, daftar HTTP Status Code (termasuk `429 Rate Limit`), dan cara testing lewat Unified Swagger / Scalar UI.*
-7. 📖 **[Kamus Istilah / Glosarium Arsitektur (`docs/GLOSSARY.md`)](docs/GLOSSARY.md)**
-   *Penjelasan bahasa santai untuk seluruh istilah dan komponen yang benar-benar dipakai di kodingan project ini (mulai dari YARP Reverse Proxy, Compact Onion, BuildingBlocks, Database-per-Service, Zero-Trust JWT, Integration Event, Graceful Degradation, Correlation ID, hingga Hybrid Cache & Axios Interceptor).*
-8. 🤖 **[Contekan Prompt AI Siap Pakai (`PROMPTS.md`)](PROMPTS.md)**
-   *Kumpulan template prompt untuk meminta AI Agent membuat microservice baru, menambah modul CRUD, atau menyesuaikan role agar 100% patuh standar project ini.*
+10. 📖 **[Kamus Istilah / Glosarium Arsitektur (`docs/GLOSSARY.md`)](docs/GLOSSARY.md)**
+    *Penjelasan bahasa santai untuk seluruh istilah dan komponen yang benar-benar dipakai di kodingan project ini (YARP, Compact Onion, BuildingBlocks, Database-per-Service, Docker, Polyglot Persistence, Zero-Trust JWT, Integration Event, Graceful Degradation, Correlation ID, hingga Hybrid Cache).*
 
 ---
 

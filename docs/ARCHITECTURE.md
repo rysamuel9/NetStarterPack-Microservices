@@ -2,6 +2,8 @@
 
 Dokumen ini menjelaskan secara menyeluruh bagaimana **NetStarterPack Microservices** dirancang dari ujung ke ujung (*end-to-end*) — mulai dari pembagian **Microservices (level makro)**, struktur **Compact Onion Architecture (level mikro)** di dalam tiap service, **Shared BuildingBlocks**, **YARP API Gateway**, komunikasi antar-service, hingga arsitektur **React 19 + TypeScript** di sisi Frontend.
 
+> 🗂️ **Butuh panduan detail fungsi tiap subfolder** (seperti `BuildingBlocks.Infrastructure/Middleware`, `Caching`, `Messaging`, `Persistence`, `Infrastructure/Clients`, `Domain/`, `Application/`, sampai `frontend/src/`) beserta contoh kasus kapan dipakainya? Baca juga **[`docs/PROJECT_STRUCTURE_GUIDE.md`](PROJECT_STRUCTURE_GUIDE.md)**.
+
 ---
 
 ## 1. Hubungan Microservices vs Onion Architecture (Kenapa Dipakai Bareng?)
@@ -57,7 +59,7 @@ flowchart TD
 | **`1. BuildingBlocks.Core`** | Tidak ada (*Zero Dependency*) | **0 Package** (Murni C# standar) |
 | **`2. BuildingBlocks.Security`** | Hanya `BuildingBlocks.Core` | `Microsoft.AspNetCore.Authentication.JwtBearer` |
 | **`3. BuildingBlocks.Infrastructure`** | `BuildingBlocks.Core` & `BuildingBlocks.Security` | EF Core Base, StackExchangeRedis, OpenApi, Scalar |
-| **`4. Identity.Api` & `Catalog.Api`** | Ketiga `BuildingBlocks` (Tidak boleh saling refer antar microservice!) | EF Core SQL Server / SQLite / InMemory |
+| **`4. Identity.Api`, `Catalog.Api`, `Order.Api`, `Workflow.Api`** | Ketiga `BuildingBlocks` (Tidak boleh saling refer antar microservice!) | EF Core SQL Server / SQLite / InMemory |
 | **`5. Gateway.Api`** | `BuildingBlocks` (Hanya *build-order reference* ke Services) | `Yarp.ReverseProxy`, `Scalar.AspNetCore` |
 
 ---
