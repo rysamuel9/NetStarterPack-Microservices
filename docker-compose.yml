@@ -1,0 +1,145 @@
+﻿name: net-starterpack-microservices
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: nsp-ms-sqlserver
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=YourStrong@Password123!
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    networks:
+      - nsp-mesh
+
+  redis:
+    image: redis:7-alpine
+    container_name: nsp-ms-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - nsp-mesh
+
+  identity-api:
+    build:
+      context: .
+      dockerfile: src/Services/Identity/Identity.Api/Dockerfile
+    container_name: nsp-ms-identity-api
+    ports:
+      - "5081:5081"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - DatabaseProvider=SqlServer
+      # [AKTIF SAAT INI - MULTI-DB (DATABASE-PER-SERVICE)]
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=NetStarterPack_IdentityDb;User Id=sa;Password=YourStrong@Password123!;TrustServerCertificate=True;MultipleActiveResultSets=True
+      # [TEMPLATE OPSI 1 DATABASE BERSAMA (SINGLE SHARED DB)]
+      # - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=NetStarterPack_SharedDb;User Id=sa;Password=YourStrong@Password123!;TrustServerCertificate=True;MultipleActiveResultSets=True
+      - CacheSettings__Provider=Redis
+      - CacheSettings__RedisConnectionString=redis:6379,abortConnect=false
+      - ServiceEndpoints__GatewayUrl=http://gateway-api:5080
+      - ServiceEndpoints__IdentityServiceUrl=http://identity-api:5081
+      - ServiceEndpoints__CatalogServiceUrl=http://catalog-api:5082
+      - ServiceEndpoints__OrderServiceUrl=http://order-api:5083
+    depends_on:
+      - sqlserver
+      - redis
+    networks:
+      - nsp-mesh
+
+  catalog-api:
+    build:
+      context: .
+      dockerfile: src/Services/Catalog/Catalog.Api/Dockerfile
+    container_name: nsp-ms-catalog-api
+    ports:
+      - "5082:5082"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - DatabaseProvider=SqlServer
+      # [AKTIF SAAT INI - MULTI-DB (DATABASE-PER-SERVICE)]
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=NetStarterPack_CatalogDb;User Id=sa;Password=YourStrong@Password123!;TrustServerCertificate=True;MultipleActiveResultSets=True
+      # [TEMPLATE OPSI 1 DATABASE BERSAMA (SINGLE SHARED DB)]
+      # - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=NetStarterPack_SharedDb;User Id=sa;Password=YourStrong@Password123!;TrustServerCertificate=True;MultipleActiveResultSets=True
+      - CacheSettings__Provider=Redis
+      - CacheSettings__RedisConnectionString=redis:6379,abortConnect=false
+      - ServiceEndpoints__GatewayUrl=http://gateway-api:5080
+      - ServiceEndpoints__IdentityServiceUrl=http://identity-api:5081
+      - ServiceEndpoints__CatalogServiceUrl=http://catalog-api:5082
+      - ServiceEndpoints__OrderServiceUrl=http://order-api:5083
+    depends_on:
+      - sqlserver
+      - redis
+    networks:
+      - nsp-mesh
+
+  order-api:
+    build:
+      context: .
+      dockerfile: src/Services/Order/Order.Api/Dockerfile
+    container_name: nsp-ms-order-api
+    ports:
+      - "5083:5083"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - DatabaseProvider=SqlServer
+      # [AKTIF SAAT INI - MULTI-DB (DATABASE-PER-SERVICE)]
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=NetStarterPack_OrderDb;User Id=sa;Password=YourStrong@Password123!;TrustServerCertificate=True;MultipleActiveResultSets=True
+      # [TEMPLATE OPSI 1 DATABASE BERSAMA (SINGLE SHARED DB)]
+      # - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=NetStarterPack_SharedDb;User Id=sa;Password=YourStrong@Password123!;TrustServerCertificate=True;MultipleActiveResultSets=True
+      - CacheSettings__Provider=Redis
+      - CacheSettings__RedisConnectionString=redis:6379,abortConnect=false
+      - ServiceEndpoints__GatewayUrl=http://gateway-api:5080
+      - ServiceEndpoints__IdentityServiceUrl=http://identity-api:5081
+      - ServiceEndpoints__CatalogServiceUrl=http://catalog-api:5082
+      - ServiceEndpoints__OrderServiceUrl=http://order-api:5083
+    depends_on:
+      - sqlserver
+      - redis
+    networks:
+      - nsp-mesh
+
+  gateway-api:
+    build:
+      context: .
+      dockerfile: src/ApiGateway/Gateway.Api/Dockerfile
+    container_name: nsp-ms-gateway-api
+    ports:
+      - "5080:5080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - MicroservicesOrchestrator__AutoStartBackendServices=false
+      - MicroservicesOrchestrator__AutoStartFrontendSpa=false
+      - ServiceEndpoints__GatewayUrl=http://gateway-api:5080
+      - ServiceEndpoints__IdentityServiceUrl=http://identity-api:5081
+      - ServiceEndpoints__CatalogServiceUrl=http://catalog-api:5082
+      - ServiceEndpoints__OrderServiceUrl=http://order-api:5083
+      - ReverseProxy__Clusters__identity-cluster__Destinations__destination1__Address=http://identity-api:5081
+      - ReverseProxy__Clusters__catalog-cluster__Destinations__destination1__Address=http://catalog-api:5082
+      - ReverseProxy__Clusters__order-cluster__Destinations__destination1__Address=http://order-api:5083
+    depends_on:
+      - identity-api
+      - catalog-api
+      - order-api
+    networks:
+      - nsp-mesh
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: nsp-ms-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - gateway-api
+    networks:
+      - nsp-mesh
+
+networks:
+  nsp-mesh:
+    driver: bridge
+
+volumes:
+  sqlserver_data:

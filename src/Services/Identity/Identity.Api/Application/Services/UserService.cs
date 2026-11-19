@@ -1,0 +1,294 @@
+﻿using BuildingBlocks.Core.Common;
+using BuildingBlocks.Core.Constants;
+using BuildingBlocks.Core.Interfaces;
+using Identity.Api.Application.DTOs;
+using Identity.Api.Application.Interfaces;
+using Identity.Api.Domain.Entities;
+using Identity.Api.Domain.Interfaces;
+
+namespace Identity.Api.Application.Services;
+
+public class UserService(
+    IIdentityUnitOfWork unitOfWork,
+    IPasswordHasher passwordHasher,
+    ICurrentUserService currentUserService,
+    ICacheService? cacheService = null) : IUserService
+{
+    public async Task<Result<IReadOnlyList<UserDto>>> GetAllUsersAsync(
+        string? search = null,
+        string? role = null,
+        CancellationToken cancellationToken = default)
+    {
+        List<UserDto> allDtos;
+        if (cacheService is not null)
+        {
+            allDtos = await cacheService.GetOrCreateAsync(
+                CacheKeys.AllUsers(),
+                async ct =>
+                {
+                    var users = await unitOfWork.Users.GetAllWithRolesAsync(ct);
+                    return users.Select(MapToDto).ToList();
+                },
+                TimeSpan.FromMinutes(15),
+                cancellationToken);
+        }
+        else
+        {
+            var users = await unitOfWork.Users.GetAllWithRolesAsync(cancellationToken);
+            allDtos = users.Select(MapToDto).ToList();
+        }
+
+        IEnumerable<UserDto> filtered = allDtos;
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            filtered = filtered.Where(u =>
+                u.Username.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                u.FullName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                u.Email.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                (u.Department?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+
+        if (!string.IsNullOrWhiteSpace(role))
+        {
+            var roleTerm = role.Trim();
+            filtered = filtered.Where(u =>
+                u.Roles.Any(r => r.Equals(roleTerm, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        return Result<IReadOnlyList<UserDto>>.Success(filtered.ToList());
+    }
+
+    public async Task<Result<UserDto>> GetUserByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var user = await unitOfWork.Users.GetWithRolesAndPermissionsByIdAsync(id, cancellationToken);
+        if (user is null)
+        {
+            return Result<UserDto>.Failure("Pengguna tidak ditemukan.", 404);
+        }
+
+        return Result<UserDto>.Success(MapToDto(user));
+    }
+
+    public async Task<Result<UserDto>> CreateUserAsync(CreateUserRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Username) ||
+            string.IsNullOrWhiteSpace(request.Email) ||
+            string.IsNullOrWhiteSpace(request.Password))
+        {
+            return Result<UserDto>.Failure("Username, Email, dan Password wajib diisi.", 400);
+        }
+
+        var username = request.Username.Trim().ToLowerInvariant();
+        var email = request.Email.Trim().ToLowerInvariant();
+
+        if (await unitOfWork.Users.AnyAsync(u => u.Username.ToLower() == username || u.Email.ToLower() == email, cancellationToken))
+        {
+            return Result<UserDto>.Failure("Username atau Email sudah terdaftar.", 409);
+        }
+
+        var allRoles = await unitOfWork.Roles.GetListAsync(cancellationToken: cancellationToken);
+        var requestedRoleNames = request.Roles?.Count > 0 ? request.Roles : [RoleNames.Viewer];
+
+        var matchedRoles = allRoles
+            .Where(r => requestedRoleNames.Contains(r.Name, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+
+        if (matchedRoles.Count == 0)
+        {
+            return Result<UserDto>.Failure("Minimal satu role yang valid harus dipilih.", 400);
+        }
+
+        if (!Enum.TryParse<UserStatus>(request.Status, true, out var status))
+        {
+            status = UserStatus.Active;
+        }
+
+        var user = new User
+        {
+            Username = username,
+            Email = email,
+            FullName = request.FullName.Trim(),
+            PasswordHash = passwordHasher.HashPassword(request.Password),
+            PhoneNumber = request.PhoneNumber?.Trim(),
+            Department = request.Department?.Trim(),
+            Status = status,
+            CreatedBy = currentUserService.Username ?? "System"
+        };
+
+        foreach (var role in matchedRoles)
+        {
+            user.UserRoles.Add(new UserRole
+            {
+                UserId = user.Id,
+                RoleId = role.Id,
+                Role = role
+            });
+        }
+
+        await unitOfWork.Users.AddAsync(user, cancellationToken);
+        await unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
+        {
+            UserId = currentUserService.UserId,
+            UserName = currentUserService.Username ?? "System",
+            Action = "CREATE_USER",
+            Module = "Users",
+            EntityId = user.Id.ToString(),
+            Details = $"[Identity.Api] Membuat akun pengguna '{user.Username}' dengan role [{string.Join(", ", matchedRoles.Select(r => r.Name))}].",
+            IpAddress = currentUserService.IpAddress
+        }, cancellationToken);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await InvalidateUserCachesAsync(cancellationToken);
+        return Result<UserDto>.Success(MapToDto(user), "Pengguna berhasil ditambahkan.", 201);
+    }
+
+    public async Task<Result<UserDto>> UpdateUserAsync(Guid id, UpdateUserRequest request, CancellationToken cancellationToken = default)
+    {
+        var user = await unitOfWork.Users.GetWithRolesAndPermissionsByIdAsync(id, cancellationToken);
+        if (user is null)
+        {
+            return Result<UserDto>.Failure("Pengguna tidak ditemukan.", 404);
+        }
+
+        var email = request.Email.Trim().ToLowerInvariant();
+        if (await unitOfWork.Users.AnyAsync(u => u.Id != id && u.Email.ToLower() == email, cancellationToken))
+        {
+            return Result<UserDto>.Failure("Email sudah digunakan oleh pengguna lain.", 409);
+        }
+
+        user.Email = email;
+        user.FullName = request.FullName.Trim();
+        user.PhoneNumber = request.PhoneNumber?.Trim();
+        user.Department = request.Department?.Trim();
+        user.UpdatedAt = DateTime.UtcNow;
+        user.UpdatedBy = currentUserService.Username ?? "System";
+
+        if (Enum.TryParse<UserStatus>(request.Status, true, out var status))
+        {
+            if (user.Username.Equals("superadmin", StringComparison.OrdinalIgnoreCase) && status != UserStatus.Active)
+            {
+                return Result<UserDto>.Failure("Akun SuperAdmin utama tidak dapat dinonaktifkan.", 400);
+            }
+            user.Status = status;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.NewPassword))
+        {
+            user.PasswordHash = passwordHasher.HashPassword(request.NewPassword);
+        }
+
+        if (request.Roles is { Count: > 0 })
+        {
+            var allRoles = await unitOfWork.Roles.GetListAsync(cancellationToken: cancellationToken);
+            var matchedRoles = allRoles
+                .Where(r => request.Roles.Contains(r.Name, StringComparer.OrdinalIgnoreCase))
+                .ToList();
+
+            if (user.Username.Equals("superadmin", StringComparison.OrdinalIgnoreCase) &&
+                !matchedRoles.Any(r => r.Name.Equals(RoleNames.SuperAdmin, StringComparison.OrdinalIgnoreCase)))
+            {
+                return Result<UserDto>.Failure("Role SuperAdmin tidak dapat dihapus dari akun superadmin utama.", 400);
+            }
+
+            if (matchedRoles.Count > 0)
+            {
+                var existingUserRoles = await unitOfWork.Repository<UserRole>()
+                    .GetListAsync(ur => ur.UserId == user.Id, cancellationToken);
+                foreach (var ur in existingUserRoles)
+                {
+                    unitOfWork.Repository<UserRole>().HardRemove(ur);
+                }
+
+                user.UserRoles.Clear();
+                foreach (var role in matchedRoles)
+                {
+                    var newUr = new UserRole
+                    {
+                        UserId = user.Id,
+                        RoleId = role.Id,
+                        Role = role
+                    };
+                    await unitOfWork.Repository<UserRole>().AddAsync(newUr, cancellationToken);
+                    user.UserRoles.Add(newUr);
+                }
+            }
+        }
+
+        unitOfWork.Users.Update(user);
+        await unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
+        {
+            UserId = currentUserService.UserId,
+            UserName = currentUserService.Username ?? "System",
+            Action = "UPDATE_USER",
+            Module = "Users",
+            EntityId = user.Id.ToString(),
+            Details = $"[Identity.Api] Memperbarui akun pengguna '{user.Username}'.",
+            IpAddress = currentUserService.IpAddress
+        }, cancellationToken);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await InvalidateUserCachesAsync(cancellationToken);
+        return Result<UserDto>.Success(MapToDto(user), "Data pengguna berhasil diperbarui.");
+    }
+
+    public async Task<Result> DeleteUserAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var user = await unitOfWork.Users.GetWithRolesAndPermissionsByIdAsync(id, cancellationToken);
+        if (user is null)
+        {
+            return Result.Failure("Pengguna tidak ditemukan.", 404);
+        }
+
+        if (user.Username.Equals("superadmin", StringComparison.OrdinalIgnoreCase))
+        {
+            return Result.Failure("Akun SuperAdmin utama tidak dapat dihapus.", 400);
+        }
+
+        if (currentUserService.UserId == user.Id)
+        {
+            return Result.Failure("Anda tidak dapat menghapus akun Anda sendiri yang sedang login.", 400);
+        }
+
+        unitOfWork.Users.Remove(user);
+        await unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
+        {
+            UserId = currentUserService.UserId,
+            UserName = currentUserService.Username ?? "System",
+            Action = "DELETE_USER",
+            Module = "Users",
+            EntityId = user.Id.ToString(),
+            Details = $"[Identity.Api] Menghapus akun pengguna '{user.Username}'.",
+            IpAddress = currentUserService.IpAddress
+        }, cancellationToken);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await InvalidateUserCachesAsync(cancellationToken);
+        return Result.Success("Pengguna berhasil dihapus.");
+    }
+
+    private async Task InvalidateUserCachesAsync(CancellationToken cancellationToken)
+    {
+        if (cacheService is null) return;
+        await cacheService.RemoveByPrefixAsync(CacheKeys.UsersPrefix, cancellationToken);
+        await cacheService.RemoveByPrefixAsync(CacheKeys.RolesPrefix, cancellationToken);
+        await cacheService.RemoveByPrefixAsync(CacheKeys.DashboardPrefix, cancellationToken);
+    }
+
+    private static UserDto MapToDto(User user) =>
+        new(
+            user.Id,
+            user.Username,
+            user.Email,
+            user.FullName,
+            user.PhoneNumber,
+            user.Department,
+            user.Status.ToString(),
+            user.UserRoles
+                .Where(ur => ur.Role is not null && !ur.Role.IsDeleted)
+                .Select(ur => ur.Role.Name)
+                .Distinct()
+                .ToList(),
+            user.CreatedAt,
+            user.LastLoginAt);
+}
