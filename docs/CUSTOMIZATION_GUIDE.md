@@ -607,91 +607,432 @@ Di sisi Frontend React (`:5173`), langkahnya **100% sama mudahnya** dengan edisi
 
 ---
 
-# BAGIAN B (EXAMPLE 2 — SUDAH TERIMPLEMENTASI LIVE!): Membuat Microservice Mandiri Baru dari Nol (Order.Api di Port 5083)
+# BAGIAN B (EXAMPLE 2 — SUDAH TERIMPLEMENTASI LIVE!): Membuat Microservice Mandiri Baru dari Nol (`Order.Api` di Port `5083`)
 
-> 💡 **Kabar Baik!** Seluruh studi kasus **Example 2 (Order.Api di Port 5083 + halaman React OrdersPage.tsx)** di bawah ini **SUDAH DIIMPLEMENTASIKAN SECARA NYATA** di dalam solution ini!
+> 💡 **Kabar Baik!** Seluruh studi kasus **Example 2 (`Order.Api` di Port `5083` + database `NetStarterPack_OrderDb` + halaman React `OrdersPage.tsx`)** di bawah ini **SUDAH DIIMPLEMENTASIKAN SECARA NYATA** di dalam solution ini!
 > Kamu bisa langsung membuka dan mempelajari file aslinya di:
-> - **Backend Microservice**: [src/Services/Order/Order.Api/](../src/Services/Order/Order.Api/) (Order.cs, OrderService.cs, OrderPersistence.cs, OrdersController.cs, Program.cs)
-> - **YARP Gateway Route**: [src/ApiGateway/Gateway.Api/appsettings.json](../src/ApiGateway/Gateway.Api/appsettings.json) (orders-route $\rightarrow$ http://localhost:5083)
-> - **Unit Test**: [	ests/NetStarterPack.Microservices.UnitTests/MicroservicesArchitectureTests.cs](../tests/NetStarterPack.Microservices.UnitTests/MicroservicesArchitectureTests.cs) (OrderService_Example2Microservice_ShouldCalculateTotal_InvalidateCache_And_PublishAuditEvent)
-> - **Frontend React UI**: [rontend/src/pages/OrdersPage.tsx](../frontend/src/pages/OrdersPage.tsx) (Menu: **Pesanan (Order.Api)** di /orders)
-
-Kapan kamu harus membuat **Microservice Baru** (bukan sekadar menambah tabel di `Catalog.Api`)?
-- Ketika domain bisnisnya benar-benar terpisah (misalnya: **`Order.Api`** untuk Transaksi Pesanan, **`Finance.Api`** untuk Pembukuan, atau **`HR.Api`** untuk Kepegawaian).
-- Ketika kamu ingin modul tersebut punya **Database SQL Server sendiri** (`NetStarterPack_OrderDb`) dan bisa di-deploy atau di-*scale-out* pada port/server terpisah.
-
-Mari kita buat microservice ke-3 bernama **`Order.Api`** di **Port `5083`** dalam **5 Langkah Cepat**!
+> - **Backend Microservice**: [`src/Services/Order/Order.Api/`](../src/Services/Order/Order.Api/)
+> - **YARP Gateway Route**: [`src/ApiGateway/Gateway.Api/appsettings.json`](../src/ApiGateway/Gateway.Api/appsettings.json) (`orders-route` $\rightarrow$ `http://localhost:5083`)
+> - **Unit Test**: [`tests/NetStarterPack.Microservices.UnitTests/MicroservicesArchitectureTests.cs`](../tests/NetStarterPack.Microservices.UnitTests/MicroservicesArchitectureTests.cs)
+> - **Frontend React UI**: [`frontend/src/pages/OrdersPage.tsx`](../frontend/src/pages/OrdersPage.tsx) (Menu: **Pesanan (Order.Api)** di `/orders`)
 
 ---
 
-## Langkah 1: Buat Project `Order.Api.csproj` & Masukkan ke Solution
+## Kapan Harus Pakai Bagian A vs Bagian B?
+- Gunakan **Bagian A** kalau tabel barumu masih satu rumpun dengan service yang sudah ada (misal tambah tabel `Kategori` di dalam `Catalog.Api`).
+- Gunakan **Bagian B (Example 2 ini)** kalau kamu ingin membuat **Microservice Mandiri Baru** yang punya **Port sendiri (`:5083`)** dan **Database SQL Server sendiri (`NetStarterPack_OrderDb`)**.
 
-Buat folder `src/Services/Order/Order.Api/` dan file `Order.Api.csproj` yang mereferensikan ketiga `BuildingBlocks`:
+---
 
-```xml
-<Project Sdk="Microsoft.NET.Sdk.Web">
+## Langkah 1: Buat Project Web API Baru (Tanpa Edit `.csproj` Manual!)
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);1591</NoWarn>
-  </PropertyGroup>
+Kamu **sama sekali tidak perlu** menulis atau mengedit XML `.csproj` secara manual. Pilih salah satu dari **2 cara standar** di bawah ini (lewat klik GUI Visual Studio atau lewat Terminal CLI):
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\..\BuildingBlocks\BuildingBlocks.Core\BuildingBlocks.Core.csproj" />
-    <ProjectReference Include="..\..\..\BuildingBlocks\BuildingBlocks.Security\BuildingBlocks.Security.csproj" />
-    <ProjectReference Include="..\..\..\BuildingBlocks\BuildingBlocks.Infrastructure\BuildingBlocks.Infrastructure.csproj" />
-  </ItemGroup>
+### Cara 1: Lewat Visual Studio GUI (Paling Umum & Gampang)
+1. **Buat Project Baru**:
+   - Di **Solution Explorer**, klik kanan folder **`Services`** (di bawah `src`) $\rightarrow$ pilih **Add** $\rightarrow$ **New Project...**
+   - Pilih template **ASP.NET Core Web API** $\rightarrow$ Klik **Next**.
+   - Isi **Project name**: `Order.Api`
+   - Isi **Location**: `...\net-starterpack-microservice\src\Services\Order`
+   - Pilih Framework **`.NET 10.0`**, centang *Use controllers* $\rightarrow$ Klik **Create**.
+2. **Sambungkan ke `BuildingBlocks` (Klik Kanan)**:
+   - Di project `Order.Api` yang baru muncul, klik kanan **Dependencies** $\rightarrow$ **Add Project Reference...**
+   - Centang **`BuildingBlocks.Core`**, **`BuildingBlocks.Security`**, dan **`BuildingBlocks.Infrastructure`** $\rightarrow$ Klik **OK**.
+3. **Install Package EF Core (Lewat NuGet GUI)**:
+   - Klik kanan **Dependencies** pada `Order.Api` $\rightarrow$ **Manage NuGet Packages...**
+   - Cari dan install:
+     - `Microsoft.EntityFrameworkCore.SqlServer` (versi `10.0.*`)
+     - `Microsoft.EntityFrameworkCore.Sqlite` (versi `10.0.*`)
+     - `Microsoft.EntityFrameworkCore.InMemory` (versi `10.0.*`)
+4. **Agar Ikut Di-Build Otomatis Saat Tekan `F5` di `Gateway.Api`**:
+   - Klik kanan project **`Gateway.Api`** di Solution Explorer $\rightarrow$ pilih **Build Dependencies** $\rightarrow$ **Project Dependencies...**
+   - Centang kotak **`Order.Api`** $\rightarrow$ Klik **OK**.
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.*" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.*" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.*" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.*" />
-  </ItemGroup>
-
-</Project>
-```
-
-Lalu daftarkan ke solution lewat terminal:
+### Cara 2: Lewat Terminal PowerShell (Kalau Suka Command Line)
+Kalau kamu malas klik-klik di Visual Studio, cukup copy-paste perintah `dotnet` standar ini di terminal root project:
 ```powershell
-dotnet sln NetStarterPack.Microservices.sln add src/Services/Order/Order.Api/Order.Api.csproj --solution-folder src/Services
+# 1. Buat project Web API baru & masukkan ke Solution
+dotnet new webapi -n Order.Api -o src/Services/Order/Order.Api --use-controllers
+dotnet sln NetStarterPack.Microservices.sln add src/Services/Order/Order.Api/Order.Api.csproj --solution-folder Services
+
+# 2. Tambahkan reference ke BuildingBlocks
+dotnet add src/Services/Order/Order.Api reference src/BuildingBlocks/BuildingBlocks.Core
+dotnet add src/Services/Order/Order.Api reference src/BuildingBlocks/BuildingBlocks.Security
+dotnet add src/Services/Order/Order.Api reference src/BuildingBlocks/BuildingBlocks.Infrastructure
+
+# 3. Install package EF Core
+dotnet add src/Services/Order/Order.Api package Microsoft.EntityFrameworkCore.SqlServer --version "10.0.*"
+dotnet add src/Services/Order/Order.Api package Microsoft.EntityFrameworkCore.Sqlite --version "10.0.*"
+dotnet add src/Services/Order/Order.Api package Microsoft.EntityFrameworkCore.InMemory --version "10.0.*"
 ```
 
 ---
 
-## Langkah 2: Buat Struktur Folder Compact Onion di `Order.Api`
+## Langkah 2: Daftarkan Permission, CacheKey, & Kontrak di `BuildingBlocks.Core`
 
-Di dalam `src/Services/Order/Order.Api/`, buat 4 folder standar Compact Onion:
-```text
-Order.Api/
-├── Domain/
-│   ├── Entities/Order.cs               # class Order : BaseEntity
-│   └── Interfaces/IOrderUnitOfWork.cs  # interface IOrderUnitOfWork
-├── Application/
-│   ├── DTOs/OrderDtos.cs               # record OrderDto & CreateOrderRequest
-│   ├── Interfaces/IOrderService.cs     # interface IOrderService
-│   └── Services/OrderService.cs        # Pakai IOrderUnitOfWork + ICacheService + IEventBus
-├── Infrastructure/
-│   └── Persistence/OrderPersistence.cs # OrderDbContext (NetStarterPack_OrderDb), OrderUnitOfWork, Seeder
-└── Controllers/
-    └── OrdersController.cs             # class OrdersController : BaseApiController + [HasPermission]
+Sebelum ngoding di dalam `Order.Api`, kita daftarkan dulu konstanta permission `Orders.*` di `BuildingBlocks.Core` supaya dikenali oleh `Identity.Api` (untuk halaman Role & Menu) maupun oleh `Order.Api`:
+
+### 2.1. Tambahkan `Permissions.Orders` di [`BuildingBlocks.Core/Constants/Permissions.cs`](../src/BuildingBlocks/BuildingBlocks.Core/Constants/Permissions.cs)
+```csharp
+public static class Orders
+{
+    public const string View = "Orders.View";
+    public const string Create = "Orders.Create";
+    public const string Edit = "Orders.Edit";
+    public const string Delete = "Orders.Delete";
+}
+
+// Dan tambahkan ke dalam list Permissions.GetAll():
+new(Orders.View, "Lihat Pesanan / Order", "Orders", "Melihat daftar transaksi pesanan (Order Microservice)"),
+new(Orders.Create, "Buat Pesanan / Order", "Orders", "Membuat transaksi pesanan baru (Order Microservice)"),
+new(Orders.Edit, "Ubah Pesanan / Order", "Orders", "Mengubah status dan detail pesanan (Order Microservice)"),
+new(Orders.Delete, "Hapus Pesanan / Order", "Orders", "Menghapus/membatalkan data pesanan (Order Microservice)"),
 ```
-*(Seluruh isi kodenya tinggal mengikuti pola `Catalog.Api` yang sudah ada!)*
+
+### 2.2. Tambahkan Kunci Cache `OrdersPrefix` di [`BuildingBlocks.Core/Constants/CacheKeys.cs`](../src/BuildingBlocks/BuildingBlocks.Core/Constants/CacheKeys.cs)
+```csharp
+public const string OrdersPrefix = "orders:";
+
+public static string OrderList(string? search, string? status) =>
+    $"{OrdersPrefix}list:s={search?.Trim().ToLowerInvariant() ?? "all"}:st={status?.Trim().ToLowerInvariant() ?? "all"}";
+
+public static string OrderById(Guid id) =>
+    $"{OrdersPrefix}id:{id}";
+
+public static string OrderStats() =>
+    $"{OrdersPrefix}stats";
+```
+
+### 2.3. Tambahkan Kontrak Statistik `OrderStatsDto` di [`BuildingBlocks.Core/Contracts/IntegrationContracts.cs`](../src/BuildingBlocks/BuildingBlocks.Core/Contracts/IntegrationContracts.cs)
+```csharp
+public record OrderStatsDto(
+    int TotalOrders,
+    decimal TotalRevenue,
+    int PendingOrders,
+    int CompletedOrders
+);
+```
 
 ---
 
-## Langkah 3: Buat `Program.cs` & `appsettings.json` untuk `Order.Api` (`Port 5083`)
+## Langkah 3: Buat Layer `Domain/` di Dalam `Order.Api`
 
-Karena kita sudah punya **`BuildingBlocks`**, file `Order.Api/Program.cs` sangat ringkas dan otomatis mendapatkan Zero-Trust JWT Auth, `[HasPermission]`, Hybrid L1/L2 Redis Cache, `HttpEventBus`, `CorrelationIdMiddleware`, `GlobalExceptionHandler`, Swagger UI, dan Scalar UI:
+Di dalam project `Order.Api`, buat folder `Domain/Entities/` dan `Domain/Interfaces/`.
+
+### 3.1. Buat Entity [`Domain/Entities/Order.cs`](../src/Services/Order/Order.Api/Domain/Entities/Order.cs)
+```csharp
+using BuildingBlocks.Core.Common;
+
+namespace Order.Api.Domain.Entities;
+
+public enum OrderStatus
+{
+    Pending = 0,
+    Processing = 1,
+    Completed = 2,
+    Cancelled = 3
+}
+
+public class Order : BaseEntity
+{
+    public string OrderNumber { get; set; } = string.Empty;
+    public string CustomerName { get; set; } = string.Empty;
+    public string CustomerEmail { get; set; } = string.Empty;
+    public string ProductSku { get; set; } = string.Empty;
+    public string ProductName { get; set; } = string.Empty;
+    public int Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
+    public decimal TotalAmount { get; set; }
+    public OrderStatus Status { get; set; } = OrderStatus.Pending;
+    public string Notes { get; set; } = string.Empty;
+}
+```
+
+### 3.2. Buat Kontrak Unit of Work [`Domain/Interfaces/IOrderUnitOfWork.cs`](../src/Services/Order/Order.Api/Domain/Interfaces/IOrderUnitOfWork.cs)
+```csharp
+using BuildingBlocks.Core.Interfaces;
+
+namespace Order.Api.Domain.Interfaces;
+
+public interface IOrderUnitOfWork
+{
+    IRepository<Entities.Order> Orders { get; }
+    Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+}
+```
+
+---
+
+## Langkah 4: Buat Layer `Application/` di Dalam `Order.Api`
+
+### 4.1. Buat DTO [`Application/DTOs/OrderDtos.cs`](../src/Services/Order/Order.Api/Application/DTOs/OrderDtos.cs)
+```csharp
+namespace Order.Api.Application.DTOs;
+
+public record OrderDto(
+    Guid Id,
+    string OrderNumber,
+    string CustomerName,
+    string CustomerEmail,
+    string ProductSku,
+    string ProductName,
+    int Quantity,
+    decimal UnitPrice,
+    decimal TotalAmount,
+    string Status,
+    string Notes,
+    DateTime CreatedAt,
+    string? CreatedBy
+);
+
+public record CreateOrUpdateOrderRequest(
+    string OrderNumber,
+    string CustomerName,
+    string CustomerEmail,
+    string ProductSku,
+    string ProductName,
+    int Quantity,
+    decimal UnitPrice,
+    string Status,
+    string Notes
+);
+```
+
+### 4.2. Buat Interface [`Application/Interfaces/IOrderService.cs`](../src/Services/Order/Order.Api/Application/Interfaces/IOrderService.cs)
+```csharp
+using BuildingBlocks.Core.Common;
+using BuildingBlocks.Core.Contracts;
+using Order.Api.Application.DTOs;
+
+namespace Order.Api.Application.Interfaces;
+
+public interface IOrderService
+{
+    Task<Result<IReadOnlyList<OrderDto>>> GetAllOrdersAsync(string? search = null, string? status = null, CancellationToken cancellationToken = default);
+    Task<Result<OrderDto>> GetOrderByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<Result<OrderDto>> CreateOrderAsync(CreateOrUpdateOrderRequest request, CancellationToken cancellationToken = default);
+    Task<Result<OrderDto>> UpdateOrderAsync(Guid id, CreateOrUpdateOrderRequest request, CancellationToken cancellationToken = default);
+    Task<Result> DeleteOrderAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<Result<OrderStatsDto>> GetOrderStatsAsync(CancellationToken cancellationToken = default);
+}
+```
+
+### 4.3. Buat Implementasi [`Application/Services/OrderService.cs`](../src/Services/Order/Order.Api/Application/Services/OrderService.cs)
+Perhatikan bagaimana `OrderService` menghitung otomatis `TotalAmount = Quantity * UnitPrice`, menyimpan ke database `NetStarterPack_OrderDb`, menghapus cache `orders:*`, dan mengirim `AuditLogIntegrationEvent` dengan `SourceService: "Order.Api"` ke `Identity.Api`:
+
+```csharp
+using BuildingBlocks.Core.Common;
+using BuildingBlocks.Core.Constants;
+using BuildingBlocks.Core.Contracts;
+using BuildingBlocks.Core.Interfaces;
+using Order.Api.Application.DTOs;
+using Order.Api.Application.Interfaces;
+using Order.Api.Domain.Entities;
+using Order.Api.Domain.Interfaces;
+
+namespace Order.Api.Application.Services;
+
+public class OrderService(
+    IOrderUnitOfWork unitOfWork,
+    ICurrentUserService currentUserService,
+    ICacheService cacheService,
+    IEventBus eventBus) : IOrderService
+{
+    public async Task<Result<IReadOnlyList<OrderDto>>> GetAllOrdersAsync(
+        string? search = null,
+        string? status = null,
+        CancellationToken cancellationToken = default)
+    {
+        var baseKey = CacheKeys.OrderList(null, null);
+
+        var allDtos = await cacheService.GetOrCreateAsync(
+            baseKey,
+            async ct =>
+            {
+                var orders = await unitOfWork.Orders.GetListAsync(cancellationToken: ct);
+                return orders
+                    .OrderByDescending(o => o.CreatedAt)
+                    .Select(MapToDto)
+                    .ToList();
+            },
+            TimeSpan.FromMinutes(10),
+            cancellationToken);
+
+        IEnumerable<OrderDto> query = allDtos;
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(o =>
+                o.OrderNumber.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                o.CustomerName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                o.ProductName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                o.ProductSku.Contains(term, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            var statusTerm = status.Trim();
+            query = query.Where(o => o.Status.Equals(statusTerm, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return Result<IReadOnlyList<OrderDto>>.Success(query.ToList());
+    }
+
+    public async Task<Result<OrderDto>> GetOrderByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var dto = await cacheService.GetOrCreateAsync<OrderDto?>(
+            CacheKeys.OrderById(id),
+            async ct =>
+            {
+                var order = await unitOfWork.Orders.GetByIdAsync(id, ct);
+                return order is null ? null : MapToDto(order);
+            },
+            TimeSpan.FromMinutes(10),
+            cancellationToken);
+
+        return dto is null
+            ? Result<OrderDto>.Failure("Data pesanan tidak ditemukan.", 404)
+            : Result<OrderDto>.Success(dto);
+    }
+
+    public async Task<Result<OrderDto>> CreateOrderAsync(
+        CreateOrUpdateOrderRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.OrderNumber) ||
+            string.IsNullOrWhiteSpace(request.CustomerName) ||
+            string.IsNullOrWhiteSpace(request.ProductName))
+        {
+            return Result<OrderDto>.Failure("Nomor Order, Nama Pelanggan, dan Nama Produk wajib diisi.", 400);
+        }
+
+        if (request.Quantity <= 0)
+        {
+            return Result<OrderDto>.Failure("Jumlah (Quantity) pesanan minimal 1 unit.", 400);
+        }
+
+        var orderNo = request.OrderNumber.Trim().ToUpperInvariant();
+        if (await unitOfWork.Orders.AnyAsync(o => o.OrderNumber == orderNo, cancellationToken))
+        {
+            return Result<OrderDto>.Failure($"Pesanan dengan nomor '{orderNo}' sudah terdaftar.", 409);
+        }
+
+        if (!Enum.TryParse<OrderStatus>(request.Status, true, out var status))
+        {
+            status = OrderStatus.Pending;
+        }
+
+        var order = new Domain.Entities.Order
+        {
+            OrderNumber = orderNo,
+            CustomerName = request.CustomerName.Trim(),
+            CustomerEmail = request.CustomerEmail.Trim(),
+            ProductSku = string.IsNullOrWhiteSpace(request.ProductSku) ? "CUSTOM-ITEM" : request.ProductSku.Trim().ToUpperInvariant(),
+            ProductName = request.ProductName.Trim(),
+            Quantity = request.Quantity,
+            UnitPrice = request.UnitPrice,
+            TotalAmount = request.Quantity * request.UnitPrice,
+            Status = status,
+            Notes = request.Notes.Trim(),
+            CreatedBy = currentUserService.Username ?? "System"
+        };
+
+        await unitOfWork.Orders.AddAsync(order, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await cacheService.RemoveByPrefixAsync(CacheKeys.OrdersPrefix, cancellationToken);
+        await cacheService.RemoveByPrefixAsync(CacheKeys.DashboardPrefix, cancellationToken);
+
+        await eventBus.PublishAuditAsync(new AuditLogIntegrationEvent(
+            UserId: currentUserService.UserId,
+            UserName: currentUserService.Username ?? "System",
+            Action: "CREATE_ORDER",
+            Module: "Orders",
+            EntityId: order.Id.ToString(),
+            Details: $"[Order.Api] Membuat pesanan '{order.OrderNumber}' untuk '{order.CustomerName}' ({order.ProductName} x{order.Quantity}).",
+            IpAddress: currentUserService.IpAddress,
+            SourceService: "Order.Api"), cancellationToken);
+
+        return Result<OrderDto>.Success(MapToDto(order), "Pesanan baru berhasil dibuat.", 201);
+    }
+
+    // Method UpdateOrderAsync, DeleteOrderAsync, & GetOrderStatsAsync
+    // tersedia lengkap di src/Services/Order/Order.Api/Application/Services/OrderService.cs
+}
+```
+
+---
+
+## Langkah 5: Buat Layer `Infrastructure/` (`OrderDbContext` & Seeder)
+
+Buat file [`Infrastructure/Persistence/OrderPersistence.cs`](../src/Services/Order/Order.Api/Infrastructure/Persistence/OrderPersistence.cs) yang berisi:
+1. **`OrderDbContext`**: Mengatur tabel `Orders`, precision `decimal(18,2)` untuk `UnitPrice` & `TotalAmount`, index unik `OrderNumber`, dan `entity.HasQueryFilter(x => !x.IsDeleted)`.
+2. **`OrderUnitOfWork`**: Menggunakan `GenericRepository<Order, OrderDbContext>` dari `BuildingBlocks.Infrastructure` (jadi kita tidak perlu menulis kode CRUD Repository lagi!).
+3. **`OrderDatabaseSeeder`**: Otomatis membuat database `NetStarterPack_OrderDb` dan mengisi 4 data pesanan contoh (`ORD-2026-001` s/d `ORD-2026-004`) saat startup.
+
+---
+
+## Langkah 6: Buat Controller, `Program.cs`, & `appsettings.json` (`Port 5083`)
+
+### 6.1. Buat [`Controllers/OrdersController.cs`](../src/Services/Order/Order.Api/Controllers/OrdersController.cs)
+```csharp
+using BuildingBlocks.Core.Constants;
+using BuildingBlocks.Infrastructure.Controllers;
+using BuildingBlocks.Security;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Order.Api.Application.DTOs;
+using Order.Api.Application.Interfaces;
+
+namespace Order.Api.Controllers;
+
+[Authorize]
+public class OrdersController(IOrderService orderService) : BaseApiController
+{
+    [HasPermission(Permissions.Orders.View)]
+    [HttpGet]
+    public async Task<IActionResult> GetAll([FromQuery] string? search, [FromQuery] string? status, CancellationToken ct) =>
+        ToActionResult(await orderService.GetAllOrdersAsync(search, status, ct));
+
+    [AllowAnonymous]
+    [HttpGet("stats")]
+    public async Task<IActionResult> GetStats(CancellationToken ct) =>
+        ToActionResult(await orderService.GetOrderStatsAsync(ct));
+
+    [HasPermission(Permissions.Orders.View)]
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetById(Guid id, CancellationToken ct) =>
+        ToActionResult(await orderService.GetOrderByIdAsync(id, ct));
+
+    [HasPermission(Permissions.Orders.Create)]
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] CreateOrUpdateOrderRequest request, CancellationToken ct) =>
+        ToActionResult(await orderService.CreateOrderAsync(request, ct));
+
+    [HasPermission(Permissions.Orders.Edit)]
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] CreateOrUpdateOrderRequest request, CancellationToken ct) =>
+        ToActionResult(await orderService.UpdateOrderAsync(id, request, ct));
+
+    [HasPermission(Permissions.Orders.Delete)]
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct) =>
+        ToActionResult(await orderService.DeleteOrderAsync(id, ct));
+}
+```
+
+### 6.2. Isi [`Order.Api/Program.cs`](../src/Services/Order/Order.Api/Program.cs)
+Karena semua urusan JWT, `[HasPermission]`, Cache, EventBus, CorrelationId, dan Swagger/Scalar sudah dibungkus di `BuildingBlocks`, file `Program.cs` milik microservice baru sangat bersih:
 
 ```csharp
 using BuildingBlocks.Infrastructure;
 using BuildingBlocks.Security;
 using Microsoft.EntityFrameworkCore;
-// using Order.Api...
+using Order.Api.Application.Interfaces;
+using Order.Api.Application.Services;
+using Order.Api.Domain.Interfaces;
+using Order.Api.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -699,7 +1040,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSharedJwtSecurity(builder.Configuration);
 builder.Services.AddSharedInfrastructure(builder.Configuration);
 
-// 2. Setup Database Terisolasi (NetStarterPack_OrderDb)
+// 2. Setup Database Terpisah: NetStarterPack_OrderDb
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<OrderDbContext>(options =>
     options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure(3)));
@@ -707,93 +1048,33 @@ builder.Services.AddDbContext<OrderDbContext>(options =>
 // 3. Register Order Onion Services
 builder.Services.AddScoped<IOrderUnitOfWork, OrderUnitOfWork>();
 builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddScoped<OrderDatabaseSeeder>();
 
 var app = builder.Build();
 
-// 4. Pasang Middleware, Auth, Controllers, /swagger, /scalar/v1, & /api/health
+// 4. Auto-Migrate, Seed Order Data, & Pre-Warm Cache
+using (var scope = app.Services.CreateScope())
+{
+    var seeder = scope.ServiceProvider.GetRequiredService<OrderDatabaseSeeder>();
+    await seeder.SeedAsync();
+}
+
 app.UseSharedMicroservicePipeline(
-    serviceTitle: "Order Microservice API",
+    serviceTitle: "Order & Transaction Microservice API",
     serviceName: "Order.Api");
 
 app.Run();
 ```
 
-Dan di `Order.Api/appsettings.json`, arahkan port ke **`5083`** dan database ke **`NetStarterPack_OrderDb`**:
-```json
-{
-  "Urls": "http://localhost:5083",
-  "DatabaseProvider": "SqlServer",
-  "ConnectionStrings": {
-    "DefaultConnection": "Data Source=LAPTOP-G513H4H7\\SQLEXPRESS02;Initial Catalog=NetStarterPack_OrderDb;Integrated Security=True;TrustServerCertificate=True;"
-  },
-  "JwtSettings": {
-    "Issuer": "NetStarterPack.Microservices",
-    "Audience": "NetStarterPack.Client",
-    "SecretKey": "SuperSecretStarterPackJwtSigningKey_2026_ChangeInProduction_Min32Chars!",
-    "InternalApiKey": "InternalMicroserviceKey_2026_ZeroTrust"
-  },
-  "ServiceEndpoints": {
-    "GatewayUrl": "http://localhost:5080",
-    "IdentityServiceUrl": "http://localhost:5081",
-    "CatalogServiceUrl": "http://localhost:5082"
-  }
-}
-```
-
 ---
 
-## Langkah 4: Sambungkan `Order.Api (:5083)` ke YARP API Gateway (`Gateway.Api :5080`)
+## Langkah 7: Sambungkan `Order.Api (:5083)` ke YARP Gateway (`:5080`) & React Frontend (`:5173`)
 
-1. **Tambahkan Route & Cluster di [`src/ApiGateway/Gateway.Api/appsettings.json`](../src/ApiGateway/Gateway.Api/appsettings.json)**:
-   ```json
-   // Di dalam "ReverseProxy" -> "Routes":
-   "orders-route": {
-     "ClusterId": "order-cluster",
-     "Match": {
-       "Path": "/api/orders/{**catch-all}"
-     }
-   },
-   "orders-root-route": {
-     "ClusterId": "order-cluster",
-     "Match": {
-       "Path": "/api/orders"
-     }
-   }
-
-   // Di dalam "ReverseProxy" -> "Clusters":
-   "order-cluster": {
-     "Destinations": {
-       "destination1": {
-         "Address": "http://localhost:5083"
-       }
-     }
-   }
-   ```
-
-2. **Tambahkan ke Auto-Orchestrator & OpenAPI Merger di [`src/ApiGateway/Gateway.Api/Program.cs`](../src/ApiGateway/Gateway.Api/Program.cs)**:
-   - Di bagian Orchestrator (`if (app.Environment.IsDevelopment())`), tambahkan:
-     ```csharp
-     TryStartDotnetMicroservice(
-         serviceName: "Order.Api",
-         port: 5083,
-         projectDir: Path.Combine(solutionRoot, "src", "Services", "Order", "Order.Api"),
-         spawnedProcesses,
-         app.Logger);
-     ```
-   - Di bagian `/openapi/v1.json`, tambahkan:
-     ```csharp
-     await MergeMicroserviceOpenApiAsync(client, "http://localhost:5083/openapi/v1.json", mergedPaths, mergedSchemas);
-     ```
-   - Di [`Gateway.Api.csproj`](../src/ApiGateway/Gateway.Api/Gateway.Api.csproj), tambahkan build-order reference agar ikut di-build otomatis saat tekan `F5`:
-     ```xml
-     <ProjectReference Include="..\..\Services\Order\Order.Api\Order.Api.csproj" ReferenceOutputAssembly="false" />
-     ```
-
----
-
-## Langkah 5: Jalankan `F5` & Nikmati Hasilnya!
-
-Begitu kamu menekan **`F5`** di Visual Studio:
-- `Gateway.Api (:5080)` otomatis menyalakan `Identity.Api (:5081)`, `Catalog.Api (:5082)`, **`Order.Api (:5083)`**, dan `React Vite (:5173)`.
-- Buka **`http://localhost:5080/swagger`** atau **`http://localhost:5080/scalar/v1`** $\rightarrow$ endpoint `/api/orders` sudah tergabung rapi bersama endpoint microservice lainnya!
-
+1. **Tambahkan Route YARP di [`Gateway.Api/appsettings.json`](../src/ApiGateway/Gateway.Api/appsettings.json)**:
+   - Route `orders-route` (`/api/orders/{**catch-all}`) & `orders-root-route` (`/api/orders`) diarahkan ke `order-cluster` (`http://localhost:5083`).
+2. **Daftarkan ke Orchestrator & OpenAPI Merger di [`Gateway.Api/Program.cs`](../src/ApiGateway/Gateway.Api/Program.cs)**:
+   - Panggil `TryStartDotnetMicroservice("Order.Api", 5083, ...)` agar otomatis ikut menyala saat tekan `F5`.
+   - Panggil `MergeMicroserviceOpenApiAsync(client, "http://localhost:5083/openapi/v1.json", ...)` agar endpoint `/api/orders` otomatis tampil di Unified Swagger (`http://localhost:5080/swagger`).
+3. **Buat Halaman React [`frontend/src/pages/OrdersPage.tsx`](../frontend/src/pages/OrdersPage.tsx)**:
+   - Halaman ini mengambil daftar pesanan dari `GET /api/orders` (diteruskan YARP ke `Order.Api :5083`).
+   - Saat modal **Buat Pesanan Baru** dibuka, ia juga memanggil `GET /api/products` (diteruskan YARP ke `Catalog.Api :5082`) untuk menampilkan dropdown pilihan produk yang otomatis mengisi SKU dan Harga Satuan!
