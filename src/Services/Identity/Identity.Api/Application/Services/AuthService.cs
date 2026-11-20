@@ -320,6 +320,12 @@ public class AuthService(
         return (roles, permissions);
     }
 
+    public static CurrentUserDto BuildCurrentUserDto(User user)
+    {
+        var (roles, permissions) = ExtractRolesAndPermissions(user);
+        return MapToCurrentUserDto(user, roles, permissions);
+    }
+
     private static CurrentUserDto MapToCurrentUserDto(
         User user,
         IReadOnlyList<string> roles,
