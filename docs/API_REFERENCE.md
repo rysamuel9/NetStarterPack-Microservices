@@ -105,6 +105,9 @@ X-Correlation-Id: 9a4f2c1b8e7d4a5b9c0d1e2f3a4b5c6d
 | `POST` | `/api/auth/logout-all` | `[Authorize]` | Cabut seluruh refresh token aktif di semua perangkat |
 | `GET` | `/api/auth/me` | `[Authorize]` | Ambil profil, roles, & permissions user yang sedang login |
 | `PUT` | `/api/auth/profile` | `[Authorize]` | Update profil pribadi |
+| `POST` | `/api/auth/avatar` | `[Authorize]` | Upload foto profil (`multipart/form-data`, field `file`, format JPG/PNG, maks 5 MB) |
+| `DELETE` | `/api/auth/avatar` | `[Authorize]` | Hapus foto profil akun sendiri |
+| `GET` | `/api/auth/avatar/{userId}` | Publik | Ambil file foto profil user (bisa langsung dipasang di `<img src>`) |
 | `POST` | `/api/auth/change-password` | `[Authorize]` | Ganti password akun sendiri |
 
 ### B. Manajemen Pengguna (`/api/users`), Role (`/api/roles`), Menu (`/api/menus`), & Dashboard (`/api/dashboard`)

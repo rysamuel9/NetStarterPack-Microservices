@@ -398,6 +398,7 @@ export interface AnnouncementSummaryItem {
   allowComments: boolean;
   isPinned: boolean;
   publishedAt: string;
+  authorUserId: string;
   authorUsername: string;
   authorFullName: string;
   authorRole: string;

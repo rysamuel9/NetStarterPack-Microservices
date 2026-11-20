@@ -643,6 +643,7 @@ public partial class AnnouncementService(
             AllowComments: a.AllowComments,
             IsPinned: a.IsPinned,
             PublishedAt: a.PublishedAt,
+            AuthorUserId: a.AuthorUserId,
             AuthorUsername: a.AuthorUsername,
             AuthorFullName: a.AuthorFullName,
             AuthorRole: a.AuthorRole,

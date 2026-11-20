@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { UserAvatar } from '../../components/UserAvatar';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -374,9 +375,12 @@ export const AnnouncementDetailPage: React.FC = () => {
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 leading-tight">{item.title}</h1>
 
           <div className="flex items-center gap-3 pb-5 border-b border-slate-100">
-            <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-800 font-bold flex items-center justify-center">
-              {item.authorFullName.charAt(0)}
-            </div>
+            <UserAvatar
+              userId={item.authorUserId}
+              name={item.authorFullName}
+              sizeClass="w-10 h-10 text-sm"
+              shapeClass="rounded-xl"
+            />
             <div>
               <p className="text-sm font-bold text-slate-900">{item.authorFullName}</p>
               <p className="text-xs text-slate-500">

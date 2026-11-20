@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { UserAvatar } from '../../components/UserAvatar';
 import { UserCheck, KeyRound, Save } from 'lucide-react';
 import { api, getErrorMessage } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -114,17 +115,12 @@ export const ProfilePage: React.FC = () => {
       <div className="bg-gradient-to-r from-slate-950 via-teal-950 to-slate-900 rounded-2xl p-6 text-white border border-teal-800/40 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            {user?.avatarUrl ? (
-              <img
-                src={user.avatarUrl}
-                alt="Foto profil"
-                className="w-16 h-16 rounded-full object-cover border-2 border-teal-400/50"
-              />
-            ) : (
-              <div className="w-16 h-16 rounded-full bg-teal-500/20 border-2 border-teal-400/30 flex items-center justify-center text-xl font-bold text-teal-200">
-                {user?.fullName?.charAt(0).toUpperCase()}
-              </div>
-            )}
+            <UserAvatar
+              userId={user?.id}
+              name={user?.fullName}
+              sizeClass="w-16 h-16 text-xl"
+              colorClass="bg-teal-500/20 border-2 border-teal-400/30 text-teal-200"
+            />
             <div className="flex flex-col gap-1.5">
               <label
                 className={`inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/10 text-xs font-semibold cursor-pointer ${

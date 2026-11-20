@@ -1,4 +1,5 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { UserAvatar } from './UserAvatar';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   Boxes,
@@ -187,9 +188,13 @@ export const Layout: React.FC = () => {
 
         <div className="p-3.5 mx-3 mt-3 rounded-xl bg-slate-900/90 border border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-teal-500/20 border border-teal-500/40 flex items-center justify-center text-teal-300 font-bold text-sm">
-              {user?.fullName?.charAt(0).toUpperCase() || 'U'}
-            </div>
+            <UserAvatar
+              userId={user?.id}
+              name={user?.fullName}
+              sizeClass="w-9 h-9 text-sm"
+              shapeClass="rounded-lg"
+              colorClass="bg-teal-500/20 border border-teal-500/40 text-teal-300"
+            />
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold text-white truncate">{user?.fullName}</p>
               <p className="text-[11px] text-slate-400 truncate">@{user?.username} • Identity.Api</p>

@@ -113,6 +113,10 @@ publish-iis/
    - `C:\inetpub\nsp-ms\catalog-api\appsettings.json` (`NetStarterPack_CatalogDb`)
    - `C:\inetpub\nsp-ms\order-api\appsettings.json` (`NetStarterPack_OrderDb`)
    *(Tips: Untuk server IIS, disarankan memakai akun SQL Auth `User Id=sa;Password=...;` di connection string supaya tidak terkendala permission Windows Authentication milik akun virtual `IIS APPPOOL\...`).*
+4. **Folder upload foto profil (`Identity.Api`)**:
+   - Foto profil disimpan otomatis di `C:\inetpub\nsp-ms\identity-api\uploads\avatars\`.
+   - Pastikan akun App Pool `IIS APPPOOL\nsp-identity-pool` punya izin **Modify / Write** ke folder `identity-api\` (atau folder `uploads\`).
+   - Saat deploy ulang `identity-api\`, timpa file publish-nya saja — **jangan hapus** folder `uploads\` supaya foto user yang sudah di-upload tidak ikut hilang.
 
 ---
 

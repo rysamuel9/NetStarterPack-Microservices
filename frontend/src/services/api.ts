@@ -3,6 +3,8 @@ import type { ApiResult, AuthResponse } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
+export const avatarUrlFor = (userId: string) => `${API_BASE_URL}/auth/avatar/${userId}`;
+
 export const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
