@@ -39,6 +39,7 @@ public record AnnouncementSummaryDto(
     bool AllowComments,
     bool IsPinned,
     DateTime PublishedAt,
+    Guid AuthorUserId,
     string AuthorUsername,
     string AuthorFullName,
     string AuthorRole,

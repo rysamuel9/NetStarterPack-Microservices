@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { UserAvatar } from '../../components/UserAvatar';
 import { UserCheck, KeyRound, Save } from 'lucide-react';
 import { api, getErrorMessage } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -19,6 +20,52 @@ export const ProfilePage: React.FC = () => {
   });
 
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const MAX_AVATAR_SIZE = 5 * 1024 * 1024;
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setMsg(null);
+
+    if (!['image/jpeg', 'image/png'].includes(file.type)) {
+      setMsg({ type: 'error', text: 'Format foto harus JPG atau PNG.' });
+      return;
+    }
+    if (file.size > MAX_AVATAR_SIZE) {
+      setMsg({ type: 'error', text: 'Ukuran foto maksimal 5 MB.' });
+      return;
+    }
+
+    try {
+      setUploading(true);
+      const form = new FormData();
+      form.append('file', file);
+      await api.post('/auth/avatar', form);
+      await refreshUserAndMenus();
+      setMsg({ type: 'success', text: 'Foto profil berhasil diperbarui!' });
+    } catch (err) {
+      setMsg({ type: 'error', text: getErrorMessage(err) });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    setMsg(null);
+    try {
+      setUploading(true);
+      await api.delete('/auth/avatar');
+      await refreshUserAndMenus();
+      setMsg({ type: 'success', text: 'Foto profil dihapus.' });
+    } catch (err) {
+      setMsg({ type: 'error', text: getErrorMessage(err) });
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,6 +114,40 @@ export const ProfilePage: React.FC = () => {
 
       <div className="bg-gradient-to-r from-slate-950 via-teal-950 to-slate-900 rounded-2xl p-6 text-white border border-teal-800/40 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <UserAvatar
+              userId={user?.id}
+              name={user?.fullName}
+              sizeClass="w-16 h-16 text-xl"
+              colorClass="bg-teal-500/20 border-2 border-teal-400/30 text-teal-200"
+            />
+            <div className="flex flex-col gap-1.5">
+              <label
+                className={`inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/10 text-xs font-semibold cursor-pointer ${
+                  uploading ? 'opacity-50 pointer-events-none' : ''
+                }`}
+              >
+                {uploading ? 'Memproses...' : 'Ganti Foto'}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg"
+                  className="hidden"
+                  onChange={handleAvatarChange}
+                />
+              </label>
+              {user?.avatarUrl && (
+                <button
+                  type="button"
+                  onClick={handleRemoveAvatar}
+                  disabled={uploading}
+                  className="text-[11px] text-rose-300 hover:text-rose-200 text-left"
+                >
+                  Hapus foto
+                </button>
+              )}
+              <span className="text-[10px] text-slate-400">JPG / PNG, maksimal 5 MB</span>
+            </div>
+          </div>
           <div>
             <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30 mb-1.5">
               {user?.employeeCode || 'NO-NIK'} • PROFIL ORGANISASI

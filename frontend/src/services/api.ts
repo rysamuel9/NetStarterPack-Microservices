@@ -3,6 +3,8 @@ import type { ApiResult, AuthResponse } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
+export const avatarUrlFor = (userId: string) => `${API_BASE_URL}/auth/avatar/${userId}`;
+
 export const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -15,6 +17,10 @@ api.interceptors.request.use((config) => {
   const token = localStorage.getItem('nsp_access_token');
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  // Upload file (FormData): biarkan browser yang set multipart/form-data + boundary
+  if (config.data instanceof FormData && config.headers) {
+    config.headers.delete('Content-Type');
   }
   return config;
 });

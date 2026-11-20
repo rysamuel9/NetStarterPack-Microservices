@@ -5,14 +5,47 @@ using BuildingBlocks.Infrastructure.Controllers;
 using BuildingBlocks.Security;
 using Identity.Api.Application.DTOs;
 using Identity.Api.Application.Interfaces;
+using Identity.Api.Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
 namespace Identity.Api.Controllers;
 
-public class AuthController(IAuthService authService) : BaseApiController
+public class AuthController(IAuthService authService, IAvatarService avatarService) : BaseApiController
 {
+    [Authorize]
+    [HttpPost("avatar")]
+    [RequestSizeLimit(AvatarService.MaxFileSizeBytes + 1024 * 1024)]
+    public async Task<IActionResult> UploadAvatar(IFormFile? file, CancellationToken cancellationToken)
+    {
+        if (file is null)
+        {
+            return BadRequest(Result.Failure("File foto wajib diisi (field 'file').", 400));
+        }
+
+        await using var stream = file.OpenReadStream();
+        return ToActionResult(await avatarService.UploadAsync(stream, file.Length, cancellationToken));
+    }
+
+    [Authorize]
+    [HttpDelete("avatar")]
+    public async Task<IActionResult> RemoveAvatar(CancellationToken cancellationToken) =>
+        ToActionResult(await avatarService.RemoveAsync(cancellationToken));
+
+    // Anonymous supaya bisa dipakai langsung di <img src>. Isinya cuma foto profil, ID-nya GUID.
+    [AllowAnonymous]
+    [HttpGet("avatar/{userId:guid}")]
+    public IActionResult GetAvatar(Guid userId)
+    {
+        var avatar = avatarService.GetAvatar(userId);
+        if (avatar is null) return NotFound();
+
+        Response.Headers.CacheControl = "public,max-age=86400";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return PhysicalFile(avatar.FullPath, avatar.ContentType);
+    }
+
     [AllowAnonymous]
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken) =>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { UserAvatar } from '../../components/UserAvatar';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell,
@@ -395,9 +396,11 @@ export const AnnouncementsPage: React.FC = () => {
                   <div>
                     <div className="flex items-center justify-between gap-2 text-xs text-slate-500 mb-2">
                       <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-6 h-6 rounded-full bg-teal-100 text-teal-800 font-bold text-[11px] flex items-center justify-center shrink-0">
-                          {item.authorFullName.charAt(0)}
-                        </div>
+                        <UserAvatar
+                          userId={item.authorUserId}
+                          name={item.authorFullName}
+                          sizeClass="w-6 h-6 text-[10px]"
+                        />
                         <span className="font-semibold text-slate-700 truncate">{item.authorFullName}</span>
                         <span className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-500 text-[10px] font-medium shrink-0">
                           {item.authorRole}

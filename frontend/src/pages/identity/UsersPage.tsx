@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { UserAvatar } from '../../components/UserAvatar';
 import { Plus, Search, Pencil, Trash2, Users, Shield, X, Building2 } from 'lucide-react';
 import { api, getErrorMessage } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -303,9 +304,7 @@ export const UsersPage: React.FC = () => {
                   <tr key={u.id} className="hover:bg-slate-50/80">
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-teal-100 text-teal-800 font-bold text-xs flex items-center justify-center shrink-0">
-                          {u.fullName.charAt(0).toUpperCase()}
-                        </div>
+                        <UserAvatar userId={u.id} name={u.fullName} sizeClass="w-9 h-9 text-xs" />
                         <div>
                           <div className="flex items-center gap-1.5">
                             <p className="font-semibold text-slate-900">{u.fullName}</p>

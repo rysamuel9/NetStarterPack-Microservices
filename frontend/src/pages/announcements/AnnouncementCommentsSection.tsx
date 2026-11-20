@@ -1,4 +1,5 @@
 import React from 'react';
+import { UserAvatar } from '../../components/UserAvatar';
 import {
   CornerDownRight,
   Lock,
@@ -140,9 +141,7 @@ export const AnnouncementCommentsSection: React.FC<AnnouncementCommentsSectionPr
                 <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3 min-w-0 flex-1">
-                      <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-800 font-bold text-xs flex items-center justify-center shrink-0">
-                        {c.fullName.charAt(0)}
-                      </div>
+                      <UserAvatar userId={c.userId} name={c.fullName} sizeClass="w-8 h-8 text-xs" />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-xs font-bold text-slate-900">{c.fullName}</span>
@@ -198,9 +197,12 @@ export const AnnouncementCommentsSection: React.FC<AnnouncementCommentsSectionPr
                           className="p-3.5 rounded-2xl bg-white border border-slate-200/80 flex items-start justify-between gap-3"
                         >
                           <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                            <div className="w-7 h-7 rounded-full bg-cyan-100 text-cyan-800 font-bold text-[11px] flex items-center justify-center shrink-0">
-                              {r.fullName.charAt(0)}
-                            </div>
+                            <UserAvatar
+                              userId={r.userId}
+                              name={r.fullName}
+                              sizeClass="w-7 h-7 text-[11px]"
+                              colorClass="bg-cyan-100 text-cyan-800"
+                            />
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-1.5">
                                 <span className="text-xs font-bold text-slate-900">{r.fullName}</span>
