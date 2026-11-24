@@ -23,6 +23,7 @@ import {
   MessageSquare,
   Paperclip,
   Pin,
+  Plus,
   Radio,
   Search,
   X,
@@ -43,6 +44,7 @@ import type {
   ApiResult,
   PagedAnnouncementsResponse,
 } from '@/core/types';
+import { AnnouncementComposerModal } from '@/features/announcements/AnnouncementComposerModal';
 import { UserAvatar } from '@/shared/components/UserAvatar';
 import { formatDateTime } from '@/shared/utils/formatters';
 
@@ -62,6 +64,7 @@ export default function AnnouncementsTab() {
   const user = useAuthStore((s) => s.user);
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const canView = hasPermission('Announcements.View');
+  const canManage = hasPermission('Announcements.Manage');
 
   const [data, setData] = useState<PagedAnnouncementsResponse | null>(null);
   const [page, setPage] = useState(1);
@@ -71,6 +74,7 @@ export default function AnnouncementsTab() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [signalrLive, setSignalrLive] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
 
   const loadFeed = useCallback(
     async (targetPage = page, targetType = typeFilter, targetSearch = search, isRefresh = false) => {
@@ -237,21 +241,34 @@ export default function AnnouncementsTab() {
               Announcement.Api (:5085) • {data?.unreadCount ?? 0} belum dibaca
             </Text>
           </View>
-          <View
-            style={[
-              styles.livePill,
-              { backgroundColor: signalrLive ? colors.successLight : colors.surfaceMuted },
-            ]}
-          >
-            <Radio size={11} color={signalrLive ? colors.success : colors.textMuted} />
-            <Text
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View
               style={[
-                styles.liveText,
-                { color: signalrLive ? colors.success : colors.textMuted },
+                styles.livePill,
+                { backgroundColor: signalrLive ? colors.successLight : colors.surfaceMuted },
               ]}
             >
-              {signalrLive ? 'LIVE' : 'POLL'}
-            </Text>
+              <Radio size={11} color={signalrLive ? colors.success : colors.textMuted} />
+              <Text
+                style={[
+                  styles.liveText,
+                  { color: signalrLive ? colors.success : colors.textMuted },
+                ]}
+              >
+                {signalrLive ? 'LIVE' : 'POLL'}
+              </Text>
+            </View>
+            {canManage ? (
+              <Pressable
+                onPress={() => setComposerOpen(true)}
+                style={[styles.composeBtn, { backgroundColor: colors.primary }]}
+              >
+                <Plus size={14} color={colors.primaryForeground} />
+                <Text style={[styles.composeBtnText, { color: colors.primaryForeground }]}>
+                  Buat
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
 
@@ -507,6 +524,14 @@ export default function AnnouncementsTab() {
           }}
         />
       )}
+      <AnnouncementComposerModal
+        visible={composerOpen}
+        onClose={() => setComposerOpen(false)}
+        onPublished={() => {
+          setPage(1);
+          void loadFeed(1, typeFilter, search, false);
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -527,6 +552,15 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
   },
   liveText: { fontSize: 10, fontWeight: '800' },
+  composeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+  },
+  composeBtnText: { fontSize: 12, fontWeight: '700' },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',

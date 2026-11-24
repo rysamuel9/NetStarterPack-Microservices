@@ -13,7 +13,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Eye, EyeOff, Layers, Lock, Server, Settings, User } from 'lucide-react-native';
+import { Eye, EyeOff, Fingerprint, Layers, Lock, Server, Settings, User } from 'lucide-react-native';
 import { z } from 'zod';
 import { getErrorMessage } from '@/core/api/client';
 import { useAuthStore } from '@/core/auth/authStore';
@@ -38,8 +38,13 @@ const DEMO_ACCOUNTS = [
 export default function LoginScreen() {
   const { colors } = useTheme();
   const login = useAuthStore((s) => s.login);
+  const loginWithBiometric = useAuthStore((s) => s.loginWithBiometric);
   const isAuthenticating = useAuthStore((s) => s.isAuthenticating);
   const serverUrl = useAuthStore((s) => s.serverUrl);
+  const biometricAvailable = useAuthStore((s) => s.biometricAvailable);
+  const biometricEnabled = useAuthStore((s) => s.biometricEnabled);
+  const biometricLabel = useAuthStore((s) => s.biometricLabel);
+  const biometricSavedUsername = useAuthStore((s) => s.biometricSavedUsername);
 
   const [showPassword, setShowPassword] = useState(false);
   const [serverModalOpen, setServerModalOpen] = useState(false);
@@ -64,6 +69,15 @@ export default function LoginScreen() {
       await login(values.usernameOrEmail, values.password);
     } catch (err) {
       setSubmitError(getErrorMessage(err, 'Gagal login. Periksa kembali kredensial kamu.'));
+    }
+  };
+
+  const handleBiometricLogin = async () => {
+    setSubmitError(null);
+    try {
+      await loginWithBiometric();
+    } catch (err) {
+      setSubmitError(getErrorMessage(err, 'Login biometrik gagal.'));
     }
   };
 
@@ -213,6 +227,22 @@ export default function LoginScreen() {
                 <Text style={[styles.submitBtnText, { color: colors.primaryForeground }]}>Masuk</Text>
               )}
             </Pressable>
+
+            {biometricAvailable && biometricEnabled && biometricSavedUsername ? (
+              <Pressable
+                onPress={() => void handleBiometricLogin()}
+                disabled={isAuthenticating}
+                style={[
+                  styles.biometricBtn,
+                  { backgroundColor: colors.primaryLight, borderColor: colors.primary },
+                ]}
+              >
+                <Fingerprint size={18} color={colors.primary} />
+                <Text style={[styles.biometricBtnText, { color: colors.primary }]}>
+                  Masuk dengan {biometricLabel} (@{biometricSavedUsername})
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
 
           {/* Quick Demo Accounts (Development Only) */}
@@ -347,6 +377,20 @@ const styles = StyleSheet.create({
   },
   submitBtnText: {
     fontSize: 15,
+    fontWeight: '700',
+  },
+  biometricBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+  },
+  biometricBtnText: {
+    fontSize: 13,
     fontWeight: '700',
   },
   demoBox: {

@@ -301,3 +301,77 @@ export interface AnnouncementBellResponse {
   unreadCount: number;
   items: AnnouncementSummaryItem[];
 }
+
+export interface UserItem {
+  id: string;
+  username: string;
+  email: string;
+  fullName: string;
+  phoneNumber?: string;
+  department?: string;
+  status: string;
+  roles: string[];
+  createdAt: string;
+  lastLoginAt?: string;
+  employeeCode?: string | null;
+  directorateName?: string | null;
+  divisionName?: string | null;
+  departmentName?: string | null;
+  positionName?: string | null;
+  positionLevel?: number | null;
+  managerFullName?: string | null;
+}
+
+export interface RoleItem {
+  id: string;
+  name: string;
+  displayName: string;
+  description: string;
+  badgeColor: string;
+  isSystemRole: boolean;
+  userCount: number;
+  permissions: string[];
+  menuIds: string[];
+}
+
+export interface OrgMemberSummary {
+  id: string;
+  employeeCode?: string | null;
+  username: string;
+  fullName: string;
+  positionName?: string | null;
+  positionLevel?: number | null;
+  roles: string[];
+}
+
+export interface DepartmentTreeNode {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  headFullName?: string | null;
+  userCount: number;
+  members: OrgMemberSummary[];
+}
+
+export interface DivisionTreeNode {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  headFullName?: string | null;
+  userCount: number;
+  departments: DepartmentTreeNode[];
+}
+
+export interface DirectorateTreeNode {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  headUsername?: string | null;
+  headFullName?: string | null;
+  headPositionName?: string | null;
+  userCount: number;
+  divisions: DivisionTreeNode[];
+}

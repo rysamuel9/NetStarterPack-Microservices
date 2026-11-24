@@ -69,6 +69,30 @@ export default function MenusTab() {
       router.push('/(tabs)/announcements');
       return;
     }
+    if (normalizedPath === 'reports') {
+      router.push('/(modules)/reports');
+      return;
+    }
+    if (normalizedPath === 'audit-logs') {
+      router.push('/(modules)/audit-logs');
+      return;
+    }
+    if (normalizedPath === 'users') {
+      router.push('/(modules)/users');
+      return;
+    }
+    if (normalizedPath === 'organization') {
+      router.push('/(modules)/organization');
+      return;
+    }
+    if (normalizedPath === 'roles') {
+      router.push('/(modules)/roles');
+      return;
+    }
+    if (normalizedPath === 'menus') {
+      router.push('/(modules)/menus-list');
+      return;
+    }
     if (normalizedPath === 'profile') {
       router.push('/(tabs)/profile');
       return;
@@ -76,7 +100,7 @@ export default function MenusTab() {
 
     Alert.alert(
       item.title,
-      `Route "/${normalizedPath}" aktif di RBAC kamu. Modul ini akan tersedia di fase berikutnya atau dikelola via Web Admin.`
+      `Route "/${normalizedPath}" belum dipetakan di mobile. Tambahkan screen baru di mobile/app/(modules)/.`
     );
   };
 

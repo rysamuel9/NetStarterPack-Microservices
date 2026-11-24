@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -55,6 +56,7 @@ import { formatDateTime } from '@/shared/utils/formatters';
 export default function AnnouncementDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { colors } = useTheme();
   const user = useAuthStore((s) => s.user);
   const hasPermission = useAuthStore((s) => s.hasPermission);
@@ -83,6 +85,7 @@ export default function AnnouncementDetailScreen() {
       );
       if (res.data.succeeded && res.data.data) {
         setItem(res.data.data);
+        void queryClient.invalidateQueries({ queryKey: ['announcements', 'unread-badge'] });
       } else {
         setError(res.data.message || 'Pengumuman tidak ditemukan.');
       }

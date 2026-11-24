@@ -18,14 +18,15 @@ Aplikasi mobile tidak pernah menembak port masing-masing microservice (`:5081`�
 
 ## 2. Daftar Fitur Operational yang Sudah Tersedia
 
-1. **Auth, Biometrik, & Dev Server URL Switcher**
-   - Login (React Hook Form + Zod), quick-fill akun dummy di mode `__DEV__`, **Kunci Sidik Jari / Face ID** saat membuka ulang app (`BiometricLockScreen`), serta modal **⚙️ API Gateway URL** lengkap dengan tombol *Tes Koneksi* ke `/api/health`.
+1. **Auth, Biometrik (App Lock & Quick Login), & Dev Server URL Switcher**
+   - Login (React Hook Form + Zod), quick-fill akun dummy di mode `__DEV__`, **Kunci Sidik Jari / Face ID** saat membuka ulang app (`BiometricLockScreen`), **Biometric Quick Login** langsung di layar Login (tetap tersedia setelah Logout biasa), serta modal **⚙️ API Gateway URL** lengkap dengan tombol *Tes Koneksi* ke `/api/health`.
 2. **Dashboard & Live Cluster Health Monitor**
    - Menampilkan topologi **`1 Gateway • 5 Cluster • 5 Isolated DB`**, status live tiap node (**`Reachable • Xms`** / **`Unreachable`**) dan nama database terisolasinya langsung dari `GET /api/health`, plus metrik lintas service & aktivitas terbaru.
-3. **Dynamic Menu Grid (RBAC)**
-   - Render otomatis dari `/api/menus/my-menus`, dipetakan 1:1 dengan `lucide-react-native`, dan hanya menampilkan menu sesuai `hasPermission()`.
+3. **Live Tab Badges & Dynamic Menu Grid (RBAC 100% Terhubung)**
+   - Tab **Approval** menampilkan badge jumlah pending working list dan tab **Info** menampilkan badge jumlah pengumuman belum dibaca secara live via SignalR.
+   - Dynamic Menu Grid dirender otomatis dari `/api/menus/my-menus` dengan `lucide-react-native` dan terhubung penuh ke seluruh 14 modul aplikasi.
 4. **Profil & Keamanan Akun**
-   - Tampil & ganti/hapus **foto profil** (Kamera / Galeri via `expo-image-picker`), grid **Profil Organisasi** (NIK, Direktorat, Divisi, Departemen, Atasan), edit profil, ganti password, toggle Biometrik, switcher Tema (**Sistem / Terang / Gelap**), Logout, & Logout Semua Perangkat.
+   - Tampil & ganti/hapus **foto profil** (Bottom Sheet Kamera / Galeri via `expo-image-picker`), grid **Profil Organisasi** (NIK, Direktorat, Divisi, Departemen, Atasan), edit profil, ganti password, toggle Biometrik, switcher Tema (**Sistem / Terang / Gelap**), Logout, & Logout Semua Perangkat.
 5. **Catalog / Products CRUD (`Catalog.Api :5082`)**
    - Search, filter kategori dinamis, Tambah/Edit/Soft-Delete produk sesuai `Products.*` permission.
 6. **Orders CRUD (`Order.Api :5083`)**
@@ -34,8 +35,10 @@ Aplikasi mobile tidak pernah menembak port masing-masing microservice (`:5081`�
    - **Working List Approval** (Tab Approval): antrean pending sesuai role + modal keputusan **Approve / Minta Revisi / Tolak**.
    - **Buat Pengajuan (`workflow-create`)**: pilih template dari database, render field JSON dinamis (`text`, `textarea`, `number`, `currency`, `date`, `select`), simpan Draft atau Submit langsung.
    - **Tracking (`workflow-tracking`)**: filter *Semua / Saya Ajukan / Pernah Proses*, **Vertical Approval Stepper**, riwayat aktivitas, dan **Edit & Resubmit** untuk Draft / RevisionRequested.
-8. **HR Newsroom & Live SignalR (`Announcement.Api :5085`)**
-   - Feed berhalaman (pagination 10/halaman), filter tipe, pencarian, quick Like, detail artikel & galeri/lampiran, serta komentar berjenjang (*reply*) yang live sinkron via SignalR.
+8. **HR Newsroom, Composer, & Live SignalR (`Announcement.Api :5085`)**
+   - Feed berhalaman (pagination 10/halaman), filter tipe, pencarian, quick Like, **Announcement Composer** (untuk `Announcements.Manage` lengkap dengan upload Banner & Galeri Foto), detail artikel & lampiran, serta komentar & **balasan berjenjang ala IG** (`@username`) yang live sinkron via SignalR.
+9. **Monitoring & Direktori Admin (`Identity.Api :5081`)**
+   - Layar **Audit Trail & Log**, **Laporan & Analitik** (lengkap dengan Share sheet native), **Direktori Pengguna**, **Struktur Organisasi (Tree)**, **Roles & Permissions**, dan **Konfigurasi Menu**.
 
 ---
 

@@ -17,6 +17,10 @@ const USER_CACHE_KEY = 'nsp_mobile_user';
 const MENUS_CACHE_KEY = 'nsp_mobile_menus';
 const BIOMETRIC_ENABLED_KEY = 'nsp_mobile_biometric_enabled';
 
+// Hanya disimpan sementara di RAM selama sesi berjalan agar toggle Biometric di Profil
+// bisa langsung menyimpan kredensial terenkripsi ke SecureStore tanpa minta ketik ulang password.
+let volatileSessionCredential: { usernameOrEmail: string; password: string } | null = null;
+
 interface AuthState {
   user: CurrentUser | null;
   menus: MenuItem[];
@@ -27,9 +31,11 @@ interface AuthState {
   biometricLabel: string;
   biometricEnabled: boolean;
   biometricLocked: boolean;
+  biometricSavedUsername: string | null;
 
   hydrate: () => Promise<void>;
   login: (usernameOrEmail: string, password: string) => Promise<void>;
+  loginWithBiometric: () => Promise<void>;
   logout: (allDevices?: boolean) => Promise<void>;
   refreshUserAndMenus: () => Promise<void>;
   updateServerUrl: (url: string) => Promise<string>;
@@ -59,15 +65,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   biometricLabel: 'Biometrik',
   biometricEnabled: false,
   biometricLocked: false,
+  biometricSavedUsername: null,
 
   hydrate: async () => {
     try {
-      const [savedServerUrl, biometricCaps, cachedEntries, accessToken] = await Promise.all([
-        loadSavedGatewayUrl(),
-        getBiometricCapabilities(),
-        AsyncStorage.multiGet([USER_CACHE_KEY, MENUS_CACHE_KEY, BIOMETRIC_ENABLED_KEY]),
-        tokenStorage.getAccessToken(),
-      ]);
+      const [savedServerUrl, biometricCaps, cachedEntries, accessToken, savedBioCred] =
+        await Promise.all([
+          loadSavedGatewayUrl(),
+          getBiometricCapabilities(),
+          AsyncStorage.multiGet([USER_CACHE_KEY, MENUS_CACHE_KEY, BIOMETRIC_ENABLED_KEY]),
+          tokenStorage.getAccessToken(),
+          tokenStorage.getBiometricCredential(),
+        ]);
 
       const userRaw = cachedEntries[0]?.[1];
       const menusRaw = cachedEntries[1]?.[1];
@@ -96,6 +105,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         biometricAvailable: biometricCaps.isAvailable,
         biometricLabel: biometricCaps.label,
         biometricEnabled,
+        biometricSavedUsername: biometricEnabled ? savedBioCred?.usernameOrEmail ?? null : null,
         user: hasSession ? cachedUser : null,
         menus: hasSession ? cachedMenus : [],
         biometricLocked: hasSession && biometricEnabled,
@@ -114,8 +124,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (usernameOrEmail, password) => {
     set({ isAuthenticating: true });
     try {
+      const trimmedUser = usernameOrEmail.trim();
       const res = await apiClient.post<ApiResult<AuthResponse>>('/auth/login', {
-        usernameOrEmail: usernameOrEmail.trim(),
+        usernameOrEmail: trimmedUser,
         password,
       });
 
@@ -126,6 +137,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { accessToken, refreshToken, user } = res.data.data;
       await tokenStorage.saveTokens(accessToken, refreshToken);
       await AsyncStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
+
+      volatileSessionCredential = { usernameOrEmail: trimmedUser, password };
+
+      // Jika biometrik aktif, perbarui juga kredensial terenkripsi di Keystore
+      if (get().biometricEnabled) {
+        await tokenStorage.saveBiometricCredential(volatileSessionCredential);
+        set({ biometricSavedUsername: user.username || trimmedUser });
+      }
 
       set({
         user,
@@ -147,6 +166,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
+  loginWithBiometric: async () => {
+    const auth = await authenticateBiometric(
+      `Gunakan ${get().biometricLabel} untuk masuk ke akun`
+    );
+    if (!auth.success) {
+      throw new Error(auth.error || 'Verifikasi biometrik dibatalkan.');
+    }
+
+    const cred = await tokenStorage.getBiometricCredential();
+    if (!cred) {
+      set({ biometricSavedUsername: null });
+      throw new Error('Kredensial biometrik belum tersimpan. Silakan login manual sekali lagi.');
+    }
+
+    await get().login(cred.usernameOrEmail, cred.password);
+  },
+
   logout: async (allDevices = false) => {
     const refreshToken = await tokenStorage.getRefreshToken();
     try {
@@ -159,11 +195,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Tetap lanjut bersihkan sesi lokal walau jaringan offline
     } finally {
       await clearLocalSessionCache();
-      set({
-        user: null,
-        menus: [],
-        biometricLocked: false,
-      });
+      volatileSessionCredential = null;
+      if (allDevices) {
+        await tokenStorage.clearBiometricCredential();
+        await AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, 'false');
+        set({
+          user: null,
+          menus: [],
+          biometricLocked: false,
+          biometricEnabled: false,
+          biometricSavedUsername: null,
+        });
+      } else {
+        set({
+          user: null,
+          menus: [],
+          biometricLocked: false,
+        });
+      }
     }
   },
 
@@ -210,11 +259,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setBiometricEnabled: async (enabled: boolean) => {
     if (enabled) {
       const auth = await authenticateBiometric(
-        `Aktifkan ${get().biometricLabel} untuk buka sesi cepat`
+        `Aktifkan ${get().biometricLabel} untuk buka sesi & login cepat`
       );
       if (!auth.success) {
         return false;
       }
+
+      if (volatileSessionCredential) {
+        await tokenStorage.saveBiometricCredential(volatileSessionCredential);
+        set({ biometricSavedUsername: get().user?.username || volatileSessionCredential.usernameOrEmail });
+      }
+    } else {
+      await tokenStorage.clearBiometricCredential();
+      set({ biometricSavedUsername: null });
     }
 
     await AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, enabled ? 'true' : 'false');
