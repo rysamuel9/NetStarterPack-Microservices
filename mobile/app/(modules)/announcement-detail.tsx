@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -67,7 +67,11 @@ export default function AnnouncementDetailScreen() {
 
   const [commentText, setCommentText] = useState('');
   const [sendingComment, setSendingComment] = useState(false);
-  const [replyingTo, setReplyingTo] = useState<AnnouncementCommentItem | null>(null);
+  const [replyTarget, setReplyTarget] = useState<{
+    rootCommentId: string;
+    target: AnnouncementCommentItem;
+  } | null>(null);
+  const composerInputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
 
   const loadDetail = useCallback(async () => {
     if (!id) return;
@@ -142,7 +146,7 @@ export default function AnnouncementDetailScreen() {
     const onCommentsToggled = (evt: CommentsToggledEvent) => {
       if (evt.announcementId !== id) return;
       setItem((prev) => (prev ? { ...prev, allowComments: evt.allowComments } : prev));
-      if (!evt.allowComments) setReplyingTo(null);
+      if (!evt.allowComments) setReplyTarget(null);
     };
 
     conn.on('CommentAdded', onCommentAdded);
@@ -194,11 +198,34 @@ export default function AnnouncementDetailScreen() {
     }
   };
 
+  const handleStartReply = (
+    rootCommentId: string,
+    target: AnnouncementCommentItem,
+    isNestedReply = false
+  ) => {
+    setReplyTarget({ rootCommentId, target });
+    if (isNestedReply) {
+      const mentionPrefix = `@${target.username} `;
+      setCommentText((prev) => {
+        const cleaned = prev.replace(/^@\S+\s+/, '');
+        return `${mentionPrefix}${cleaned}`;
+      });
+    } else {
+      setCommentText((prev) => prev.replace(/^@\S+\s+/, ''));
+    }
+    setTimeout(() => composerInputRef.current?.focus(), 60);
+  };
+
+  const handleCancelReply = () => {
+    setReplyTarget(null);
+    setCommentText((prev) => prev.replace(/^@\S+\s+/, ''));
+  };
+
   const handleSendComment = async () => {
     if (!item || !commentText.trim()) return;
     setSendingComment(true);
     try {
-      const parentId = replyingTo ? replyingTo.parentCommentId || replyingTo.id : null;
+      const parentId = replyTarget ? replyTarget.rootCommentId : null;
       const res = await apiClient.post<ApiResult<AnnouncementCommentItem>>(
         `/announcements/${item.id}/comments`,
         {
@@ -209,7 +236,7 @@ export default function AnnouncementDetailScreen() {
       if (res.data.succeeded && res.data.data) {
         const created = res.data.data;
         setCommentText('');
-        setReplyingTo(null);
+        setReplyTarget(null);
         setItem((prev) => {
           if (!prev) return prev;
           if (prev.comments.some((c) => c.id === created.id)) return prev;
@@ -225,6 +252,23 @@ export default function AnnouncementDetailScreen() {
     } finally {
       setSendingComment(false);
     }
+  };
+
+  const renderCommentText = (text: string, isReply = false) => {
+    const parts = text.split(/(@[a-zA-Z0-9_.-]+)/g);
+    return (
+      <Text style={[isReply ? styles.replyContent : styles.commentContent, { color: colors.text }]}>
+        {parts.map((part, idx) =>
+          part.startsWith('@') ? (
+            <Text key={idx} style={{ color: colors.primary, fontWeight: '700' }}>
+              {part}
+            </Text>
+          ) : (
+            <React.Fragment key={idx}>{part}</React.Fragment>
+          )
+        )}
+      </Text>
+    );
   };
 
   const handleDeleteComment = (comment: AnnouncementCommentItem) => {
@@ -485,11 +529,14 @@ export default function AnnouncementDetailScreen() {
                         </View>
                         {item.allowComments ? (
                           <Pressable
-                            onPress={() => setReplyingTo(comment)}
+                            onPress={() => handleStartReply(comment.id, comment, false)}
                             hitSlop={6}
-                            style={{ padding: 4 }}
+                            style={styles.replyActionBtn}
                           >
                             <Reply size={14} color={colors.primary} />
+                            <Text style={[styles.replyActionLabel, { color: colors.primary }]}>
+                              Balas
+                            </Text>
                           </Pressable>
                         ) : null}
                         {canDelete ? (
@@ -502,38 +549,63 @@ export default function AnnouncementDetailScreen() {
                           </Pressable>
                         ) : null}
                       </View>
-                      <Text style={[styles.commentContent, { color: colors.text }]}>
-                        {comment.content}
-                      </Text>
+                      {renderCommentText(comment.content, false)}
 
-                      {/* Replies */}
-                      {replies.map((rep) => (
-                        <View
-                          key={rep.id}
-                          style={[
-                            styles.replyItem,
-                            { backgroundColor: colors.surfaceMuted, borderLeftColor: colors.primary },
-                          ]}
-                        >
-                          <View style={styles.commentHeader}>
-                            <UserAvatar
-                              userId={rep.userId}
-                              name={rep.fullName}
-                              size={22}
-                              borderColor={colors.border}
-                            />
-                            <Text style={[styles.replyAuthor, { color: colors.text }]}>
-                              {rep.fullName}
-                            </Text>
-                            <Text style={[styles.commentTime, { color: colors.textMuted }]}>
-                              • {formatDateTime(rep.createdAt)}
-                            </Text>
+                      {/* Replies (IG-style nested reply within the same root thread) */}
+                      {replies.map((rep) => {
+                        const canDeleteReply = canManage || rep.userId === user?.id;
+                        return (
+                          <View
+                            key={rep.id}
+                            style={[
+                              styles.replyItem,
+                              { backgroundColor: colors.surfaceMuted, borderLeftColor: colors.primary },
+                            ]}
+                          >
+                            <View style={styles.commentHeader}>
+                              <UserAvatar
+                                userId={rep.userId}
+                                name={rep.fullName}
+                                size={22}
+                                borderColor={colors.border}
+                              />
+                              <View style={{ flex: 1 }}>
+                                <Text numberOfLines={1} style={[styles.replyAuthor, { color: colors.text }]}>
+                                  {rep.fullName}{' '}
+                                  <Text style={[styles.commentTime, { color: colors.textMuted }]}>
+                                    @{rep.username}
+                                  </Text>
+                                </Text>
+                                <Text style={[styles.commentTime, { color: colors.textMuted }]}>
+                                  {formatDateTime(rep.createdAt)}
+                                </Text>
+                              </View>
+                              {item.allowComments ? (
+                                <Pressable
+                                  onPress={() => handleStartReply(comment.id, rep, true)}
+                                  hitSlop={6}
+                                  style={styles.replyActionBtn}
+                                >
+                                  <Reply size={13} color={colors.primary} />
+                                  <Text style={[styles.replyActionLabel, { color: colors.primary }]}>
+                                    Balas
+                                  </Text>
+                                </Pressable>
+                              ) : null}
+                              {canDeleteReply ? (
+                                <Pressable
+                                  onPress={() => handleDeleteComment(rep)}
+                                  hitSlop={6}
+                                  style={{ padding: 4 }}
+                                >
+                                  <Trash2 size={13} color={colors.danger} />
+                                </Pressable>
+                              ) : null}
+                            </View>
+                            {renderCommentText(rep.content, true)}
                           </View>
-                          <Text style={[styles.replyContent, { color: colors.text }]}>
-                            {rep.content}
-                          </Text>
-                        </View>
-                      ))}
+                        );
+                      })}
                     </View>
                   );
                 })
@@ -544,12 +616,12 @@ export default function AnnouncementDetailScreen() {
           {/* Sticky Comment Composer */}
           {item.allowComments ? (
             <View style={[styles.composerWrap, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
-              {replyingTo ? (
+              {replyTarget ? (
                 <View style={[styles.replyBanner, { backgroundColor: colors.primaryLight }]}>
                   <Text numberOfLines={1} style={[styles.replyBannerText, { color: colors.primary }]}>
-                    Membalas {replyingTo.fullName}
+                    Membalas @{replyTarget.target.username} ({replyTarget.target.fullName})
                   </Text>
-                  <Pressable onPress={() => setReplyingTo(null)} hitSlop={8}>
+                  <Pressable onPress={handleCancelReply} hitSlop={8}>
                     <X size={14} color={colors.primary} />
                   </Pressable>
                 </View>
@@ -557,9 +629,14 @@ export default function AnnouncementDetailScreen() {
 
               <View style={styles.composerRow}>
                 <TextInput
+                  ref={composerInputRef}
                   value={commentText}
                   onChangeText={setCommentText}
-                  placeholder={replyingTo ? 'Tulis balasan...' : 'Tulis komentar...'}
+                  placeholder={
+                    replyTarget
+                      ? `Balas @${replyTarget.target.username}...`
+                      : 'Tulis komentar...'
+                  }
                   placeholderTextColor={colors.textMuted}
                   style={[
                     styles.composerInput,
@@ -700,6 +777,14 @@ const styles = StyleSheet.create({
   },
   replyAuthor: { fontSize: 12, fontWeight: '700' },
   replyContent: { fontSize: 12, lineHeight: 18 },
+  replyActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  replyActionLabel: { fontSize: 11, fontWeight: '700' },
   composerWrap: { borderTopWidth: 1, padding: 12, gap: 8 },
   replyBanner: {
     flexDirection: 'row',

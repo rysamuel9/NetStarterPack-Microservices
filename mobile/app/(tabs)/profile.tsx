@@ -53,6 +53,7 @@ export default function ProfileTab() {
   const logout = useAuthStore((s) => s.logout);
 
   const [serverModalOpen, setServerModalOpen] = useState(false);
+  const [avatarSheetOpen, setAvatarSheetOpen] = useState(false);
   const [avatarVersion, setAvatarVersion] = useState(() => Date.now());
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
@@ -150,19 +151,7 @@ export default function ProfileTab() {
   };
 
   const openAvatarPickerMenu = () => {
-    const buttons: Array<{ text: string; onPress?: () => void; style?: 'cancel' | 'destructive' }> = [
-      { text: 'Ambil dari Kamera', onPress: () => void pickAvatarFromCamera() },
-      { text: 'Pilih dari Galeri', onPress: () => void pickAvatarFromLibrary() },
-    ];
-    if (user?.avatarUrl) {
-      buttons.push({
-        text: 'Hapus Foto Profil',
-        style: 'destructive',
-        onPress: () => void handleRemoveAvatar(),
-      });
-    }
-    buttons.push({ text: 'Batal', style: 'cancel' });
-    Alert.alert('Foto Profil', 'Pilih sumber foto (JPG/PNG maks 5 MB):', buttons);
+    setAvatarSheetOpen(true);
   };
 
   const openEditProfile = () => {
@@ -582,6 +571,94 @@ export default function ProfileTab() {
         </View>
       </Modal>
 
+      {/* Avatar Picker Bottom Sheet Modal (support tap outside & Android hardware back) */}
+      <Modal
+        visible={avatarSheetOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setAvatarSheetOpen(false)}
+      >
+        <Pressable
+          style={styles.sheetOverlay}
+          onPress={() => setAvatarSheetOpen(false)}
+        >
+          <Pressable
+            onPress={() => {}}
+            style={[
+              styles.sheetCard,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Foto Profil</Text>
+              <Pressable onPress={() => setAvatarSheetOpen(false)} hitSlop={8}>
+                <X size={20} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+            <Text style={[styles.sheetSubtext, { color: colors.textMuted }]}>
+              Format JPG / PNG, ukuran maksimal 5 MB.
+            </Text>
+
+            <Pressable
+              onPress={() => {
+                setAvatarSheetOpen(false);
+                void pickAvatarFromCamera();
+              }}
+              style={[
+                styles.sheetOptionBtn,
+                { backgroundColor: colors.surfaceMuted, borderColor: colors.border },
+              ]}
+            >
+              <Camera size={18} color={colors.primary} />
+              <Text style={[styles.sheetOptionText, { color: colors.text }]}>
+                Ambil Foto dari Kamera
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                setAvatarSheetOpen(false);
+                void pickAvatarFromLibrary();
+              }}
+              style={[
+                styles.sheetOptionBtn,
+                { backgroundColor: colors.surfaceMuted, borderColor: colors.border },
+              ]}
+            >
+              <Smartphone size={18} color={colors.primary} />
+              <Text style={[styles.sheetOptionText, { color: colors.text }]}>
+                Pilih dari Galeri
+              </Text>
+            </Pressable>
+
+            {user?.avatarUrl ? (
+              <Pressable
+                onPress={() => {
+                  setAvatarSheetOpen(false);
+                  void handleRemoveAvatar();
+                }}
+                style={[
+                  styles.sheetOptionBtn,
+                  { backgroundColor: colors.dangerLight, borderColor: colors.danger },
+                ]}
+              >
+                <Trash2 size={18} color={colors.danger} />
+                <Text style={[styles.sheetOptionText, { color: colors.danger }]}>
+                  Hapus Foto Profil
+                </Text>
+              </Pressable>
+            ) : null}
+
+            <Pressable
+              onPress={() => setAvatarSheetOpen(false)}
+              style={[styles.sheetCancelBtn, { borderColor: colors.border }]}
+            >
+              <Text style={[styles.sheetCancelText, { color: colors.textSecondary }]}>Batal</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <ServerUrlModal visible={serverModalOpen} onClose={() => setServerModalOpen(false)} />
     </SafeAreaView>
   );
@@ -743,4 +820,36 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   modalSaveText: { fontSize: 14, fontWeight: '700' },
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    justifyContent: 'flex-end',
+  },
+  sheetCard: {
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    borderTopWidth: 1,
+    padding: 20,
+    paddingBottom: 28,
+    gap: 10,
+  },
+  sheetSubtext: { fontSize: 12, marginTop: -4, marginBottom: 4 },
+  sheetOptionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+  },
+  sheetOptionText: { fontSize: 14, fontWeight: '600' },
+  sheetCancelBtn: {
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  sheetCancelText: { fontSize: 14, fontWeight: '700' },
 });
