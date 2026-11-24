@@ -159,13 +159,30 @@ Di sisi Frontend, folder dibagi berdasarkan tanggung jawab (*Separation of Conce
 
 ---
 
-## 6. File Root Repository & Dokumentasi (`docs/`)
+## 6. `mobile/` — Struktur Mobile Starterpack (React Native + Expo SDK 58)
+
+Folder `mobile/` berdiri mandiri di dalam monorepo (siap CI/CD & rilis Play Store / App Store terpisah lewat `eas.json` dengan path filter `mobile/**`). Strukturnya memakai pola **Expo Router (file-based)** + **Feature-First** yang sejalan dengan `BuildingBlocks`:
+
+| Subfolder / File | Isi Utama | Tujuan & Fungsi | Kapan & Kasus Apa Dipakai? |
+| :--- | :--- | :--- | :--- |
+| **`app/(auth)/`** | `login.tsx`, `_layout.tsx` | Halaman Login (React Hook Form + Zod), tombol **Biometric Quick Login**, quick-fill akun dummy (mode `__DEV__`), dan pintasan modal **⚙️ API Gateway URL**. | **Kasus**: Saat menambah alur Register, Forgot Password, atau SSO mobile. |
+| **`app/(tabs)/`** | `_layout.tsx`, `index.tsx` (Home/Cluster Dashboard), `approvals.tsx`, `announcements.tsx`, `menus.tsx` (Dynamic Menu Grid), `profile.tsx` | 5 Bottom Tabs utama + **Live Tab Badges** (Approval pending & Info unread via SignalR). | **Kasus**: Saat mengubah menu utama di bottom tab bar atau menambah widget dashboard. |
+| **`app/(modules)/`** | `products.tsx`, `orders.tsx`, `workflow-create.tsx`, `workflow-tracking.tsx`, `announcement-detail.tsx`, `audit-logs.tsx`, `reports.tsx`, `users.tsx`, `organization.tsx`, `roles.tsx`, `menus-list.tsx` | Layar penuh (*stack screens*) yang dibuka dari Dynamic Menu Grid atau shortcut Dashboard. | **Kasus**: Setiap kali menambah modul mobile baru — buat 1 file screen di sini lalu petakan path-nya di `app/(tabs)/menus.tsx`. |
+| **`src/core/`** | `api/client.ts`, `auth/authStore.ts`, `auth/biometric.ts`, `config/serverConfig.ts`, `realtime/announcementHub.ts`, `storage/secureStorage.ts`, `storage/queryClient.ts`, `theme/tokens.ts`, `theme/themeStore.ts`, `types/index.ts` | Fondasi bersama mobile (analoginya `BuildingBlocks`): Axios single-flight refresh queue, SecureStore token & biometric credential, SignalR manager, TanStack Query persistence, & Light/Dark design tokens. | **Kasus**: Saat menambah kontrak DTO baru (`types/index.ts`), mengubah skema warna (`tokens.ts`), atau menambah SignalR hub baru (`realtime/`). |
+| **`src/features/`** | `workflow/` (`DynamicFieldInput.tsx`, `workflowMeta.ts`), `announcements/` (`AnnouncementComposerModal.tsx`) | Komponen dan helper spesifik per domain/microservice agar file screen di `app/` tetap ringkas. | **Kasus**: Saat sebuah modul punya modal form besar, sub-komponen khusus, atau formatter domain sendiri. |
+| **`src/shared/`** | `components/` (`UserAvatar.tsx`, `LucideIcon.tsx`, `OfflineBanner.tsx`, `BiometricLockScreen.tsx`, `ServerUrlModal.tsx`), `utils/formatters.ts` | Komponen UI & formatter murni yang dipakai ulang lintas screen. | **Kasus**: Saat menambah komponen reusable baru atau mendaftarkan nama ikon Lucide baru dari database menu. |
+| **`app.json` & `eas.json`** | Konfigurasi Expo (deep-link `netstarterpack://`, plugin native) & profil EAS Build (`development`, `preview` APK, `production` AAB/IPA). | Konfigurasi identitas aplikasi mobile & pipeline rilis terpisah. *(Lihat [`docs/09_MOBILE_STARTERPACK_GUIDE.md`](09_MOBILE_STARTERPACK_GUIDE.md)).* | **Kasus**: Saat mengubah nama/ikon app, menambah izin native Android/iOS, atau menyiapkan rilis store. |
+
+---
+
+## 7. File Root Repository & Dokumentasi (`docs/`)
 
 | File / Folder | Tujuan & Fungsi | Kapan Dipakai? |
 | :--- | :--- | :--- |
 | **`NetStarterPack.Microservices.sln`** | Solution Visual Studio yang menyatukan semua project (Startup default: `Gateway.Api`). | Buka file ini di Visual Studio lalu tekan `F5` untuk menjalankan seluruh ekosistem. |
-| **`start-dev.ps1` & `run-app.bat`** | Script sekali klik untuk menyalakan seluruh microservice + Frontend tanpa perlu membuka Visual Studio. | Saat ingin demo cepat atau testing lewat terminal. |
-| **`docker-compose.yml`** | Orkestrasi seluruh stack (SQL Server + Redis + 4 Microservices + Gateway + Frontend Nginx) dalam container Docker. | Saat ingin menjalankan environment mirip production dengan Redis aktif dan SQL Server terisolasi. |
+| **`start-dev.ps1` & `run-app.bat`** | Script sekali klik untuk menyalakan seluruh microservice + Web Frontend tanpa perlu membuka Visual Studio. | Saat ingin demo cepat atau testing web lewat terminal. |
+| **`start-mobile-dev.ps1` & `run-mobile.bat`** | Script sekali klik untuk deteksi otomatis IPv4 LAN PC, tulis `mobile/.env`, nyalakan `Gateway.Api` mode LAN (`0.0.0.0:5080`), dan tampilkan QR Code **Expo Go**. | Saat testing aplikasi mobile langsung di HP fisik Android/iOS (mendukung opsi `-Tunnel` & `-SkipBackend`). |
+| **`docker-compose.yml`** | Orkestrasi seluruh stack (SQL Server + Redis + Microservices + Gateway + Frontend Nginx) dalam container Docker. | Saat ingin menjalankan environment mirip production dengan Redis aktif dan SQL Server terisolasi. |
 | **`publish-iis.ps1`** | Script PowerShell untuk publish selektif (`-Target All`, `Gateway`, `Identity`, `Catalog`, `Order`, `Workflow`, `Frontend`) ke folder `publish-iis/` lengkap dengan `web.config` IIS. | Saat deploy ke Windows Server IIS. *(Lihat [`docs/11_IIS_DEPLOYMENT_GUIDE.md`](11_IIS_DEPLOYMENT_GUIDE.md)).* |
-| **`.gitignore`** | Mencegah folder build (`bin/`, `obj/`, `node_modules/`, `publish-iis/`), database lokal (`*.db`), dan file konteks AI lokal (`GEMINI.md`, `AGENTS.md`, `PROMPTS.md`) ikut ter-push ke Git. | Cek file ini jika suatu saat menambah folder output sementara baru. |
-| **`docs/`** | Kumpulan dokumentasi teknis lengkap dari arsitektur, RBAC, caching, customization A–Z, workflow advanced, unit testing, IIS deploy, API reference, hingga glosarium istilah. | Rujukan utama onboarding developer baru atau saat mau menambah modul/microservice baru. |
+| **`.gitignore`** | Mencegah folder build (`bin/`, `obj/`, `node_modules/`, `publish-iis/`, `mobile/.expo/`, `mobile/android/`, `mobile/ios/`), keystore, `.env`, database lokal (`*.db`), dan file konteks AI lokal ikut ter-push ke Git. | Cek file ini jika suatu saat menambah folder output sementara baru. |
+| **`docs/`** | Kumpulan dokumentasi teknis berurutan (`01` s/d `13`) dari arsitektur, RBAC, caching, customization A–Z, workflow advanced, mobile starterpack, unit testing, IIS deploy, hingga glosarium istilah. | Rujukan utama onboarding developer baru atau saat mau menambah modul/microservice baru. |

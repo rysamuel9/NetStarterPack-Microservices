@@ -15,9 +15,10 @@ Dokumen ini merangkum seluruh bahasa, framework, library (NuGet & npm), database
 | **Realtime** | ASP.NET Core SignalR + `@microsoft/signalr` | Built-in `.NET 10` / `^11.0.0` | Push realtime notifikasi, like, & komentar di `Announcement.Api` |
 | **Auth & Security** | Zero-Trust JWT Bearer + PBKDF2-SHA256 | `JwtBearer 10.0.*` | Validasi token mandiri di tiap service + `[HasPermission]` RBAC |
 | **API Docs** | Native OpenAPI + Scalar UI + Swagger UI | `OpenApi 10.0.*` / `Scalar 2.*` | Dokumentasi gabungan lintas service di `/scalar/v1` & `/swagger` |
-| **Frontend SPA** | React + TypeScript + Vite + Tailwind CSS | `React 19` / `TS 5.7` / `Vite 8.3` / `TW v4.3` | SPA modern dengan route-level `React.lazy()` code splitting |
+| **Frontend SPA** | React + TypeScript + Vite + Tailwind CSS | `React 19` / `TS 5.7` / `Vite 8.3` / `TW v4.3` | Web SPA modern dengan route-level `React.lazy()` code splitting |
+| **Mobile App** | React Native + Expo + Expo Router + TS | `Expo SDK 58` / `RN 0.88` / `React 19.3` / `TS 6.0` | Aplikasi Mobile Android/iOS (*Expo Go-ready*) + Biometric, SecureStore, Offline Cache, & SignalR |
 | **Unit Testing** | xUnit + EF Core InMemory + Coverlet | `xUnit 2.9.3` / `Test.Sdk 17.14.1` | 43 unit test paralel di RAM tanpa butuh SQL Server/Redis |
-| **Deployment** | Windows Server IIS / Docker Compose | `IIS 10+` / `Docker` / `Nginx Alpine` | Deploy selektif via `publish-iis.ps1` atau container `docker-compose.yml` |
+| **Deployment** | Windows Server IIS / Docker / EAS Build | `IIS 10+` / `Docker` / `EAS CLI` | Deploy selektif via `publish-iis.ps1`, `docker-compose.yml`, & build mobile independen via `mobile/eas.json` |
 
 ---
 
@@ -72,7 +73,29 @@ Setiap microservice menerapkan pola **Compact Onion** (`Domain/`, `Application/`
 
 ---
 
-## 4. Testing Stack (`tests/NetStarterPack.Microservices.UnitTests/`)
+## 4. Mobile Stack & npm Packages (`mobile/package.json`)
+
+Aplikasi mobile di folder `mobile/` memakai **Expo SDK 58 (New Architecture)** yang 100% kompatibel dengan **Expo Go** (bisa langsung dites di HP fisik tanpa Android Studio) sekaligus siap di-build ke `.apk` / `.aab` / `.ipa` lewat **EAS Build**.
+
+| Package | Versi | Fungsi |
+| :--- | :--- | :--- |
+| `expo` & `react-native` & `react` | `~58.0.26` / `0.88.1` / `19.3.0` | Runtime React Native New Architecture (Fabric + TurboModules) dengan TypeScript `~6.0.3`. |
+| `expo-router` & `expo-linking` | `~58.0.32` / `~58.0.17` | File-based routing (`mobile/app/`) + dukungan *deep linking* (`netstarterpack://`). |
+| `@tanstack/react-query` + persister | `^5.108.4` | *Server state*, caching *stale-while-revalidate* (cache offline 24 jam via `AsyncStorage`), & *pull-to-refresh*. |
+| `zustand` | `^5.1.0` | *Client state* ringan untuk Auth session, RBAC (`hasPermission`), Dynamic Menus, & Light/Dark Theme. |
+| `axios` & `@microsoft/signalr` | `^1.21.1` / `^11.0.0` | HTTP client dengan *Single-Flight Refresh Token Queue* + koneksi realtime WebSocket ke `/hubs/announcements`. |
+| `expo-secure-store` | `~58.0.3` | Penyimpanan token JWT, Refresh Token, & kredensial biometrik terenkripsi di **Android Keystore / iOS Keychain**. |
+| `expo-local-authentication` | `~58.0.3` | Sensor **Sidik Jari / Face ID** untuk *Biometric App Lock* dan *Biometric Quick Login*. |
+| `expo-image`, `expo-image-picker`, `expo-document-picker` | `~58.0.*` | Rendering & caching gambar cepat (`UserAvatar` & banner), serta upload foto profil/pengumuman dari Kamera & Galeri. |
+| `react-hook-form`, `zod`, `@hookform/resolvers` | `^7.92.0` / `^4.6.7` / `^7.0.9` | Validasi form yang type-safe untuk layar Login & form input mobile. |
+| `lucide-react-native` & `react-native-svg` | `^1.79.0` / `15.16.0` | Set ikon SVG yang namanya sinkron 1:1 dengan `lucide-react` & tabel `MenuItems` di `Identity.Api`. |
+| `@react-native-community/netinfo` | `12.0.1` | Deteksi status koneksi jaringan real-time untuk menampilkan `OfflineBanner` global. |
+
+*(Styling mobile memakai **Typed Design Tokens (`src/core/theme/tokens.ts` + `useTheme()`)** di atas `StyleSheet` bawaan React Native — nol overhead Babel/Metro plugin di Expo SDK 58 dan langsung mendukung mode Sistem / Terang / Gelap.)*
+
+---
+
+## 5. Testing Stack (`tests/NetStarterPack.Microservices.UnitTests/`)
 
 | Package NuGet | Versi | Fungsi |
 | :--- | :--- | :--- |
@@ -85,7 +108,7 @@ Setiap microservice menerapkan pola **Compact Onion** (`Domain/`, `Application/`
 
 ---
 
-## 5. Infrastruktur, Storage, & Deployment
+## 6. Infrastruktur, Storage, & Deployment
 
 | Komponen | Teknologi | Keterangan |
 | :--- | :--- | :--- |
@@ -96,7 +119,7 @@ Setiap microservice menerapkan pola **Compact Onion** (`Domain/`, `Application/`
 
 ---
 
-## 6. Kenapa Memilih Stack Ini? (Catatan Keputusan Teknis)
+## 7. Kenapa Memilih Stack Ini? (Catatan Keputusan Teknis)
 
 Bagian ini menjawab pertanyaan *"kenapa pakai X dan bukan Y?"* di project ini:
 
@@ -111,15 +134,20 @@ Bagian ini menjawab pertanyaan *"kenapa pakai X dan bukan Y?"* di project ini:
    Bisa langsung jalan di laptop developer **tanpa** wajib install Redis atau RabbitMQ dulu, tapi kontrak `ICacheService` & `IEventBus` sudah siap di-upgrade ke Redis / RabbitMQ / MassTransit kapan saja tanpa mengubah kode business service.
 5. **Route-Level `React.lazy()` + Vite 8 + Tailwind CSS v4**
    Build produksi cuma ~1 detik dan bundle awal frontend tetap ramping (~353 KB / ~106 KB gzip) karena tiap domain halaman di-load hanya saat dibuka.
+6. **Expo (React Native + TypeScript) untuk Mobile — bukan React Native CLI polos / Flutter / .NET MAUI**
+   - Satu bahasa (TypeScript) & mindset Hooks dengan web `frontend/`, plus `lucide-react-native` langsung sinkron 1:1 dengan nama ikon `MenuItems` di database.
+   - Kompatibel **Expo Go** sehingga developer yang baru clone cukup scan QR di HP tanpa wajib install Android Studio atau Mac/Xcode dulu.
+   - Di mobile kita memakai **TanStack Query + Zustand** (berbeda dari web yang cukup Context) karena perangkat mobile sangat butuh *offline cache persistence*, *stale-while-revalidate*, dan *pull-to-refresh* saat sinyal naik-turun.
 
 ---
 
-## 7. Matriks Prasyarat Environment
+## 8. Matriks Prasyarat Environment
 
 | Kebutuhan | Laptop Developer (Lokal) | Docker Compose | Windows Server (IIS) |
 | :--- | :--- | :--- | :--- |
 | **.NET** | `.NET 10.0 SDK` | *(Di dalam container)* | `.NET 10.0 Windows Server Hosting Bundle` |
-| **Node.js** | `Node.js 20+ / 22 LTS` | *(Di dalam container)* | **Tidak perlu** (pakai hasil build statis `frontend-web/`) |
+| **Node.js** | `Node.js 20+ / 22 / 24` | *(Di dalam container)* | **Tidak perlu** (pakai hasil build statis `frontend-web/`) |
 | **Database** | SQL Server / SQLEXPRESS *(atau SQLite)* | Otomatis (`sqlserver` container) | SQL Server (Windows Auth `IIS APPPOOL\*` atau SQL Auth) |
 | **Web Server / Proxy** | Kestrel + Vite Dev Proxy | Kestrel + Nginx (`frontend/nginx.conf`) | IIS + `URL Rewrite 2.1` + `ARR 3.0` + `WebSocket Protocol` |
 | **Redis** | Opsional (default `InMemory`) | Otomatis (`redis` container) | Opsional (`InMemory` atau Redis server terpisah) |
+| **Mobile Testing** | HP Android/iOS + aplikasi **Expo Go** *(satu Wi-Fi / `-Tunnel`)* | — | Build APK/AAB/IPA terpisah via **EAS Build** (`mobile/eas.json`) |

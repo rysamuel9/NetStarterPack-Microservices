@@ -20,7 +20,8 @@ Jawabannya: **Berbeda level (skala), dan justru saling melengkapi!**
 flowchart TD
     subgraph Macro ["1. Level Makro: Topologi Microservices & YARP Gateway"]
         direction LR
-        FE["React SPA (:5173)"] -->|"/api/*"| GW["Gateway.Api (:5080)<br/>YARP Reverse Proxy"]
+        FE["Web: React SPA (:5173)"] -->|"/api/*"| GW["Gateway.Api (:5080)<br/>YARP Reverse Proxy"]
+        MOB["Mobile: Expo RN (:8081)"] -->|"/api/*"| GW
         GW -->|"/api/auth, /users, /roles, /menus, /dashboard"| ID["Identity.Api (:5081)<br/>DB: NetStarterPack_IdentityDb"]
         GW -->|"/api/products"| CAT["Catalog.Api (:5082)<br/>DB: NetStarterPack_CatalogDb"]
         CAT -.->|"Async Audit Event (HttpEventBus)"| ID
@@ -182,3 +183,15 @@ Frontend dibangun menggunakan **React 19 + TypeScript + Vite 8 + Tailwind CSS v4
 - **`frontend/src/services/api.ts`**: Axios client dengan sistem **Auto-Refresh Token Rotation** dan antrean `failedQueue` saat menerima HTTP `401`.
 - **`frontend/src/context/AuthContext.tsx`**: Mengelola sesi user, daftar menu sidebar dinamis (`/api/menus/my-menus`), serta helper `hasPermission(code)` dan `hasRole(role)`.
 - **`frontend/src/pages/dashboard/DashboardPage.tsx`**: Menampilkan kartu topologi arsitektur Microservices (`Gateway.Api :5080`, `Identity.Api :5081`, `Catalog.Api :5082`, dst.), metrik gabungan lintas database, matriks permission JWT, dan log aktivitas terpusat.
+
+---
+
+## 5. Bedah Arsitektur Mobile (`mobile/`)
+
+Aplikasi mobile dibangun dengan **React Native + Expo SDK 58 + TypeScript + Expo Router**, dan menerapkan arsitektur **Feature-First** yang konsisten dengan filosofi `BuildingBlocks` di backend:
+
+- **1 Pintu ke `Gateway.Api` (`:5080`)**: Sama seperti Web SPA, aplikasi mobile hanya mengenal 1 base URL (`mobile/src/core/config/serverConfig.ts`) yang bisa diatur lewat `.env` maupun diganti langsung dari modal **⚙️ API Gateway URL** di layar Login/Profil (memudahkan testing HP fisik via IP LAN Wi-Fi).
+- **Secure Storage & Biometric 2-in-1 (`mobile/src/core/storage/secureStorage.ts` & `authStore.ts`)**: Access/Refresh Token serta kredensial Biometric Quick Login disimpan terenkripsi di **Android Keystore / iOS Keychain** (`expo-secure-store`), mendukung *App Lock* saat app dibuka ulang maupun *Quick Login* setelah Logout.
+- **Single-Flight Refresh Token Queue (`mobile/src/core/api/client.ts`)**: Request paralel yang menerima `401` saat aplikasi baru aktif dari *background* otomatis diantrekan sehingga `/api/auth/refresh` hanya dieksekusi sekali (menghindari bentrok *Refresh Token Rotation*).
+- **Offline-First Cache & Live SignalR**: Menggunakan **TanStack Query + AsyncStorage Persister** (cache 24 jam) + **`OfflineBanner`**, serta koneksi SignalR ke `/hubs/announcements` (`mobile/src/core/realtime/announcementHub.ts`) untuk live badge unread, pengumuman baru, dan komentar berjenjang.
+- **Panduan lengkap**: Lihat [`docs/09_MOBILE_STARTERPACK_GUIDE.md`](09_MOBILE_STARTERPACK_GUIDE.md).

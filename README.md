@@ -49,7 +49,8 @@ Seluruh panduan teknis sudah disusun berurutan (dari konsep inti sampai deployme
 | **`Order.Api`** *(Example 2: Order CRUD)* | `5083` | `NetStarterPack_OrderDb` | Contoh Microservice Mandiri ke-2 (CRUD `Orders` + kalkulasi total otomatis + Cache + EventBus + Soft-Delete). |
 | **`Workflow.Api`** *(Example 3 Advanced)* | `5084` | `NetStarterPack_WorkflowDb` | **Dynamic Form Builder & Multi-Level Approval Engine** (Hybrid Relational + JSON Schema, State Machine, Working List, Tracking Stepper, & 7-Layer Security). |
 | **`Announcement.Api`** *(HR Newsroom)* | `5085` | `NetStarterPack_AnnouncementDb` | **Internal Announcement & Newsroom** (Compact Rich Text Editor, Banner & Image/File Uploads, Like, On/Off Comment oleh HR, Bell Unread Feed, & Pagination 10/halaman). |
-| **`Frontend`** *(React 19 + TS + Tailwind v4)* | `5173` | — | SPA Frontend yang cukup menembak ke **1 URL Gateway (`http://localhost:5080`)** tanpa perlu tahu di belakang ada berapa microservice. |
+| **`Frontend`** *(React 19 + TS + Tailwind v4)* | `5173` | — | SPA Web Frontend yang cukup menembak ke **1 URL Gateway (`http://localhost:5080`)** tanpa perlu tahu di belakang ada berapa microservice. |
+| **`Mobile`** *(React Native + Expo SDK 58 + TS)* | `8081` *(Metro)* | — | Aplikasi Mobile Android/iOS (*Expo Go-ready*) yang juga menembak 1 pintu **`Gateway.Api (:5080)`** (LAN/HTTPS), lengkap dengan SecureStore, Biometric 2-in-1, Offline Cache, SignalR, & 14 modul RBAC. |
 
 ---
 
@@ -57,8 +58,10 @@ Seluruh panduan teknis sudah disusun berurutan (dari konsep inti sampai deployme
 
 ```mermaid
 flowchart TD
-    subgraph Client ["Frontend Layer (Port 5173)"]
-        React["React 19 + TypeScript + Tailwind v4<br/>(Axios Auto-Refresh Interceptor)"]
+    subgraph Client ["Client Layer (Web & Mobile)"]
+        direction LR
+        React["Web: React 19 + TS + Tailwind v4<br/>(:5173 • Axios Auto-Refresh)"]
+        Mobile["Mobile: React Native + Expo SDK 58<br/>(:8081 • SecureStore + Offline Cache + SignalR)"]
     end
 
     subgraph Gateway ["API Gateway Layer (Port 5080)"]
@@ -81,7 +84,8 @@ flowchart TD
         CatDB[("SQL Server:<br/>NetStarterPack_CatalogDb")]
     end
 
-    React -->|"/api/*"| YARP
+    React -->|"/api/* & /hubs/*"| YARP
+    Mobile -->|"/api/* & /hubs/*"| YARP
     YARP -->|"/api/auth, /users, /roles, /menus, /dashboard"| Identity
     YARP -->|"/api/products"| Catalog
     Catalog -.->|"Async AuditLogIntegrationEvent (IEventBus)"| Identity
@@ -99,7 +103,8 @@ flowchart TD
 ```text
 net-starterpack-microservice/
 ├── NetStarterPack.Microservices.sln              # Solution utama (Default Startup: Gateway.Api)
-├── run-app.bat & start-dev.ps1                   # Script launcher sekali klik
+├── run-app.bat & start-dev.ps1                   # Script launcher sekali klik (Backend + Web)
+├── run-mobile.bat & start-mobile-dev.ps1         # Script launcher sekali klik (Gateway LAN :5080 + Expo Go QR)
 ├── README.md                                     # Dokumentasi utama
 ├── docs/                                         # Dokumentasi mendalam berurutan (01 s/d 13)
 │   ├── 01_ARCHITECTURE.md                        # Bedah Microservices, Compact Onion, YARP, & EventBus
@@ -123,13 +128,15 @@ net-starterpack-microservice/
 │   ├── ApiGateway/
 │   │   └── Gateway.Api/                          # [PORT 5080] YARP Proxy + Rate Limiter + Unified Docs + Auto-Orchestrator
 │   └── Services/
-│       ├── Identity/
-│       │   └── Identity.Api/                     # [PORT 5081] Compact Onion (Domain/, Application/, Infrastructure/, Controllers/)
-│       └── Catalog/
-│           └── Catalog.Api/                      # [PORT 5082] Compact Onion (Domain/, Application/, Infrastructure/, Controllers/)
+│       ├── Identity/Identity.Api/                # [PORT 5081] Compact Onion (Auth, RBAC, Menus, Org, Audit, Dashboard)
+│       ├── Catalog/Catalog.Api/                  # [PORT 5082] Compact Onion (Products CRUD + Cache)
+│       ├── Order/Order.Api/                      # [PORT 5083] Compact Onion (Orders CRUD + Stats)
+│       ├── Workflow/Workflow.Api/                # [PORT 5084] Compact Onion (Dynamic Form & Multi-Level Approval)
+│       └── Announcement/Announcement.Api/        # [PORT 5085] Compact Onion (HR Newsroom + SignalR Hub)
 ├── tests/
 │   └── NetStarterPack.Microservices.UnitTests/   # Unit tests modular: Common/, BuildingBlocks/, Services/*, & CrossService/
-└── frontend/                                     # React 19 + TypeScript + Vite 8 + Tailwind CSS v4 (Port 5173)
+├── frontend/                                     # React 19 + TypeScript + Vite 8 + Tailwind CSS v4 (Port 5173)
+└── mobile/                                       # React Native + Expo SDK 58 + Expo Router (Expo Go / EAS Build)
 ```
 
 ---
@@ -162,10 +169,15 @@ Kamu **tidak perlu** repot membuka 4 terminal terpisah untuk menyalakan masing-m
 4. Saat kamu menghentikan debugging (Stop) di Visual Studio, seluruh child process di atas otomatis dimatikan dengan bersih.
 
 ### 2. Tanpa Visual Studio (Double-Click / Terminal)
-- Klik 2x file **`run-app.bat`**, atau jalankan lewat PowerShell:
+- **Web + Backend**: Klik 2x **`run-app.bat`**, atau jalankan lewat PowerShell:
   ```powershell
   .\start-dev.ps1
   ```
+- **Mobile (HP Fisik via Expo Go) + Backend LAN**: Klik 2x **`run-mobile.bat`**, atau jalankan lewat PowerShell:
+  ```powershell
+  .\start-mobile-dev.ps1
+  ```
+  *(Script otomatis mendeteksi IP LAN PC, mengisi `mobile/.env`, menyalakan `Gateway.Api` di `0.0.0.0:5080`, dan menampilkan QR Code Expo Go. Detail lengkap di [`docs/09_MOBILE_STARTERPACK_GUIDE.md`](docs/09_MOBILE_STARTERPACK_GUIDE.md)).*
 
 ### 3. URL Dokumentasi & Pengetesan API
 - **Web App React**: `http://localhost:5173`

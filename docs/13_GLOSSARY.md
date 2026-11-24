@@ -171,3 +171,28 @@ Orkestrasi container terpusat di root project untuk menyalakan seluruh infrastru
   - Cek log real-time: `docker compose logs -f`
   - Matikan semua container: `docker compose down`
 
+---
+
+## 7. Ekosistem Mobile Starterpack (`React Native` & `Expo`)
+
+### Expo Go vs Development Build
+- **Expo Go**: Aplikasi sandbox gratis dari Play Store / App Store yang langsung menjalankan kode React Native + modul bawaan Expo hanya dengan scan QR Code dari laptop — tanpa perlu install Android Studio atau compile Gradle.
+- **Development Build**: Versi *custom* dari Expo Go yang di-build khusus untuk project kita (via cloud **EAS Build** atau lokal) ketika suatu saat butuh modul native eksternal di luar bawaan Expo Go (misalnya Remote Push Notification FCM).
+
+### CNG (*Continuous Native Generation*) & EAS Build (`mobile/eas.json`)
+Pendekatan modern Expo di mana folder native berat (`mobile/android/` & `mobile/ios/`) tidak perlu di-commit ke Git (masuk `.gitignore`), melainkan di-generate otomatis dari `app.json` saat proses build rilis di cloud **EAS Build** (`development`, `preview` APK, `production` AAB/IPA). Memungkinkan CI/CD mobile di monorepo berjalan terpisah total dari backend & web lewat filter path `mobile/**` dan tag `mobile-v*`.
+
+### `expo-secure-store` (Android Keystore / iOS Keychain)
+Penyimpanan terenkripsi berbasis hardware/OS di perangkat mobile. Dipakai di `mobile/src/core/storage/secureStorage.ts` untuk menyimpan Access Token, Refresh Token, dan kredensial Biometric Quick Login — menggantikan `localStorage` versi web yang tidak aman jika ditiru memakai `AsyncStorage` biasa.
+
+### Biometric 2-in-1 (*App Lock* & *Quick Login*)
+Dua mode keamanan biometrik (`expo-local-authentication`) yang berjalan bersamaan di `mobile/src/core/auth/authStore.ts`:
+- **App Lock (`BiometricLockScreen`)**: Saat aplikasi ditutup lalu dibuka kembali sementara sesi masih aktif, user diminta verifikasi Sidik Jari / Face ID.
+- **Quick Login**: Setelah user klik Logout biasa, tombol *"Masuk dengan Sidik Jari"* tetap muncul di layar Login dan mengambil kredensial terenkripsi dari Keystore setelah verifikasi sensor lolos (dihapus bersih saat *Logout Semua Perangkat* atau toggle dimatikan).
+
+### Single-Flight Refresh Token Queue (`mobile/src/core/api/client.ts`)
+Mekanisme antrean di interceptor Axios agar saat beberapa request paralel terkena HTTP `401` secara bersamaan (misalnya ketika aplikasi baru aktif dari *background*), pemanggilan `/api/auth/refresh` hanya terjadi **1 kali** sementara request lainnya menunggu token baru — mencegah sesi ter-revoke akibat *Refresh Token Rotation*.
+
+### *Stale-While-Revalidate* & Offline Cache Persistence (`TanStack Query`)
+Strategi di `mobile/src/core/storage/queryClient.ts` yang menyimpan hasil response API di `AsyncStorage` (hingga 24 jam) sehingga aplikasi langsung menampilkan data terakhir secara instan walau sinyal sedang offline/lemot, lalu otomatis menyegarkan data di background begitu koneksi kembali online (didampingi indikator `OfflineBanner`).
+
