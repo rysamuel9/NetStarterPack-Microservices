@@ -53,6 +53,14 @@ export default function MenusTab() {
       router.push('/(modules)/orders');
       return;
     }
+    if (normalizedPath === 'workflow-create') {
+      router.push('/(modules)/workflow-create');
+      return;
+    }
+    if (normalizedPath === 'workflow-tracking') {
+      router.push('/(modules)/workflow-tracking');
+      return;
+    }
     if (normalizedPath === 'workflow-working-list') {
       router.push('/(tabs)/approvals');
       return;

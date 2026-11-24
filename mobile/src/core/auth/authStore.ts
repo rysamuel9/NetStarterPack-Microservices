@@ -8,6 +8,7 @@ import {
   resetGatewayUrl,
   saveGatewayUrl,
 } from '@/core/config/serverConfig';
+import { stopAnnouncementHub } from '@/core/realtime/announcementHub';
 import { queryClient } from '@/core/storage/queryClient';
 import { tokenStorage } from '@/core/storage/secureStorage';
 import type { ApiResult, AuthResponse, CurrentUser, MenuItem } from '@/core/types';
@@ -40,6 +41,7 @@ interface AuthState {
 }
 
 async function clearLocalSessionCache() {
+  await stopAnnouncementHub();
   await Promise.all([
     tokenStorage.clearTokens(),
     AsyncStorage.multiRemove([USER_CACHE_KEY, MENUS_CACHE_KEY]),
