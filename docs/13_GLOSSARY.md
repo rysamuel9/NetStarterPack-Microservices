@@ -1,4 +1,4 @@
-﻿# Glosarium Arsitektur Microservices Project Ini (`GLOSSARY.md`)
+﻿# Glosarium Arsitektur Microservices Project Ini (`13_GLOSSARY.md`)
 
 Dokumen ini adalah kamus istilah yang **100% merujuk pada komponen, pola arsitektur, dan class yang benar-benar dipakai di dalam kode NetStarterPack Microservices saat ini** (bukan teori umum dari luar yang tidak ada di project ini).
 

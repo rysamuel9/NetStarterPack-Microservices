@@ -7,7 +7,7 @@ Panduan ini dibagi menjadi **3 bagian utama**:
 2. **BAGIAN 2 — 6 Studi Kasus Update / Patching Harian (Case A s/d Case F)**: Panduan *"Kalau saya habis ngubah fitur A atau fitur B, project mana saja yang harus di-publish dan AppPool mana yang harus di-restart?"*
 3. **BAGIAN 3 — Solusi Error / Troubleshooting Umum di IIS**.
 
-> 💡 Untuk rangkuman cepat topologi **7 Site** (termasuk `Workflow.Api :5084` & `Announcement.Api :5085`) serta playbook lengkap kasus lapangan (`NETSDK1152`, `404 /api` ARR Proxy vs `VITE_API_URL`, error SQL `IIS APPPOOL\*` dengan 3 opsi solusi, dan SignalR WebSocket), baca juga **[`docs/IIS_TROUBLESHOOTING_AND_PLAYBOOK.md`](IIS_TROUBLESHOOTING_AND_PLAYBOOK.md)**.
+> 💡 Untuk rangkuman cepat topologi **7 Site** (termasuk `Workflow.Api :5084` & `Announcement.Api :5085`) serta playbook lengkap kasus lapangan (`NETSDK1152`, `404 /api` ARR Proxy vs `VITE_API_URL`, error SQL `IIS APPPOOL\*` dengan 3 opsi solusi, dan SignalR WebSocket), baca juga **[`docs/12_IIS_TROUBLESHOOTING_AND_PLAYBOOK.md`](12_IIS_TROUBLESHOOTING_AND_PLAYBOOK.md)**.
 
 ---
 

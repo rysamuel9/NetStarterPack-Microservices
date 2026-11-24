@@ -8,30 +8,33 @@ Tujuannya simpel: memberikan fondasi Microservices modern yang **clean, reliable
 
 ## 📚 Daftar Dokumentasi Lengkap (A sampai Z)
 
-Seluruh panduan teknis sudah disusun secara mendalam di dalam folder [`docs/`](docs/):
+Seluruh panduan teknis sudah disusun berurutan (dari konsep inti sampai deployment) di dalam folder [`docs/`](docs/):
 
-1. 🛠️ **[Panduan A–Z Membuat Modul & Microservice Baru (`docs/CUSTOMIZATION_GUIDE.md`)](docs/CUSTOMIZATION_GUIDE.md)**
-   *Contekan lengkap langkah demi langkah untuk 3 level studi kasus: (A) Menambah modul CRUD di service lama (`Customer`), (B) Membuat microservice baru (`Order.Api :5083`), dan (C) Example 3 Advanced (`Workflow.Api :5084`).*
-2. 🧩 **[Example 3 (Advanced): Dynamic Form Builder & Multi-Level Approval Workflow (`docs/WORKFLOW_ADVANCED_EXAMPLE.md`)](docs/WORKFLOW_ADVANCED_EXAMPLE.md)**
-   *Studi kasus level enterprise (`Workflow.Api` di port `5084`, DB `NetStarterPack_WorkflowDb`): diagram ERD 4 tabel, State Machine, Sequence Diagram 3-level approval, 7 lapisan security handling, & walkthrough testing di browser.*
-3. 🗂️ **[Peta Lengkap Project & Subfolder — Tujuan & Kapan Dipakai (`docs/PROJECT_STRUCTURE_GUIDE.md`)](docs/PROJECT_STRUCTURE_GUIDE.md)**
-   *Panduan navigasi harian tiap project & subfolder (`BuildingBlocks.Core/Contracts`, `BuildingBlocks.Infrastructure/Middleware`, `Caching`, `Messaging`, `Persistence`, `Infrastructure/Clients`, `Domain/`, `Application/`, hingga `frontend/src/`): jelasin fungsi tiap folder, isi file, kasus nyata kapan dipakai, dan apa yang tidak boleh ditaruh di sana.*
-4. 🏛️ **[Bedah Arsitektur Microservices, Compact Onion, & YARP Gateway (`docs/ARCHITECTURE.md`)](docs/ARCHITECTURE.md)**
+1. 🏛️ **[Bedah Arsitektur Microservices, Compact Onion, & YARP Gateway (`docs/01_ARCHITECTURE.md`)](docs/01_ARCHITECTURE.md)**
    *Penjelasan hubungan Microservices (level makro) vs Onion Architecture (level mikro), Sequence Diagram alur request lintas service, YARP Reverse Proxy, Database-per-Service, Resilient EventBus, Distributed Tracing (`X-Correlation-Id`), dan arsitektur Frontend React.*
-5. 🔐 **[Zero-Trust JWT, Refresh Token, RBAC Lintas Service, & Menu Dinamis (`docs/AUTH_AND_RBAC.md`)](docs/AUTH_AND_RBAC.md)**
+2. 🗂️ **[Peta Lengkap Project & Subfolder — Tujuan & Kapan Dipakai (`docs/02_PROJECT_STRUCTURE_GUIDE.md`)](docs/02_PROJECT_STRUCTURE_GUIDE.md)**
+   *Panduan navigasi harian tiap project & subfolder (`BuildingBlocks.Core/Contracts`, `BuildingBlocks.Infrastructure/Middleware`, `Caching`, `Messaging`, `Persistence`, `Infrastructure/Clients`, `Domain/`, `Application/`, hingga `frontend/src/` & `mobile/`).*
+3. 🧰 **[Tech Stack, Daftar Package, & Alasan Pemilihan Teknologi (`docs/03_TECH_STACK.md`)](docs/03_TECH_STACK.md)**
+   *Rincian lengkap versi .NET 10, NuGet & npm packages per layer, database/Redis/Docker/IIS, matriks prasyarat environment, dan alasan pemilihan tiap teknologi.*
+4. 🔐 **[Zero-Trust JWT, Refresh Token, RBAC Lintas Service, & Menu Dinamis (`docs/04_AUTH_AND_RBAC.md`)](docs/04_AUTH_AND_RBAC.md)**
    *ERD database `IdentityDb`, cara kerja `PBKDF2-SHA256`, validasi JWT mandiri di tiap microservice lewat `BuildingBlocks.Security`, proteksi endpoint internal (`X-Internal-Api-Key`), serta 3 lapis proteksi (`[HasPermission]`, `<ProtectedRoute>`, dan `hasPermission()`).*
-6. ⚡ **[Panduan Hybrid Caching L1/L2 & Shared Redis di Microservices (`docs/CACHING_AND_REDIS.md`)](docs/CACHING_AND_REDIS.md)**
+5. ⚡ **[Panduan Hybrid Caching L1/L2 & Shared Redis di Microservices (`docs/05_CACHING_AND_REDIS.md`)](docs/05_CACHING_AND_REDIS.md)**
    *Analogi dasar caching, arsitektur Hybrid L1 (`IMemoryCache`) + L2 (`IDistributedCache` / Shared Redis), pola Cache-Aside (`GetOrCreateAsync`), mekanisme `RemoveByPrefixAsync`, invalidasi cache lintas service saat ada event audit, dan cara menyambungkan ke server Redis.*
-7. 🧪 **[Panduan Unit Testing Lintas Microservice (`docs/UNIT_TESTING_GUIDE.md`)](docs/UNIT_TESTING_GUIDE.md)**
-   *Struktur modular unit test untuk `BuildingBlocks`, 5 microservice (`Identity`, `Catalog`, `Order`, `Workflow`, `Announcement`), dan `CrossService` menggunakan xUnit + EF Core In-Memory + `TestDbFactory` + `InMemoryEventBus`.*
-8. 🚀 **[Panduan Publish & Deploy ke Windows Server IIS (`docs/IIS_DEPLOYMENT_GUIDE.md`)](docs/IIS_DEPLOYMENT_GUIDE.md)**
-   *Panduan first-time deploy seluruh service & Frontend React ke IIS lengkap dengan studi kasus selective deploy per fitur menggunakan `publish-iis.ps1`.*
-   - 🧯 **[Catatan Lapangan & Playbook Troubleshooting IIS (`docs/IIS_TROUBLESHOOTING_AND_PLAYBOOK.md`)](docs/IIS_TROUBLESHOOTING_AND_PLAYBOOK.md)** — *Solusi cepat untuk `NETSDK1152`, `404 /api/auth/login` (ARR Proxy vs `VITE_API_URL`), error SQL `IIS APPPOOL\*` (3 opsi: SSMS Login, SQL Auth, Custom Identity), WebSocket SignalR, & debug `500.30`.*
-9. 📡 **[Referensi Endpoint API, Routing YARP, & Kontrak JSON (`docs/API_REFERENCE.md`)](docs/API_REFERENCE.md)**
+6. 📡 **[Referensi Endpoint API, Routing YARP, & Kontrak JSON (`docs/06_API_REFERENCE.md`)](docs/06_API_REFERENCE.md)**
    *Tabel pemetaan route YARP Gateway, daftar seluruh endpoint API publik & internal, format standar `Result<T>`, daftar HTTP Status Code (termasuk `429 Rate Limit`), dan cara testing lewat Unified Swagger / Scalar UI.*
-10. 🧰 **[Tech Stack, Daftar Package, & Alasan Pemilihan Teknologi (`docs/TECH_STACK.md`)](docs/TECH_STACK.md)**
-    *Rincian lengkap versi .NET 10, NuGet & npm packages per layer, database/Redis/Docker/IIS, matriks prasyarat environment, dan alasan pemilihan tiap teknologi.*
-11. 📖 **[Kamus Istilah / Glosarium Arsitektur (`docs/GLOSSARY.md`)](docs/GLOSSARY.md)**
+7. 🛠️ **[Panduan A–Z Membuat Modul & Microservice Baru (`docs/07_CUSTOMIZATION_GUIDE.md`)](docs/07_CUSTOMIZATION_GUIDE.md)**
+   *Contekan lengkap langkah demi langkah untuk 3 level studi kasus: (A) Menambah modul CRUD di service lama (`Customer`), (B) Membuat microservice baru (`Order.Api :5083`), dan (C) Example 3 Advanced (`Workflow.Api :5084`).*
+8. 🧩 **[Example 3 (Advanced): Dynamic Form Builder & Multi-Level Approval Workflow (`docs/08_WORKFLOW_ADVANCED_EXAMPLE.md`)](docs/08_WORKFLOW_ADVANCED_EXAMPLE.md)**
+   *Studi kasus level enterprise (`Workflow.Api` di port `5084`, DB `NetStarterPack_WorkflowDb`): diagram ERD 4 tabel, State Machine, Sequence Diagram 3-level approval, 7 lapisan security handling, & walkthrough testing di browser.*
+9. 📱 **[Panduan NetStarterPack Mobile — React Native & Expo (`docs/09_MOBILE_STARTERPACK_GUIDE.md`)](docs/09_MOBILE_STARTERPACK_GUIDE.md)**
+   *Arsitektur & panduan menjalankan aplikasi mobile (`mobile/`) di HP fisik via Expo Go (`start-mobile-dev.ps1`), Live Cluster Monitor, Biometrik, Workflow, SignalR Newsroom, serta rilis CI/CD terpisah (`eas.json`).*
+10. 🧪 **[Panduan Unit Testing Lintas Microservice (`docs/10_UNIT_TESTING_GUIDE.md`)](docs/10_UNIT_TESTING_GUIDE.md)**
+    *Struktur modular unit test untuk `BuildingBlocks`, 5 microservice (`Identity`, `Catalog`, `Order`, `Workflow`, `Announcement`), dan `CrossService` menggunakan xUnit + EF Core In-Memory + `TestDbFactory` + `InMemoryEventBus`.*
+11. 🚀 **[Panduan Publish & Deploy ke Windows Server IIS (`docs/11_IIS_DEPLOYMENT_GUIDE.md`)](docs/11_IIS_DEPLOYMENT_GUIDE.md)**
+    *Panduan first-time deploy seluruh service & Frontend React ke IIS lengkap dengan studi kasus selective deploy per fitur menggunakan `publish-iis.ps1`.*
+12. 🧯 **[Catatan Lapangan & Playbook Troubleshooting IIS (`docs/12_IIS_TROUBLESHOOTING_AND_PLAYBOOK.md`)](docs/12_IIS_TROUBLESHOOTING_AND_PLAYBOOK.md)**
+    *Solusi cepat untuk `NETSDK1152`, `404 /api/auth/login` (ARR Proxy vs `VITE_API_URL`), error SQL `IIS APPPOOL\*` (3 opsi: SSMS Login, SQL Auth, Custom Identity), WebSocket SignalR, & debug `500.30`.*
+13. 📖 **[Kamus Istilah / Glosarium Arsitektur (`docs/13_GLOSSARY.md`)](docs/13_GLOSSARY.md)**
     *Penjelasan bahasa santai untuk seluruh istilah dan komponen yang benar-benar dipakai di kodingan project ini (YARP, Compact Onion, BuildingBlocks, Database-per-Service, Docker, Polyglot Persistence, Zero-Trust JWT, Integration Event, Graceful Degradation, Correlation ID, hingga Hybrid Cache).*
 
 ---
@@ -98,14 +101,20 @@ net-starterpack-microservice/
 ├── NetStarterPack.Microservices.sln              # Solution utama (Default Startup: Gateway.Api)
 ├── run-app.bat & start-dev.ps1                   # Script launcher sekali klik
 ├── README.md                                     # Dokumentasi utama
-├── docs/                                         # Dokumentasi mendalam A sampai Z
-│   ├── CUSTOMIZATION_GUIDE.md                    # Panduan A-Z bikin modul baru & microservice baru
-│   ├── ARCHITECTURE.md                           # Bedah Microservices, Compact Onion, YARP, & EventBus
-│   ├── AUTH_AND_RBAC.md                          # Zero-Trust JWT, Refresh Token, RBAC 3 Lapis, & Menu
-│   ├── CACHING_AND_REDIS.md                      # Hybrid L1/L2 Cache & konfigurasi Shared Redis
-│   ├── UNIT_TESTING_GUIDE.md                     # Panduan Unit Test lintas microservice (xUnit)
-│   ├── API_REFERENCE.md                          # Daftar endpoint API, routing YARP, & kontrak JSON
-│   └── GLOSSARY.md                               # Kamus istilah arsitektur & komponen project
+├── docs/                                         # Dokumentasi mendalam berurutan (01 s/d 13)
+│   ├── 01_ARCHITECTURE.md                        # Bedah Microservices, Compact Onion, YARP, & EventBus
+│   ├── 02_PROJECT_STRUCTURE_GUIDE.md             # Peta lengkap project & fungsi tiap subfolder
+│   ├── 03_TECH_STACK.md                          # Rincian versi package & alasan teknologi
+│   ├── 04_AUTH_AND_RBAC.md                       # Zero-Trust JWT, Refresh Token, RBAC 3 Lapis, & Menu
+│   ├── 05_CACHING_AND_REDIS.md                   # Hybrid L1/L2 Cache & konfigurasi Shared Redis
+│   ├── 06_API_REFERENCE.md                       # Daftar endpoint API, routing YARP, & kontrak JSON
+│   ├── 07_CUSTOMIZATION_GUIDE.md                 # Panduan A-Z bikin modul baru & microservice baru
+│   ├── 08_WORKFLOW_ADVANCED_EXAMPLE.md           # Example 3 Advanced: Dynamic Form & Multi-Level Approval
+│   ├── 09_MOBILE_STARTERPACK_GUIDE.md            # Panduan Mobile Starterpack (React Native + Expo Go)
+│   ├── 10_UNIT_TESTING_GUIDE.md                  # Panduan Unit Test lintas microservice (xUnit)
+│   ├── 11_IIS_DEPLOYMENT_GUIDE.md                # Panduan publish & deploy ke Windows Server IIS
+│   ├── 12_IIS_TROUBLESHOOTING_AND_PLAYBOOK.md    # Playbook troubleshooting kasus lapangan IIS
+│   └── 13_GLOSSARY.md                            # Kamus istilah arsitektur & komponen project
 ├── src/
 │   ├── BuildingBlocks/                           # [SHARED KERNEL] Dipakai semua microservice
 │   │   ├── BuildingBlocks.Core/                  # ZERO NuGet: BaseEntity, Result<T>, Permissions, RoleNames, CacheKeys, Contracts

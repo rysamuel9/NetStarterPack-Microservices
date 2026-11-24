@@ -5,7 +5,7 @@ Dokumen ini adalah panduan komprehensif (*step-by-step*) dari **A sampai Z** unt
 Karena arsitektur project ini mendukung **Maintainability secara Vertikal maupun Horizontal**, panduan ini dibagi menjadi **3 Level Studi Kasus**:
 - **BAGIAN A (Vertical Scaling)**: Menambah modul/tabel CRUD baru di dalam microservice yang sudah ada (Studi Kasus: Modul **Pelanggan / `Customer`**).
 - **BAGIAN B (Horizontal Scaling — Example 2)**: Membuat **Microservice Mandiri Baru** dari nol dengan port dan database terpisah (Studi Kasus: Microservice **`Order.Api` di Port `5083`** dengan database **`NetStarterPack_OrderDb`**), lalu menyambungkannya ke **YARP API Gateway (`:5080`)**, **Unified Swagger/Scalar**, dan **F5 Auto-Orchestrator**.
-- **BAGIAN C (Advanced Enterprise — Example 3)**: Membuat microservice kompleks dari A sampai Z dengan **4 tabel relasional + JSON Schema Form Dinamis + Multi-Level Approval State Machine + 7 Lapis Security Guard + 3 Halaman React** (Studi Kasus: **`Workflow.Api` di Port `5084`** dengan database **`NetStarterPack_WorkflowDb`**). *(Lihat juga diagram ERD, State Machine, Sequence Diagram, & Walkthrough Testing lengkapnya di [`docs/WORKFLOW_ADVANCED_EXAMPLE.md`](WORKFLOW_ADVANCED_EXAMPLE.md)).*
+- **BAGIAN C (Advanced Enterprise — Example 3)**: Membuat microservice kompleks dari A sampai Z dengan **4 tabel relasional + JSON Schema Form Dinamis + Multi-Level Approval State Machine + 7 Lapis Security Guard + 3 Halaman React** (Studi Kasus: **`Workflow.Api` di Port `5084`** dengan database **`NetStarterPack_WorkflowDb`**). *(Lihat juga diagram ERD, State Machine, Sequence Diagram, & Walkthrough Testing lengkapnya di [`docs/08_WORKFLOW_ADVANCED_EXAMPLE.md`](08_WORKFLOW_ADVANCED_EXAMPLE.md)).*
 
 ---
 
@@ -1113,7 +1113,7 @@ Kalau **Bagian A (`Customer`)** adalah contoh *vertical scaling* (nambah tabel d
 - **Penanganan Keamanan Berlapis di Backend** (*Dynamic Schema Validation*, *Anti-Self-Approval*, *Anti-Queue-Jumping*, *Ownership Guard*, & *Immutable Audit Log*)
 - **Auto-Upgrade Database Existing** di `Identity.Api` untuk menambahkan role, akun user perusahaan, dan 3 menu baru tanpa `DROP DATABASE`!
 
-> **Catatan**: Seluruh kode pada **Bagian C** ini **sudah terimplementasi dan berjalan live** pada folder `src/Services/Workflow/Workflow.Api/` & `frontend/src/pages/workflow/`. Untuk melihat **Diagram ERD, State Machine, Sequence Diagram, & Walkthrough Testing di Browser**, buka juga [`docs/WORKFLOW_ADVANCED_EXAMPLE.md`](WORKFLOW_ADVANCED_EXAMPLE.md).
+> **Catatan**: Seluruh kode pada **Bagian C** ini **sudah terimplementasi dan berjalan live** pada folder `src/Services/Workflow/Workflow.Api/` & `frontend/src/pages/workflow/`. Untuk melihat **Diagram ERD, State Machine, Sequence Diagram, & Walkthrough Testing di Browser**, buka juga [`docs/08_WORKFLOW_ADVANCED_EXAMPLE.md`](08_WORKFLOW_ADVANCED_EXAMPLE.md).
 
 ---
 
@@ -1471,4 +1471,4 @@ cd frontend
 npm run build
 ```
 
-> 👉 **Langkah Berikutnya**: Ingin melihat diagram **ERD 4 Tabel**, **State Machine**, **Sequence Diagram**, dan **Walkthrough Cara Coba End-to-End di Browser**? Lanjut baca [`docs/WORKFLOW_ADVANCED_EXAMPLE.md`](WORKFLOW_ADVANCED_EXAMPLE.md)!
+> 👉 **Langkah Berikutnya**: Ingin melihat diagram **ERD 4 Tabel**, **State Machine**, **Sequence Diagram**, dan **Walkthrough Cara Coba End-to-End di Browser**? Lanjut baca [`docs/08_WORKFLOW_ADVANCED_EXAMPLE.md`](08_WORKFLOW_ADVANCED_EXAMPLE.md)!

@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "NetStarterPack",
+    "slug": "net-starterpack-mobile",
+    "scheme": "netstarterpack",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.netstarterpack.mobile"
+    },
+    "android": {
+      "package": "com.netstarterpack.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#0D9488",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-image",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Izinkan NetStarterPack menggunakan Face ID untuk membuka sesi akun."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

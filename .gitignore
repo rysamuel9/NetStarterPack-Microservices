@@ -44,3 +44,19 @@ PROMPTS.md
 
 # Upload foto profil lokal
 **/uploads/
+
+## Mobile (Expo / React Native)
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
+mobile/android/
+mobile/ios/
+mobile/.env
+mobile/.env.local
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+

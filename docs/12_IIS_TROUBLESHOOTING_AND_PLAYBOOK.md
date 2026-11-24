@@ -2,7 +2,7 @@
 
 Dokumen ini adalah rangkuman kasus nyata yang sering muncul waktu deploy & menjalankan **NetStarterPack Microservices (7 Site: Gateway + 5 Service + React SPA)** di **IIS Windows**, lengkap dengan semua opsi solusinya biar nggak lupa pas deploy ulang atau pindah server.
 
-Untuk panduan langkah deploy dari nol + update selektif harian, lihat juga [`docs/IIS_DEPLOYMENT_GUIDE.md`](IIS_DEPLOYMENT_GUIDE.md).
+Untuk panduan langkah deploy dari nol + update selektif harian, lihat juga [`docs/11_IIS_DEPLOYMENT_GUIDE.md`](11_IIS_DEPLOYMENT_GUIDE.md).
 
 ---
 

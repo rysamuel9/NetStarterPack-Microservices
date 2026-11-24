@@ -2,7 +2,7 @@
 
 Dokumen ini menjelaskan secara menyeluruh bagaimana **NetStarterPack Microservices** dirancang dari ujung ke ujung (*end-to-end*) — mulai dari pembagian **Microservices (level makro)**, struktur **Compact Onion Architecture (level mikro)** di dalam tiap service, **Shared BuildingBlocks**, **YARP API Gateway**, komunikasi antar-service, hingga arsitektur **React 19 + TypeScript** di sisi Frontend.
 
-> 🗂️ **Butuh panduan detail fungsi tiap subfolder** (seperti `BuildingBlocks.Infrastructure/Middleware`, `Caching`, `Messaging`, `Persistence`, `Infrastructure/Clients`, `Domain/`, `Application/`, sampai `frontend/src/`) beserta contoh kasus kapan dipakainya? Baca juga **[`docs/PROJECT_STRUCTURE_GUIDE.md`](PROJECT_STRUCTURE_GUIDE.md)**.
+> 🗂️ **Butuh panduan detail fungsi tiap subfolder** (seperti `BuildingBlocks.Infrastructure/Middleware`, `Caching`, `Messaging`, `Persistence`, `Infrastructure/Clients`, `Domain/`, `Application/`, sampai `frontend/src/`) beserta contoh kasus kapan dipakainya? Baca juga **[`docs/02_PROJECT_STRUCTURE_GUIDE.md`](02_PROJECT_STRUCTURE_GUIDE.md)**.
 
 ---
 
