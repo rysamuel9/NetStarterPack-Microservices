@@ -35,7 +35,9 @@ Seluruh panduan teknis sudah disusun berurutan (dari konsep inti sampai deployme
 12. 🧯 **[Catatan Lapangan & Playbook Troubleshooting IIS (`docs/12_IIS_TROUBLESHOOTING_AND_PLAYBOOK.md`)](docs/12_IIS_TROUBLESHOOTING_AND_PLAYBOOK.md)**
     *Solusi cepat untuk `NETSDK1152`, `404 /api/auth/login` (ARR Proxy vs `VITE_API_URL`), error SQL `IIS APPPOOL\*` (3 opsi: SSMS Login, SQL Auth, Custom Identity), WebSocket SignalR, & debug `500.30`.*
 13. 📖 **[Kamus Istilah / Glosarium Arsitektur (`docs/13_GLOSSARY.md`)](docs/13_GLOSSARY.md)**
-    *Penjelasan bahasa santai untuk seluruh istilah dan komponen yang benar-benar dipakai di kodingan project ini (YARP, Compact Onion, BuildingBlocks, Database-per-Service, Docker, Polyglot Persistence, Zero-Trust JWT, Integration Event, Graceful Degradation, Correlation ID, hingga Hybrid Cache).*
+    *Penjelasan bahasa santai untuk seluruh istilah dan komponen yang benar-benar dipakai di kodingan project ini (YARP, Compact Onion, BuildingBlocks, Database-per-Service, Docker, Polyglot Persistence, Zero-Trust JWT, Integration Event, Graceful Degradation, Correlation ID, Hybrid Cache, Idempotency, Polly v8, hingga API Versioning).*
+14. 🎓 **[Tutorial Pemula (Dari Nol Sampai Jalan): Bikin Fitur & Microservice Baru (`docs/14_BEGINNER_TUTORIAL_BUILD_FEATURE.md`)](docs/14_BEGINNER_TUTORIAL_BUILD_FEATURE.md)**
+    *Panduan khusus pemula/mahasiswa dari nol sampai jadi dengan studi kasus lengkap (`Asset.Api :5087`): analogi arsitektur, peta file yang dibuat/diedit, Compact Onion step-by-step, `[Idempotent]`, API `/api/v1`, integrasi `useLookup` dari `MasterData.Api`, React UI, Unit Test xUnit, hingga daftar 8 error paling sering terjadi.*
 
 ---
 
@@ -120,7 +122,8 @@ net-starterpack-microservice/
 │   ├── 10_UNIT_TESTING_GUIDE.md                  # Panduan Unit Test lintas microservice (xUnit)
 │   ├── 11_IIS_DEPLOYMENT_GUIDE.md                # Panduan publish & deploy ke Windows Server IIS
 │   ├── 12_IIS_TROUBLESHOOTING_AND_PLAYBOOK.md    # Playbook troubleshooting kasus lapangan IIS
-│   └── 13_GLOSSARY.md                            # Kamus istilah arsitektur & komponen project
+│   ├── 13_GLOSSARY.md                            # Kamus istilah arsitektur & komponen project
+│   └── 14_BEGINNER_TUTORIAL_BUILD_FEATURE.md     # Tutorial pemula (mahasiswa) bikin fitur A-Z
 ├── src/
 │   ├── BuildingBlocks/                           # [SHARED KERNEL] Dipakai semua microservice
 │   │   ├── BuildingBlocks.Core/                  # ZERO NuGet: BaseEntity, Result<T>, Permissions, RoleNames, CacheKeys, Contracts
