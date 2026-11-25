@@ -1,31 +1,21 @@
 using Announcement.Api.Application.DTOs;
 using Announcement.Api.Application.Interfaces;
-using Announcement.Api.Infrastructure.Persistence;
 using BuildingBlocks.Core.Attributes;
 using BuildingBlocks.Core.Common;
 using BuildingBlocks.Core.Constants;
+using BuildingBlocks.Core.Interfaces;
 using BuildingBlocks.Infrastructure.Controllers;
 using BuildingBlocks.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.StaticFiles;
 
 namespace Announcement.Api.Controllers;
 
 public class AnnouncementsController(
     IAnnouncementService announcementService,
-    IHostEnvironment hostEnvironment) : BaseApiController
+    IFileStorageService fileStorage) : BaseApiController
 {
-    private static readonly HashSet<string> AllowedImageExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"
-    };
-
-    private static readonly HashSet<string> AllowedFileExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".csv", ".zip"
-    };
-
+    private const string StorageFolder = "announcements";
     private const long MaxUploadSizeBytes = 10 * 1024 * 1024; // 10 MB
 
     /// <summary>Daftar pengumuman berhalaman (default 10 item per halaman) dengan filter tipe dan pencarian.</summary>
@@ -125,12 +115,12 @@ public class AnnouncementsController(
     public async Task<IActionResult> MarkAllRead(CancellationToken cancellationToken = default) =>
         ToActionResult(await announcementService.MarkAllAsReadAsync(cancellationToken));
 
-    /// <summary>Upload banner, lampiran gambar, atau lampiran file dokumen (maksimal 10 MB, khusus Tim HR).</summary>
+    /// <summary>Upload banner, lampiran gambar, atau lampiran file dokumen (validasi magic-bytes + Unified IFileStorageService LocalDisk/S3, maks 10 MB, khusus Tim HR).</summary>
     [HttpPost("upload")]
     [HasPermission(Permissions.Announcements.Manage)]
-    [RequestSizeLimit(MaxUploadSizeBytes)]
+    [RequestSizeLimit(MaxUploadSizeBytes + 1024 * 1024)]
     public async Task<IActionResult> UploadFile(
-        IFormFile file,
+        IFormFile? file,
         [FromQuery] string kind = "File",
         CancellationToken cancellationToken = default)
     {
@@ -144,74 +134,82 @@ public class AnnouncementsController(
             return ToActionResult(Result<UploadedFileDto>.Failure("Ukuran file maksimal 10 MB.", 400));
         }
 
-        var ext = Path.GetExtension(file.FileName);
-        var isImage = AllowedImageExtensions.Contains(ext);
-        var isAllowedDoc = AllowedFileExtensions.Contains(ext);
+        var isImageOnlyRequest =
+            kind.Equals("Banner", StringComparison.OrdinalIgnoreCase) ||
+            kind.Equals("Image", StringComparison.OrdinalIgnoreCase);
 
-        if ((kind.Equals("Banner", StringComparison.OrdinalIgnoreCase) || kind.Equals("Image", StringComparison.OrdinalIgnoreCase)) && !isImage)
+        var policy = isImageOnlyRequest
+            ? FileValidationPolicy.BannerOrImage
+            : FileValidationPolicy.DocumentOrImage;
+
+        await using var buffer = new MemoryStream();
+        await file.CopyToAsync(buffer, cancellationToken);
+
+        var bytes = buffer.GetBuffer().AsSpan(0, (int)buffer.Length);
+        var validation = FileSignatureValidator.Validate(bytes, file.FileName, policy);
+        if (!validation.Succeeded || validation.Data is null)
         {
-            return ToActionResult(Result<UploadedFileDto>.Failure(
-                "Format banner/gambar wajib berupa .jpg, .jpeg, .png, .webp, .gif, atau .svg.", 400));
+            return ToActionResult(Result<UploadedFileDto>.Failure(validation.Message, 400));
         }
 
-        if (!isImage && !isAllowedDoc)
-        {
-            return ToActionResult(Result<UploadedFileDto>.Failure(
-                "Tipe file tidak diizinkan. Gunakan gambar atau dokumen (.pdf, .docx, .xlsx, .pptx, .txt, .csv, .zip).", 400));
-        }
-
+        var validated = validation.Data;
         var normalizedKind = kind.Equals("Banner", StringComparison.OrdinalIgnoreCase)
             ? "Banner"
-            : isImage && kind.Equals("Image", StringComparison.OrdinalIgnoreCase)
+            : validated.IsImage && kind.Equals("Image", StringComparison.OrdinalIgnoreCase)
                 ? "Image"
                 : "File";
 
-        var storedFileName = $"{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}{ext.ToLowerInvariant()}";
-        var uploadsDir = AnnouncementStorageHelper.GetUploadsDirectory(hostEnvironment);
-        var fullPath = Path.Combine(uploadsDir, storedFileName);
+        var storedFileName = $"{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}{validated.Extension}";
+        buffer.Position = 0;
 
-        await using (var stream = new FileStream(fullPath, FileMode.Create))
-        {
-            await file.CopyToAsync(stream, cancellationToken);
-        }
+        var stored = await fileStorage.UploadAsync(
+            StorageFolder,
+            storedFileName,
+            buffer,
+            validated.ContentType,
+            cancellationToken);
 
         var dto = new UploadedFileDto(
-            FileName: Path.GetFileName(file.FileName),
-            StoredFileName: storedFileName,
-            ContentType: string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType,
-            FileSizeBytes: file.Length,
+            FileName: validated.SafeFileName,
+            StoredFileName: stored.StoredFileName,
+            ContentType: stored.ContentType,
+            FileSizeBytes: stored.SizeBytes,
             Kind: normalizedKind,
-            Url: $"/api/announcements/files/{storedFileName}");
+            Url: $"/api/v1/announcements/files/{stored.StoredFileName}");
 
-        return ToActionResult(Result<UploadedFileDto>.Success(dto, "File berhasil diunggah.", 201));
+        return ToActionResult(Result<UploadedFileDto>.Success(
+            dto,
+            $"File berhasil diunggah ({stored.Provider}).",
+            201));
     }
 
-    /// <summary>Mengambil gambar banner/lampiran atau mengunduh file lampiran secara aman (anti path-traversal).</summary>
+    /// <summary>Mengambil gambar banner/lampiran atau mengunduh file lampiran secara aman dari IFileStorageService (LocalDisk / MinIO / S3).</summary>
     [HttpGet("files/{storedFileName}")]
     [AllowAnonymous]
-    public IActionResult GetUploadedFile(string storedFileName, [FromQuery] bool download = false)
+    public async Task<IActionResult> GetUploadedFile(
+        string storedFileName,
+        [FromQuery] bool download = false,
+        CancellationToken cancellationToken = default)
     {
         var safeName = Path.GetFileName(storedFileName);
-        if (string.IsNullOrWhiteSpace(safeName) || safeName != storedFileName)
+        if (string.IsNullOrWhiteSpace(safeName) || safeName != storedFileName || safeName.Contains("..", StringComparison.Ordinal))
         {
             return BadRequest("Nama file tidak valid.");
         }
 
-        var uploadsDir = AnnouncementStorageHelper.GetUploadsDirectory(hostEnvironment);
-        var fullPath = Path.Combine(uploadsDir, safeName);
-        if (!System.IO.File.Exists(fullPath))
+        var objectKey = FileSignatureValidator.NormalizeObjectKey(StorageFolder, safeName);
+        var stored = await fileStorage.OpenReadAsync(objectKey, cancellationToken);
+        if (stored is null)
         {
             return NotFound("File lampiran tidak ditemukan.");
         }
 
-        var provider = new FileExtensionContentTypeProvider();
-        if (!provider.TryGetContentType(fullPath, out var contentType))
-        {
-            contentType = "application/octet-stream";
-        }
+        Response.RegisterForDisposeAsync(stored);
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        Response.Headers.CacheControl = "public,max-age=86400";
 
         return download
-            ? PhysicalFile(fullPath, contentType, safeName)
-            : PhysicalFile(fullPath, contentType);
+            ? File(stored.Content, stored.ContentType, safeName)
+            : File(stored.Content, stored.ContentType);
     }
 }

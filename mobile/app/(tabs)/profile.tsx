@@ -34,6 +34,7 @@ import { type ThemeMode, useTheme } from '@/core/theme/themeStore';
 import { radius } from '@/core/theme/tokens';
 import { ServerUrlModal } from '@/shared/components/ServerUrlModal';
 import { UserAvatar } from '@/shared/components/UserAvatar';
+import { validatePickedMedia } from '@/shared/utils/fileUpload';
 
 const THEME_OPTIONS: Array<{ value: ThemeMode; label: string }> = [
   { value: 'system', label: 'Sistem' },
@@ -72,16 +73,17 @@ export default function ProfileTab() {
   const [newPassword, setNewPassword] = useState('');
 
   const uploadPickedAsset = async (asset: ImagePicker.ImagePickerAsset) => {
-    const uri = asset.uri;
-    const rawMime = asset.mimeType || (uri.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg');
-    const mimeType = rawMime === 'image/png' ? 'image/png' : 'image/jpeg';
-    const fileName = asset.fileName || `avatar.${mimeType === 'image/png' ? 'png' : 'jpg'}`;
+    const check = validatePickedMedia(asset, 'avatar', 'avatar');
+    if (!check.valid) {
+      Alert.alert('Format Tidak Valid', check.message);
+      return;
+    }
 
     const formData = new FormData();
     formData.append('file', {
-      uri,
-      name: fileName,
-      type: mimeType,
+      uri: asset.uri,
+      name: check.fileName,
+      type: check.mimeType,
     } as unknown as Blob);
 
     setUploadingAvatar(true);

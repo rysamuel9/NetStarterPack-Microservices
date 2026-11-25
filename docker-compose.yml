@@ -233,9 +233,28 @@ services:
     networks:
       - nsp-mesh
 
+  # [OPSIONAL] Object Storage S3-Compatible (MinIO) — jalankan dengan: docker compose --profile storage up -d minio
+  # Lalu ubah FileStorageSettings:Provider = "S3" & ServiceUrl = "http://minio:9000" (atau http://localhost:9000 dari lokal F5)
+  minio:
+    image: minio/minio:latest
+    container_name: nsp-ms-minio
+    profiles: ["storage"]
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - minio_data:/data
+    networks:
+      - nsp-mesh
+
 networks:
   nsp-mesh:
     driver: bridge
 
 volumes:
   sqlserver_data:
+  minio_data:
