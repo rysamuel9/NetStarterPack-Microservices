@@ -46,8 +46,9 @@ public class LookupsController(ILookupService lookupService) : BaseApiController
         return ToActionResult(await lookupService.GetBatchLookupsAsync(groupList, activeOnly, cancellationToken));
     }
 
-    /// <summary>Ringkasan statistik MasterData Microservice untuk Dashboard / Health Aggregator.</summary>
+    /// <summary>Ringkasan statistik MasterData Microservice untuk Dashboard / Health Aggregator (membutuhkan JWT atau X-Internal-Api-Key).</summary>
     [AllowAnonymous]
+    [RequireAuthenticatedOrInternalApiKey]
     [HttpGet("stats")]
     public async Task<IActionResult> GetStats(CancellationToken cancellationToken) =>
         ToActionResult(await lookupService.GetStatsAsync(cancellationToken));

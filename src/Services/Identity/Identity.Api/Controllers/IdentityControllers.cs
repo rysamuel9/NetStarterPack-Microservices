@@ -125,6 +125,7 @@ public class RolesController(IRoleService roleService) : BaseApiController
     public async Task<IActionResult> GetAll(CancellationToken cancellationToken) =>
         ToActionResult(await roleService.GetAllRolesAsync(cancellationToken));
 
+    [HasPermission(Permissions.Roles.Manage)]
     [HttpGet("permissions")]
     public async Task<IActionResult> GetAllPermissions(CancellationToken cancellationToken) =>
         ToActionResult(await roleService.GetAllPermissionsAsync(cancellationToken));
@@ -191,29 +192,18 @@ public class DashboardController(IDashboardService dashboardService) : BaseApiCo
 
 /// <summary>
 /// Endpoint internal antar-microservice (Service-to-Service) untuk menerima event Audit Log dari Catalog.Api / service lainnya.
-/// Diamankan dengan header X-Internal-Api-Key.
+/// Diamankan dengan header X-Internal-Api-Key menggunakan constant-time comparison (SHA-256 + FixedTimeEquals).
 /// </summary>
 [ApiController]
 [ApiVersionNeutral]
 [Route("api/internal/events")]
-public class InternalEventsController(
-    IDashboardService dashboardService,
-    IOptions<JwtSettings> jwtOptions) : BaseApiController
+public class InternalEventsController(IDashboardService dashboardService) : BaseApiController
 {
-    private readonly JwtSettings _jwtSettings = jwtOptions.Value;
-
     [AllowAnonymous]
+    [RequireInternalApiKey]
     [HttpPost("audit-log")]
     public async Task<IActionResult> ReceiveAuditLog(
         [FromBody] AuditLogIntegrationEvent integrationEvent,
-        CancellationToken cancellationToken)
-    {
-        var apiKey = Request.Headers["X-Internal-Api-Key"].FirstOrDefault();
-        if (!string.Equals(apiKey, _jwtSettings.InternalApiKey, StringComparison.Ordinal))
-        {
-            return Unauthorized(Result.Failure("Invalid X-Internal-Api-Key for inter-service communication.", 401));
-        }
-
-        return ToActionResult(await dashboardService.RecordIntegrationAuditLogAsync(integrationEvent, cancellationToken));
-    }
+        CancellationToken cancellationToken) =>
+        ToActionResult(await dashboardService.RecordIntegrationAuditLogAsync(integrationEvent, cancellationToken));
 }

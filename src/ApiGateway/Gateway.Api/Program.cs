@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Net;
 using System.Net.Sockets;
 using System.Text.Json.Nodes;
 using System.Threading.RateLimiting;
@@ -9,6 +10,7 @@ using BuildingBlocks.Core.Contracts;
 using BuildingBlocks.Infrastructure.Middleware;
 using BuildingBlocks.Infrastructure.Resilience;
 using BuildingBlocks.Security;
+using Microsoft.AspNetCore.HttpOverrides;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -28,8 +30,24 @@ builder.Services.AddHttpClient("GatewayAggregator")
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 2;
+    var configuredProxies = builder.Configuration.GetSection("SecuritySettings:KnownProxies").Get<string[]>();
+    if (configuredProxies is { Length: > 0 })
+    {
+        foreach (var proxyIp in configuredProxies)
+        {
+            if (IPAddress.TryParse(proxyIp, out var ip))
+            {
+                options.KnownProxies.Add(ip);
+            }
+        }
+    }
+});
 
-// 2. Centralized API Gateway Rate Limiting (Fixed Window: 300 req / minute per IP)
+// 2. Centralized API Gateway Rate Limiting (Strict Auth: 15 req/min per IP, General API: 300 req/min per IP)
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -44,7 +62,24 @@ builder.Services.AddRateLimiter(options =>
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
     {
         var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
-        return RateLimitPartition.GetFixedWindowLimiter(clientIp, _ => new FixedWindowRateLimiterOptions
+        var path = httpContext.Request.Path.Value ?? string.Empty;
+        var isSensitiveAuthEndpoint =
+            path.EndsWith("/auth/login", StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith("/auth/refresh", StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith("/auth/change-password", StringComparison.OrdinalIgnoreCase);
+
+        if (isSensitiveAuthEndpoint)
+        {
+            return RateLimitPartition.GetFixedWindowLimiter($"auth:{clientIp}", _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 15,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+            });
+        }
+
+        return RateLimitPartition.GetFixedWindowLimiter($"api:{clientIp}", _ => new FixedWindowRateLimiterOptions
         {
             PermitLimit = 300,
             Window = TimeSpan.FromMinutes(1),
@@ -187,12 +222,18 @@ if (app.Environment.IsDevelopment())
     });
 }
 
+app.UseForwardedHeaders();
 app.UseMiddleware<CorrelationIdMiddleware>();
+app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseExceptionHandler();
 app.UseCors("AllowFrontend");
 app.UseRateLimiter();
 
-// 5. Unified OpenAPI Spec Aggregator (/openapi/v1.json) — Menggabungkan spec Identity.Api (5081), Catalog.Api (5082), Order.Api (5083), & Workflow.Api (5084)
+// 5 & 6. Unified OpenAPI / Scalar / Swagger hanya aktif di Development (atau SecuritySettings:EnableApiDocsInProduction=true)
+var enableApiDocs = app.Environment.IsDevelopment() ||
+                    app.Configuration.GetValue<bool>("SecuritySettings:EnableApiDocsInProduction", false);
+if (enableApiDocs)
+{
 app.MapGet("/openapi/v1.json", async (IHttpClientFactory httpClientFactory) =>
 {
     var client = httpClientFactory.CreateClient("GatewayAggregator");
@@ -302,9 +343,10 @@ app.MapGet("/swagger", () => Results.Content("""
 </body>
 </html>
 """, "text/html")).AllowAnonymous();
+}
 
 // 7. Aggregated Microservices Health & Topology Check (/api/health & /api/v1/health)
-async Task<IResult> BuildAggregatedHealthAsync(IHttpClientFactory httpClientFactory)
+async Task<IResult> BuildAggregatedHealthAsync(HttpContext httpContext, IHttpClientFactory httpClientFactory)
 {
     var client = httpClientFactory.CreateClient("GatewayAggregator");
     var identityUrl = builder.Configuration["ServiceEndpoints:IdentityServiceUrl"] ?? "http://localhost:5081";
@@ -327,6 +369,19 @@ async Task<IResult> BuildAggregatedHealthAsync(IHttpClientFactory httpClientFact
         && workflowHealth.Status == "Healthy"
         && announcementHealth.Status == "Healthy"
         && masterDataHealth.Status == "Healthy";
+
+    var hasBearerToken = httpContext.Request.Headers.Authorization.ToString()
+        .StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase);
+
+    if (!app.Environment.IsDevelopment() && !hasBearerToken)
+    {
+        return Results.Ok(new
+        {
+            status = allHealthy ? "Healthy" : "Degraded",
+            apiVersion = ApiVersioningConstants.DefaultVersion,
+            timestamp = DateTime.UtcNow
+        });
+    }
 
     return Results.Ok(new
     {

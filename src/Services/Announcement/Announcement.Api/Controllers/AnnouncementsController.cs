@@ -35,9 +35,10 @@ public class AnnouncementsController(
     public async Task<IActionResult> GetBellFeed(CancellationToken cancellationToken = default) =>
         ToActionResult(await announcementService.GetBellFeedAsync(cancellationToken));
 
-    /// <summary>Statistik ringkas pengumuman untuk Dashboard Aggregator.</summary>
+    /// <summary>Statistik ringkas pengumuman untuk Dashboard Aggregator (membutuhkan JWT atau X-Internal-Api-Key).</summary>
     [HttpGet("stats")]
     [AllowAnonymous]
+    [RequireAuthenticatedOrInternalApiKey]
     public async Task<IActionResult> GetStats(CancellationToken cancellationToken = default) =>
         ToActionResult(await announcementService.GetStatsAsync(cancellationToken));
 

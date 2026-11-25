@@ -68,30 +68,45 @@ public class PasswordHasher : IPasswordHasher
 {
     private const int SaltSize = 16;
     private const int KeySize = 32;
-    private const int Iterations = 100_000;
+    private const int LegacyIterations = 100_000;
+    private const int CurrentIterations = 600_000; // Rekomendasi OWASP untuk PBKDF2-HMAC-SHA256
     private static readonly HashAlgorithmName Algorithm = HashAlgorithmName.SHA256;
 
     public string HashPassword(string password)
     {
         var salt = RandomNumberGenerator.GetBytes(SaltSize);
-        var hash = Rfc2898DeriveBytes.Pbkdf2(password, salt, Iterations, Algorithm, KeySize);
-        return $"{Convert.ToBase64String(salt)}.{Convert.ToBase64String(hash)}";
+        var hash = Rfc2898DeriveBytes.Pbkdf2(password, salt, CurrentIterations, Algorithm, KeySize);
+        return $"v2.{CurrentIterations}.{Convert.ToBase64String(salt)}.{Convert.ToBase64String(hash)}";
     }
 
     public bool VerifyPassword(string password, string passwordHash)
     {
-        var parts = passwordHash.Split('.');
-        if (parts.Length != 2)
+        if (string.IsNullOrWhiteSpace(passwordHash))
         {
             return false;
         }
 
+        var parts = passwordHash.Split('.');
         try
         {
-            var salt = Convert.FromBase64String(parts[0]);
-            var expectedHash = Convert.FromBase64String(parts[1]);
-            var actualHash = Rfc2898DeriveBytes.Pbkdf2(password, salt, Iterations, Algorithm, KeySize);
-            return CryptographicOperations.FixedTimeEquals(actualHash, expectedHash);
+            if (parts.Length == 4 && parts[0] == "v2" && int.TryParse(parts[1], out var iterations) && iterations >= 100_000)
+            {
+                var salt = Convert.FromBase64String(parts[2]);
+                var expectedHash = Convert.FromBase64String(parts[3]);
+                var actualHash = Rfc2898DeriveBytes.Pbkdf2(password, salt, iterations, Algorithm, expectedHash.Length);
+                return CryptographicOperations.FixedTimeEquals(actualHash, expectedHash);
+            }
+
+            // Kompatibilitas backward untuk hash v1 (100_000 iterasi) yang sudah tersimpan sebelumnya
+            if (parts.Length == 2)
+            {
+                var salt = Convert.FromBase64String(parts[0]);
+                var expectedHash = Convert.FromBase64String(parts[1]);
+                var actualHash = Rfc2898DeriveBytes.Pbkdf2(password, salt, LegacyIterations, Algorithm, KeySize);
+                return CryptographicOperations.FixedTimeEquals(actualHash, expectedHash);
+            }
+
+            return false;
         }
         catch
         {

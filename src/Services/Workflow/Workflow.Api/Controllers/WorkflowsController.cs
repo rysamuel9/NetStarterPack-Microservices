@@ -54,9 +54,10 @@ public class WorkflowsController : BaseApiController
         CancellationToken cancellationToken = default)
         => ToActionResult(await _workflowService.GetTrackingListAsync(scope, status, templateCode, search, cancellationToken));
 
-    /// <summary>Ringkasan statistik workflow untuk Dashboard Aggregator.</summary>
+    /// <summary>Ringkasan statistik workflow untuk Dashboard Aggregator (membutuhkan JWT atau X-Internal-Api-Key).</summary>
     [HttpGet("stats")]
     [AllowAnonymous]
+    [RequireAuthenticatedOrInternalApiKey]
     public async Task<IActionResult> GetStats(CancellationToken cancellationToken = default)
         => ToActionResult(await _workflowService.GetWorkflowStatsAsync(cancellationToken));
 

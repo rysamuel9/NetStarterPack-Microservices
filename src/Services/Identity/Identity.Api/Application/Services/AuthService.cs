@@ -1,4 +1,6 @@
-﻿using BuildingBlocks.Core.Common;
+﻿using System.Security.Cryptography;
+using System.Text;
+using BuildingBlocks.Core.Common;
 using BuildingBlocks.Core.Constants;
 using BuildingBlocks.Core.Interfaces;
 using Identity.Api.Application.DTOs;
@@ -15,6 +17,31 @@ public class AuthService(
     ICurrentUserService currentUserService,
     ICacheService? cacheService = null) : IAuthService
 {
+    public const int MaxFailedLoginAttempts = 5;
+    public const int LockoutDurationMinutes = 15;
+    private const string TokenHashPrefix = "sha256:";
+
+    public static string HashRefreshToken(string rawToken)
+    {
+        var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(rawToken));
+        return TokenHashPrefix + Convert.ToHexString(hashBytes);
+    }
+
+    public static string? ValidatePasswordStrength(string? password)
+    {
+        if (string.IsNullOrWhiteSpace(password) || password.Length < 8)
+        {
+            return "Password minimal 8 karakter.";
+        }
+
+        if (!password.Any(char.IsUpper) || !password.Any(char.IsLower) || !password.Any(char.IsDigit))
+        {
+            return "Password wajib mengandung huruf besar, huruf kecil, dan angka.";
+        }
+
+        return null;
+    }
+
     public async Task<Result<AuthResponse>> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(request.UsernameOrEmail) || string.IsNullOrWhiteSpace(request.Password))
@@ -22,28 +49,74 @@ public class AuthService(
             return Result<AuthResponse>.Failure("Username/Email dan Password wajib diisi.", 400);
         }
 
+        var normalizedIdentity = request.UsernameOrEmail.Trim().ToLowerInvariant();
+
+        // 1. Cek Distributed Account Lockout (Hybrid Cache L1/L2) sebelum memverifikasi password
+        if (cacheService is not null)
+        {
+            var lockedUntil = await cacheService.GetAsync<DateTime?>(
+                CacheKeys.AuthLockedUntil(normalizedIdentity),
+                cancellationToken);
+
+            if (lockedUntil.HasValue && lockedUntil.Value > DateTime.UtcNow)
+            {
+                var remainingMinutes = Math.Max(1, (int)Math.Ceiling((lockedUntil.Value - DateTime.UtcNow).TotalMinutes));
+                return Result<AuthResponse>.Failure(
+                    $"Akun sementara dikunci karena terlalu banyak percobaan login gagal. Coba lagi dalam {remainingMinutes} menit.",
+                    429);
+            }
+        }
+
         var user = await unitOfWork.Users.GetWithRolesAndPermissionsByUsernameOrEmailAsync(
-            request.UsernameOrEmail.Trim(),
+            normalizedIdentity,
             cancellationToken);
 
         if (user is null || !passwordHasher.VerifyPassword(request.Password, user.PasswordHash))
         {
+            var isNowLocked = await RecordFailedLoginAttemptAsync(normalizedIdentity, user, cancellationToken);
+            if (isNowLocked)
+            {
+                return Result<AuthResponse>.Failure(
+                    $"Terlalu banyak percobaan login gagal ({MaxFailedLoginAttempts}x). Akun dikunci selama {LockoutDurationMinutes} menit.",
+                    429);
+            }
+
             return Result<AuthResponse>.Failure("Kredensial login tidak valid (username/email atau password salah).", 401);
         }
 
         if (user.Status != UserStatus.Active)
         {
-            return Result<AuthResponse>.Failure($"Akun Anda saat ini berstatus {user.Status}. Hubungi Administrator.", 403);
+            await unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
+            {
+                UserId = user.Id,
+                UserName = user.Username,
+                Action = "LOGIN_DENIED_INACTIVE",
+                Module = "Auth",
+                EntityId = user.Id.ToString(),
+                Details = $"[Identity.Api] Percobaan login ditolak karena akun '{user.Username}' berstatus {user.Status}.",
+                IpAddress = currentUserService.IpAddress
+            }, cancellationToken);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+
+            return Result<AuthResponse>.Failure("Kredensial tidak dapat digunakan atau akun tidak aktif. Hubungi Administrator.", 403);
+        }
+
+        // Bersihkan counter failed login begitu login sukses
+        if (cacheService is not null)
+        {
+            await cacheService.RemoveAsync(CacheKeys.AuthFailedLogin(normalizedIdentity), cancellationToken);
+            await cacheService.RemoveAsync(CacheKeys.AuthLockedUntil(normalizedIdentity), cancellationToken);
         }
 
         var (roles, permissions) = ExtractRolesAndPermissions(user);
         var (accessToken, expiresAt) = jwtTokenService.GenerateAccessToken(user, roles, permissions);
-        var refreshTokenValue = jwtTokenService.GenerateRefreshToken();
+        var rawRefreshToken = jwtTokenService.GenerateRefreshToken();
+        var hashedRefreshToken = HashRefreshToken(rawRefreshToken);
 
         var refreshToken = new RefreshToken
         {
             UserId = user.Id,
-            Token = refreshTokenValue,
+            Token = hashedRefreshToken,
             ExpiresAt = DateTime.UtcNow.AddDays(jwtTokenService.GetRefreshTokenExpiryDays()),
             CreatedByIp = currentUserService.IpAddress,
             CreatedBy = user.Username
@@ -73,7 +146,7 @@ public class AuthService(
 
         var response = new AuthResponse(
             accessToken,
-            refreshTokenValue,
+            rawRefreshToken,
             expiresAt,
             MapToCurrentUserDto(user, roles, permissions));
 
@@ -87,27 +160,77 @@ public class AuthService(
             return Result<AuthResponse>.Failure("Refresh token wajib diisi.", 400);
         }
 
-        var user = await unitOfWork.Users.GetByRefreshTokenAsync(request.RefreshToken, cancellationToken);
+        var hashedToken = HashRefreshToken(request.RefreshToken);
+        var user = await unitOfWork.Users.GetByRefreshTokenAsync(hashedToken, cancellationToken);
+        var lookupTokenValue = hashedToken;
+
+        // Fallback kompatibilitas sementara untuk token legacy yang mungkin tersimpan sebelum hashing diterapkan
+        if (user is null)
+        {
+            user = await unitOfWork.Users.GetByRefreshTokenAsync(request.RefreshToken, cancellationToken);
+            lookupTokenValue = request.RefreshToken;
+        }
+
         if (user is null)
         {
             return Result<AuthResponse>.Failure("Refresh token tidak ditemukan atau tidak valid.", 401);
         }
 
-        var existingToken = user.RefreshTokens.FirstOrDefault(rt => rt.Token == request.RefreshToken);
-        if (existingToken is null || !existingToken.IsActive)
+        var existingToken = user.RefreshTokens.FirstOrDefault(rt => rt.Token == lookupTokenValue);
+        if (existingToken is null)
         {
-            return Result<AuthResponse>.Failure("Refresh token sudah kadaluarsa atau dicabut.", 401);
+            return Result<AuthResponse>.Failure("Refresh token tidak ditemukan atau tidak valid.", 401);
         }
 
-        var newRefreshTokenValue = jwtTokenService.GenerateRefreshToken();
+        // Reuse Detection: jika token yang sudah dicabut/dirotasi dipakai ulang -> indikasi pencurian token -> cabut SEMUA sesi user
+        if (existingToken.RevokedAt is not null)
+        {
+            var activeTokens = user.RefreshTokens.Where(rt => rt.RevokedAt is null).ToList();
+            foreach (var activeToken in activeTokens)
+            {
+                activeToken.RevokedAt = DateTime.UtcNow;
+                unitOfWork.Repository<RefreshToken>().Update(activeToken);
+            }
+
+            await unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
+            {
+                UserId = user.Id,
+                UserName = user.Username,
+                Action = "REFRESH_TOKEN_REUSE_DETECTED",
+                Module = "Auth",
+                EntityId = user.Id.ToString(),
+                Details = $"[SECURITY ALERT] Terdeteksi pemakaian ulang refresh token yang sudah dicabut untuk '{user.Username}'. Seluruh sesi aktif ({activeTokens.Count}) otomatis dicabut.",
+                IpAddress = currentUserService.IpAddress
+            }, cancellationToken);
+
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return Result<AuthResponse>.Failure("Refresh token sudah tidak berlaku. Seluruh sesi telah dicabut demi keamanan, silakan login ulang.", 401);
+        }
+
+        if (existingToken.IsExpired)
+        {
+            return Result<AuthResponse>.Failure("Refresh token sudah kadaluarsa. Silakan login kembali.", 401);
+        }
+
+        // Pastikan status user masih Active sebelum menerbitkan token baru
+        if (user.Status != UserStatus.Active)
+        {
+            await RevokeAllUserTokensAsync(user.Id, cancellationToken);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return Result<AuthResponse>.Failure($"Akun Anda saat ini berstatus {user.Status}. Sesi tidak dapat diperpanjang.", 403);
+        }
+
+        var newRawRefreshToken = jwtTokenService.GenerateRefreshToken();
+        var newHashedRefreshToken = HashRefreshToken(newRawRefreshToken);
+
         existingToken.RevokedAt = DateTime.UtcNow;
-        existingToken.ReplacedByToken = newRefreshTokenValue;
+        existingToken.ReplacedByToken = newHashedRefreshToken;
         unitOfWork.Repository<RefreshToken>().Update(existingToken);
 
         var newRefreshToken = new RefreshToken
         {
             UserId = user.Id,
-            Token = newRefreshTokenValue,
+            Token = newHashedRefreshToken,
             ExpiresAt = DateTime.UtcNow.AddDays(jwtTokenService.GetRefreshTokenExpiryDays()),
             CreatedByIp = currentUserService.IpAddress,
             CreatedBy = user.Username
@@ -121,18 +244,23 @@ public class AuthService(
 
         return Result<AuthResponse>.Success(new AuthResponse(
             accessToken,
-            newRefreshTokenValue,
+            newRawRefreshToken,
             expiresAt,
             MapToCurrentUserDto(user, roles, permissions)), "Token berhasil diperbarui.");
     }
 
     public async Task<Result> LogoutAsync(string? refreshToken, CancellationToken cancellationToken = default)
     {
-        if (!string.IsNullOrWhiteSpace(refreshToken))
+        if (!string.IsNullOrWhiteSpace(refreshToken) && currentUserService.UserId is not null)
         {
+            var hashedToken = HashRefreshToken(refreshToken);
             var tokenEntity = await unitOfWork.Repository<RefreshToken>()
-                .FirstOrDefaultAsync(rt => rt.Token == refreshToken, cancellationToken);
-            if (tokenEntity is not null && tokenEntity.IsActive)
+                .FirstOrDefaultAsync(rt => rt.Token == hashedToken || rt.Token == refreshToken, cancellationToken);
+
+            // Ownership Guard (anti-IDOR): hanya cabut token milik user yang sedang login
+            if (tokenEntity is not null &&
+                tokenEntity.IsActive &&
+                tokenEntity.UserId == currentUserService.UserId.Value)
             {
                 tokenEntity.RevokedAt = DateTime.UtcNow;
                 unitOfWork.Repository<RefreshToken>().Update(tokenEntity);
@@ -169,14 +297,7 @@ public class AuthService(
         }
 
         var userId = currentUserService.UserId.Value;
-        var activeTokens = await unitOfWork.Repository<RefreshToken>()
-            .GetListAsync(rt => rt.UserId == userId && rt.RevokedAt == null, cancellationToken);
-
-        foreach (var token in activeTokens)
-        {
-            token.RevokedAt = DateTime.UtcNow;
-            unitOfWork.Repository<RefreshToken>().Update(token);
-        }
+        var revokedCount = await RevokeAllUserTokensAsync(userId, cancellationToken);
 
         await unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
         {
@@ -185,7 +306,7 @@ public class AuthService(
             Action = "LOGOUT_ALL_DEVICES",
             Module = "Auth",
             EntityId = userId.ToString(),
-            Details = $"[Identity.Api] User '{currentUserService.Username}' mencabut seluruh sesi login aktif ({activeTokens.Count} perangkat).",
+            Details = $"[Identity.Api] User '{currentUserService.Username}' mencabut seluruh sesi login aktif ({revokedCount} perangkat).",
             IpAddress = currentUserService.IpAddress
         }, cancellationToken);
 
@@ -194,7 +315,7 @@ public class AuthService(
         {
             await cacheService.RemoveByPrefixAsync(CacheKeys.DashboardPrefix, cancellationToken);
         }
-        return Result.Success($"Berhasil keluar dari semua perangkat ({activeTokens.Count} sesi dicabut).");
+        return Result.Success($"Berhasil keluar dari semua perangkat ({revokedCount} sesi dicabut).");
     }
 
     public async Task<Result<CurrentUserDto>> GetCurrentUserAsync(CancellationToken cancellationToken = default)
@@ -221,14 +342,31 @@ public class AuthService(
             return Result<CurrentUserDto>.Failure("Tidak terautentikasi.", 401);
         }
 
+        if (string.IsNullOrWhiteSpace(request.FullName) || string.IsNullOrWhiteSpace(request.Email))
+        {
+            return Result<CurrentUserDto>.Failure("Nama lengkap dan Email wajib diisi.", 400);
+        }
+
+        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+        if (!normalizedEmail.Contains('@') || normalizedEmail.StartsWith('@') || normalizedEmail.EndsWith('@'))
+        {
+            return Result<CurrentUserDto>.Failure("Format alamat email tidak valid.", 400);
+        }
+
         var user = await unitOfWork.Users.GetWithRolesAndPermissionsByIdAsync(currentUserService.UserId.Value, cancellationToken);
         if (user is null)
         {
             return Result<CurrentUserDto>.Failure("Pengguna tidak ditemukan.", 404);
         }
 
+        // Cek keunikan email supaya tidak bentrok / menimpa email pengguna lain
+        if (await unitOfWork.Users.AnyAsync(u => u.Id != user.Id && u.Email.ToLower() == normalizedEmail, cancellationToken))
+        {
+            return Result<CurrentUserDto>.Failure("Alamat email sudah digunakan oleh pengguna lain.", 409);
+        }
+
         user.FullName = request.FullName.Trim();
-        user.Email = request.Email.Trim();
+        user.Email = normalizedEmail;
         user.PhoneNumber = request.PhoneNumber?.Trim();
         user.Department = request.Department?.Trim();
         unitOfWork.Users.Update(user);
@@ -262,9 +400,10 @@ public class AuthService(
             return Result.Failure("Tidak terautentikasi.", 401);
         }
 
-        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 6)
+        var passwordError = ValidatePasswordStrength(request.NewPassword);
+        if (passwordError is not null)
         {
-            return Result.Failure("Password baru minimal 6 karakter.", 400);
+            return Result.Failure(passwordError, 400);
         }
 
         var user = await unitOfWork.Users.GetByIdAsync(currentUserService.UserId.Value, cancellationToken);
@@ -281,6 +420,9 @@ public class AuthService(
         user.PasswordHash = passwordHasher.HashPassword(request.NewPassword);
         unitOfWork.Users.Update(user);
 
+        // Cabut semua refresh token aktif agar sesi lama di perangkat lain otomatis berakhir setelah ganti password
+        var revokedSessions = await RevokeAllUserTokensAsync(user.Id, cancellationToken);
+
         await unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
         {
             UserId = user.Id,
@@ -288,12 +430,71 @@ public class AuthService(
             Action = "CHANGE_PASSWORD",
             Module = "Auth",
             EntityId = user.Id.ToString(),
-            Details = $"[Identity.Api] User '{user.Username}' mengganti password.",
+            Details = $"[Identity.Api] User '{user.Username}' mengganti password ({revokedSessions} sesi refresh token dicabut).",
             IpAddress = currentUserService.IpAddress
         }, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return Result.Success("Password berhasil diperbarui.");
+        return Result.Success("Password berhasil diperbarui. Semua sesi lain telah dicabut.");
+    }
+
+    private async Task<bool> RecordFailedLoginAttemptAsync(
+        string normalizedIdentity,
+        User? existingUser,
+        CancellationToken cancellationToken)
+    {
+        var locked = false;
+        var attempts = 1;
+
+        if (cacheService is not null)
+        {
+            var failedKey = CacheKeys.AuthFailedLogin(normalizedIdentity);
+            var currentAttempts = await cacheService.GetAsync<int>(failedKey, cancellationToken);
+            attempts = currentAttempts + 1;
+            var window = TimeSpan.FromMinutes(LockoutDurationMinutes);
+
+            await cacheService.SetAsync(failedKey, attempts, window, cancellationToken);
+
+            if (attempts >= MaxFailedLoginAttempts)
+            {
+                locked = true;
+                await cacheService.SetAsync(
+                    CacheKeys.AuthLockedUntil(normalizedIdentity),
+                    DateTime.UtcNow.Add(window),
+                    window,
+                    cancellationToken);
+            }
+        }
+
+        await unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
+        {
+            UserId = existingUser?.Id,
+            UserName = existingUser?.Username ?? normalizedIdentity,
+            Action = locked ? "ACCOUNT_LOCKED" : "LOGIN_FAILED",
+            Module = "Auth",
+            EntityId = existingUser?.Id.ToString() ?? normalizedIdentity,
+            Details = locked
+                ? $"[SECURITY] Akun '{normalizedIdentity}' dikunci selama {LockoutDurationMinutes} menit setelah {attempts}x percobaan login gagal."
+                : $"[SECURITY] Percobaan login gagal ke-{attempts} untuk '{normalizedIdentity}'.",
+            IpAddress = currentUserService.IpAddress
+        }, cancellationToken);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return locked;
+    }
+
+    private async Task<int> RevokeAllUserTokensAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var activeTokens = await unitOfWork.Repository<RefreshToken>()
+            .GetListAsync(rt => rt.UserId == userId && rt.RevokedAt == null, cancellationToken);
+
+        foreach (var token in activeTokens)
+        {
+            token.RevokedAt = DateTime.UtcNow;
+            unitOfWork.Repository<RefreshToken>().Update(token);
+        }
+
+        return activeTokens.Count;
     }
 
     private static (IReadOnlyList<string> Roles, IReadOnlyList<string> Permissions) ExtractRolesAndPermissions(User user)

@@ -25,8 +25,10 @@ public class ProductsController(IProductService productService) : BaseApiControl
 
     /// <summary>
     /// Mengambil ringkasan statistik produk untuk agregasi Dashboard lintas microservice.
+    /// Membutuhkan JWT login atau header X-Internal-Api-Key yang valid.
     /// </summary>
     [AllowAnonymous]
+    [RequireAuthenticatedOrInternalApiKey]
     [HttpGet("stats")]
     public async Task<IActionResult> GetStats(CancellationToken cancellationToken) =>
         ToActionResult(await productService.GetCatalogStatsAsync(cancellationToken));

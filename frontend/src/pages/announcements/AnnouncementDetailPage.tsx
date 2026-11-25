@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import DOMPurify from 'dompurify';
 import { UserAvatar } from '../../components/UserAvatar';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -275,6 +276,19 @@ export const AnnouncementDetailPage: React.FC = () => {
     }
   };
 
+  const safeContentHtml = useMemo(
+    () =>
+      DOMPurify.sanitize(item?.contentHtml ?? '', {
+        ALLOWED_TAGS: [
+          'p', 'br', 'strong', 'b', 'em', 'i', 'u', 's',
+          'ul', 'ol', 'li', 'blockquote', 'h1', 'h2', 'h3', 'h4',
+          'a', 'span', 'div', 'hr',
+        ],
+        ALLOWED_ATTR: ['href', 'title', 'target', 'rel'],
+      }),
+    [item?.contentHtml]
+  );
+
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto p-10 text-center text-sm text-slate-500 bg-white rounded-3xl border border-slate-200">
@@ -391,7 +405,7 @@ export const AnnouncementDetailPage: React.FC = () => {
 
           <div
             className="text-sm sm:text-base text-slate-700 leading-relaxed space-y-3 [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:space-y-1.5 [&_ol]:list-decimal [&_ol]:pl-6 [&_strong]:font-bold [&_strong]:text-slate-900 [&_em]:italic [&_a]:text-teal-700 [&_a]:underline"
-            dangerouslySetInnerHTML={{ __html: item.contentHtml }}
+            dangerouslySetInnerHTML={{ __html: safeContentHtml }}
           />
 
           {imageAttachments.length > 0 && (

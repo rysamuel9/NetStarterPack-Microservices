@@ -7,6 +7,7 @@ using BuildingBlocks.Core.Common;
 using BuildingBlocks.Core.Constants;
 using BuildingBlocks.Core.Contracts;
 using BuildingBlocks.Core.Interfaces;
+using Ganss.Xss;
 
 namespace Announcement.Api.Application.Services;
 
@@ -141,13 +142,19 @@ public partial class AnnouncementService(
             ? BuildExcerpt(sanitizedHtml, 170)
             : request.Summary.Trim();
 
+        var sanitizedBannerUrl = NormalizeSafeAssetUrl(request.BannerUrl);
+        if (!string.IsNullOrWhiteSpace(request.BannerUrl) && sanitizedBannerUrl is null)
+        {
+            return Result<AnnouncementDetailDto>.Failure("URL banner tidak valid. Gunakan file yang diunggah melalui endpoint upload internal.", 400);
+        }
+
         var entity = new Domain.Entities.Announcement
         {
             Title = request.Title.Trim(),
             Summary = summary,
             Type = announcementType,
             ContentHtml = sanitizedHtml,
-            BannerUrl = string.IsNullOrWhiteSpace(request.BannerUrl) ? null : request.BannerUrl.Trim(),
+            BannerUrl = sanitizedBannerUrl,
             AllowComments = request.AllowComments,
             IsPinned = request.IsPinned,
             IsPublished = true,
@@ -163,6 +170,13 @@ public partial class AnnouncementService(
         {
             foreach (var att in request.Attachments)
             {
+                var safeAttachmentUrl = NormalizeSafeAssetUrl(att.Url);
+                if (safeAttachmentUrl is null)
+                {
+                    return Result<AnnouncementDetailDto>.Failure(
+                        $"URL lampiran '{att.FileName}' tidak valid. Gunakan file yang diunggah melalui endpoint upload internal.", 400);
+                }
+
                 if (!Enum.TryParse<AttachmentKind>(att.Kind, true, out var kind))
                 {
                     kind = AttachmentKind.File;
@@ -176,7 +190,7 @@ public partial class AnnouncementService(
                     ContentType = att.ContentType,
                     FileSizeBytes = att.FileSizeBytes,
                     Kind = kind,
-                    Url = att.Url,
+                    Url = safeAttachmentUrl,
                     CreatedBy = authorUsername
                 });
             }
@@ -252,6 +266,24 @@ public partial class AnnouncementService(
             announcementType = entity.Type;
         }
 
+        var sanitizedBannerUrl = NormalizeSafeAssetUrl(request.BannerUrl);
+        if (!string.IsNullOrWhiteSpace(request.BannerUrl) && sanitizedBannerUrl is null)
+        {
+            return Result<AnnouncementDetailDto>.Failure("URL banner tidak valid. Gunakan file yang diunggah melalui endpoint upload internal.", 400);
+        }
+
+        if (request.Attachments is not null)
+        {
+            foreach (var att in request.Attachments)
+            {
+                if (NormalizeSafeAssetUrl(att.Url) is null)
+                {
+                    return Result<AnnouncementDetailDto>.Failure(
+                        $"URL lampiran '{att.FileName}' tidak valid. Gunakan file yang diunggah melalui endpoint upload internal.", 400);
+                }
+            }
+        }
+
         var username = currentUserService.Username ?? "hrstaff";
         entity.Title = request.Title.Trim();
         entity.Summary = string.IsNullOrWhiteSpace(request.Summary)
@@ -259,7 +291,7 @@ public partial class AnnouncementService(
             : request.Summary.Trim();
         entity.Type = announcementType;
         entity.ContentHtml = sanitizedHtml;
-        entity.BannerUrl = string.IsNullOrWhiteSpace(request.BannerUrl) ? null : request.BannerUrl.Trim();
+        entity.BannerUrl = sanitizedBannerUrl;
         entity.AllowComments = request.AllowComments;
         entity.IsPinned = request.IsPinned;
         entity.UpdatedAt = DateTime.UtcNow;
@@ -287,7 +319,7 @@ public partial class AnnouncementService(
                     ContentType = att.ContentType,
                     FileSizeBytes = att.FileSizeBytes,
                     Kind = kind,
-                    Url = att.Url,
+                    Url = NormalizeSafeAssetUrl(att.Url)!,
                     CreatedBy = username
                 }, cancellationToken);
             }
@@ -698,8 +730,33 @@ public partial class AnnouncementService(
                     c.CreatedAt))
                 .ToList());
 
+    private static HtmlSanitizer CreateHtmlSanitizer()
+    {
+        var sanitizer = new HtmlSanitizer();
+        sanitizer.AllowedTags.Clear();
+        foreach (var tag in new[] { "p", "br", "strong", "b", "em", "i", "u", "s", "ul", "ol", "li", "blockquote", "h1", "h2", "h3", "h4", "a", "span", "div", "hr" })
+        {
+            sanitizer.AllowedTags.Add(tag);
+        }
+
+        sanitizer.AllowedAttributes.Clear();
+        foreach (var attr in new[] { "href", "title", "target", "rel" })
+        {
+            sanitizer.AllowedAttributes.Add(attr);
+        }
+
+        sanitizer.AllowedSchemes.Clear();
+        sanitizer.AllowedSchemes.Add("http");
+        sanitizer.AllowedSchemes.Add("https");
+        sanitizer.AllowedSchemes.Add("mailto");
+
+        sanitizer.AllowedCssProperties.Clear();
+        return sanitizer;
+    }
+
     /// <summary>
-    /// Sanitasi HTML ringan di sisi server untuk mencegah Stored XSS sambil tetap mendukung format Word ringkas (bold, italic, underline, list, link).
+    /// Sanitasi HTML berbasis parser DOM allowlist (HtmlSanitizer / AngleSharp) di sisi server untuk mencegah Stored XSS
+    /// sambil tetap mempertahankan format rich-text aman (bold, italic, underline, list, heading, link).
     /// </summary>
     public static string SanitizeRichHtml(string? rawHtml)
     {
@@ -708,10 +765,33 @@ public partial class AnnouncementService(
             return string.Empty;
         }
 
-        var cleaned = ScriptOrIframeRegex().Replace(rawHtml, string.Empty);
-        cleaned = InlineEventHandlerRegex().Replace(cleaned, string.Empty);
-        cleaned = JavascriptHrefRegex().Replace(cleaned, "href=\"#\"");
-        return cleaned.Trim();
+        var sanitizer = CreateHtmlSanitizer();
+        return sanitizer.Sanitize(rawHtml).Trim();
+    }
+
+    /// <summary>
+    /// Memastikan URL banner dan lampiran hanya menunjuk ke endpoint file internal Announcement.Api (anti-phishing / anti-javascript: URL).
+    /// </summary>
+    public static string? NormalizeSafeAssetUrl(string? rawUrl)
+    {
+        if (string.IsNullOrWhiteSpace(rawUrl))
+        {
+            return null;
+        }
+
+        var trimmed = rawUrl.Trim();
+        if (trimmed.Contains("..", StringComparison.Ordinal) || trimmed.Contains('\\'))
+        {
+            return null;
+        }
+
+        if (trimmed.StartsWith("/api/v1/announcements/files/", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("/api/announcements/files/", StringComparison.OrdinalIgnoreCase))
+        {
+            return trimmed;
+        }
+
+        return null;
     }
 
     private static string StripHtmlTags(string html) =>
@@ -722,15 +802,6 @@ public partial class AnnouncementService(
         var text = MultiSpaceRegex().Replace(StripHtmlTags(html), " ").Trim();
         return text.Length <= maxLength ? text : text[..maxLength].TrimEnd() + "...";
     }
-
-    [GeneratedRegex(@"<\s*(script|iframe|object|embed|style)[^>]*>[\s\S]*?<\s*/\s*\1\s*>", RegexOptions.IgnoreCase)]
-    private static partial Regex ScriptOrIframeRegex();
-
-    [GeneratedRegex(@"\s+on[a-z]+\s*=\s*(""[^""]*""|'[^']*'|[^\s>]+)", RegexOptions.IgnoreCase)]
-    private static partial Regex InlineEventHandlerRegex();
-
-    [GeneratedRegex(@"href\s*=\s*[""']?\s*javascript:[^""'\s>]*[""']?", RegexOptions.IgnoreCase)]
-    private static partial Regex JavascriptHrefRegex();
 
     [GeneratedRegex(@"<[^>]+>")]
     private static partial Regex HtmlTagRegex();
