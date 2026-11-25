@@ -405,3 +405,10 @@ export interface MasterDataStats {
   activeItems: number;
   inactiveItems: number;
 }
+
+export interface AnnouncementStats {
+  totalAnnouncements: number;
+  publishedAnnouncements: number;
+  totalLikes: number;
+  totalComments: number;
+}

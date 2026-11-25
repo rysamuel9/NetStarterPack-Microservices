@@ -1,13 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import React from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Activity,
   CheckCircle2,
+  ChevronRight,
+  Cpu,
   Database,
   GitBranch,
+  Layers,
+  Megaphone,
   Network,
   Package,
   Radio,
@@ -23,9 +27,11 @@ import { useAuthStore } from '@/core/auth/authStore';
 import { useTheme } from '@/core/theme/themeStore';
 import { radius } from '@/core/theme/tokens';
 import type {
+  AnnouncementStats,
   ApiResult,
   DashboardSummary,
   GatewayHealthResponse,
+  MasterDataStats,
   OrderStats,
   ServiceNodeHealth,
   WorkflowStats,
@@ -83,6 +89,56 @@ const DEFAULT_CLUSTER_NODES: ServiceNodeHealth[] = [
   },
 ];
 
+const SERVICE_NODE_META: Record<
+  string,
+  { subtitle: string; route: Href; permission?: string; accent: string }
+> = {
+  'Identity.Api': {
+    subtitle: 'Zero-Trust JWT • RBAC • Org • Audit Hub',
+    route: '/(modules)/users' as Href,
+    permission: 'Users.View',
+    accent: '#06B6D4',
+  },
+  'Catalog.Api': {
+    subtitle: 'Products CRUD • Cache L1/L2 • Idempotent',
+    route: '/(modules)/products' as Href,
+    permission: 'Products.View',
+    accent: '#10B981',
+  },
+  'Order.Api': {
+    subtitle: 'Orders CRUD • Idempotent • Audit Event',
+    route: '/(modules)/orders' as Href,
+    permission: 'Orders.View',
+    accent: '#F59E0B',
+  },
+  'Workflow.Api': {
+    subtitle: 'Dynamic Form • Multi-Level Approval',
+    route: '/(modules)/workflow-tracking' as Href,
+    permission: 'Workflows.View',
+    accent: '#8B5CF6',
+  },
+  'Announcement.Api': {
+    subtitle: 'HR Newsroom • SignalR Hub • Uploads',
+    route: '/(tabs)/announcements' as Href,
+    permission: 'Announcements.View',
+    accent: '#F43F5E',
+  },
+  'MasterData.Api': {
+    subtitle: 'Unified 1-Table Lookups • Cascading • Cache',
+    route: '/(modules)/lookups' as Href,
+    permission: 'Lookups.View',
+    accent: '#14B8A6',
+  },
+};
+
+const SHARED_KERNEL_TAGS = [
+  'Zero-Trust JWT',
+  'Hybrid Cache L1/L2',
+  'Idempotent',
+  'Polly v8',
+  'API v1',
+];
+
 export default function DashboardTab() {
   const router = useRouter();
   const { colors } = useTheme();
@@ -93,6 +149,7 @@ export default function DashboardTab() {
   const canViewDashboard = hasPermission('Dashboard.View');
   const canViewProducts = hasPermission('Products.View');
   const canViewOrders = hasPermission('Orders.View');
+  const canViewLookups = hasPermission('Lookups.View');
 
   const summaryQuery = useQuery({
     queryKey: ['dashboard', 'summary'],
@@ -133,11 +190,31 @@ export default function DashboardTab() {
     },
   });
 
+  const announcementStatsQuery = useQuery({
+    queryKey: ['announcements', 'stats'],
+    enabled: canViewDashboard,
+    queryFn: async () => {
+      const res = await apiClient.get<ApiResult<AnnouncementStats>>('/announcements/stats');
+      return res.data.succeeded ? res.data.data ?? null : null;
+    },
+  });
+
+  const masterDataStatsQuery = useQuery({
+    queryKey: ['lookups', 'stats'],
+    enabled: canViewDashboard || canViewLookups,
+    queryFn: async () => {
+      const res = await apiClient.get<ApiResult<MasterDataStats>>('/lookups/stats');
+      return res.data.succeeded ? res.data.data ?? null : null;
+    },
+  });
+
   const isRefreshing =
     summaryQuery.isRefetching ||
     healthQuery.isRefetching ||
     orderStatsQuery.isRefetching ||
-    workflowStatsQuery.isRefetching;
+    workflowStatsQuery.isRefetching ||
+    announcementStatsQuery.isRefetching ||
+    masterDataStatsQuery.isRefetching;
 
   const handleRefreshAll = () => {
     void Promise.all([
@@ -145,6 +222,8 @@ export default function DashboardTab() {
       healthQuery.refetch(),
       orderStatsQuery.refetch(),
       workflowStatsQuery.refetch(),
+      announcementStatsQuery.refetch(),
+      masterDataStatsQuery.refetch(),
     ]);
   };
 
@@ -156,6 +235,12 @@ export default function DashboardTab() {
     (s) => s.status.toLowerCase() === 'healthy'
   ).length;
   const totalServices = clusterServices.length;
+  const avgLatencyMs =
+    clusterServices.length > 0
+      ? Math.round(
+          clusterServices.reduce((acc, s) => acc + (s.latencyMs || 0), 0) / clusterServices.length
+        )
+      : 0;
 
   return (
     <SafeAreaView edges={['top']} style={[styles.safe, { backgroundColor: colors.background }]}>
@@ -173,7 +258,7 @@ export default function DashboardTab() {
         <View style={styles.heroCard}>
           <View style={styles.heroBadge}>
             <Radio size={12} color="#34D399" />
-            <Text style={styles.heroBadgeText}>YARP GATEWAY (:5080) • MESH CONTROL</Text>
+            <Text style={styles.heroBadgeText}>YARP GATEWAY (:5080) • API V1 • MESH CONTROL</Text>
           </View>
 
           <Text style={styles.heroGreeting}>Halo, {user?.fullName || user?.username}!</Text>
@@ -182,7 +267,7 @@ export default function DashboardTab() {
             {menus.length} menu tersedia
           </Text>
 
-          {/* 3-Pillar Architecture Pill Strip */}
+          {/* Architecture Pill Strip */}
           <View style={styles.topologyPillRow}>
             <View style={styles.topologyPill}>
               <Server size={12} color="#5EEAD4" />
@@ -190,7 +275,7 @@ export default function DashboardTab() {
             </View>
             <View style={styles.topologyPill}>
               <Network size={12} color="#38BDF8" />
-              <Text style={styles.topologyPillText}>{totalServices} Cluster</Text>
+              <Text style={styles.topologyPillText}>{totalServices} Services</Text>
             </View>
             <View style={styles.topologyPill}>
               <Database size={12} color="#C084FC" />
@@ -200,20 +285,24 @@ export default function DashboardTab() {
         </View>
 
         {/* Quick Operational Shortcuts */}
-        {(canViewProducts || canViewOrders) ? (
-          <View style={styles.shortcutRow}>
+        {canViewProducts || canViewOrders || canViewLookups ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.shortcutScroll}
+          >
             {canViewProducts ? (
               <Pressable
                 onPress={() => router.push('/(modules)/products')}
                 style={[styles.shortcutBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
               >
                 <View style={[styles.shortcutIcon, { backgroundColor: colors.primaryLight }]}>
-                  <Package size={18} color={colors.primary} />
+                  <Package size={17} color={colors.primary} />
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.shortcutTitle, { color: colors.text }]}>Katalog Produk</Text>
+                <View>
+                  <Text style={[styles.shortcutTitle, { color: colors.text }]}>Katalog</Text>
                   <Text style={[styles.shortcutSub, { color: colors.textMuted }]}>
-                    {summaryQuery.data?.totalProducts ?? 0} item aktif
+                    {summaryQuery.data?.totalProducts ?? 0} produk
                   </Text>
                 </View>
               </Pressable>
@@ -225,30 +314,49 @@ export default function DashboardTab() {
                 style={[styles.shortcutBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
               >
                 <View style={[styles.shortcutIcon, { backgroundColor: colors.infoLight }]}>
-                  <ShoppingCart size={18} color={colors.info} />
+                  <ShoppingCart size={17} color={colors.info} />
                 </View>
-                <View style={{ flex: 1 }}>
+                <View>
                   <Text style={[styles.shortcutTitle, { color: colors.text }]}>Pesanan</Text>
                   <Text style={[styles.shortcutSub, { color: colors.textMuted }]}>
-                    {orderStatsQuery.data?.totalOrders ?? 0} transaksi
+                    {orderStatsQuery.data?.totalOrders ?? 0} order
                   </Text>
                 </View>
               </Pressable>
             ) : null}
-          </View>
+
+            {canViewLookups ? (
+              <Pressable
+                onPress={() => router.push('/(modules)/lookups' as Href)}
+                style={[styles.shortcutBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              >
+                <View style={[styles.shortcutIcon, { backgroundColor: colors.successLight }]}>
+                  <Layers size={17} color={colors.success} />
+                </View>
+                <View>
+                  <Text style={[styles.shortcutTitle, { color: colors.text }]}>Lookups</Text>
+                  <Text style={[styles.shortcutSub, { color: colors.textMuted }]}>
+                    {masterDataStatsQuery.data?.totalGroups ?? 0} grup
+                  </Text>
+                </View>
+              </Pressable>
+            ) : null}
+          </ScrollView>
         ) : null}
 
-        {/* Live Cluster Topology & Health Monitor */}
+        {/* Visual 3-Tier Live Cluster Topology & Database-per-Service */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.clusterHeader}>
             <View style={styles.clusterTitleRow}>
-              <Network size={18} color={colors.primary} />
-              <View>
+              <View style={[styles.topologyHeaderIcon, { backgroundColor: colors.primaryLight }]}>
+                <Network size={16} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
                 <Text style={[styles.cardTitle, { color: colors.text }]}>
-                  Status Live Cluster
+                  Topologi Live Cluster
                 </Text>
                 <Text style={[styles.clusterSubtitle, { color: colors.textMuted }]}>
-                  1 Gateway • {healthyCount}/{totalServices} Service Reachable • {totalServices}{' '}
+                  {healthyCount}/{totalServices} Healthy • Avg {avgLatencyMs}ms • {totalServices}{' '}
                   Isolated DB
                 </Text>
               </View>
@@ -256,108 +364,144 @@ export default function DashboardTab() {
 
             <Pressable
               onPress={() => void healthQuery.refetch()}
-              style={[styles.refreshIconBtn, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
+              style={[
+                styles.refreshIconBtn,
+                { backgroundColor: colors.surfaceMuted, borderColor: colors.border },
+              ]}
               accessibilityLabel="Segarkan status cluster"
             >
               <RefreshCw size={14} color={colors.primary} />
             </Pressable>
           </View>
 
-          {/* Gateway Node Row */}
+          {/* TIER 1: Gateway Hub */}
           <View
             style={[
-              styles.gatewayRow,
+              styles.gatewayHub,
               {
-                backgroundColor: gatewayOnline ? colors.primaryLight : colors.dangerLight,
-                borderColor: gatewayOnline ? colors.primary : colors.danger,
+                borderColor: gatewayOnline ? '#14B8A6' : colors.danger,
               },
             ]}
           >
             <View style={styles.nodeLeft}>
               <View style={styles.nodeTitleLine}>
-                <Server size={15} color={gatewayOnline ? colors.primary : colors.danger} />
-                <Text style={[styles.nodeName, { color: colors.text }]}>
-                  1. Gateway.Api (:5080)
-                </Text>
+                <Server size={15} color={gatewayOnline ? '#5EEAD4' : '#FDA4AF'} />
+                <Text style={styles.gatewayTitle}>Gateway.Api (:5080)</Text>
               </View>
-              <Text style={[styles.nodeSub, { color: colors.textSecondary }]}>
-                YARP Reverse Proxy • Stateless • Rate Limiter
+              <Text style={styles.gatewaySub}>
+                YARP Reverse Proxy • API v1 • Polly v8 • Rate Limit
               </Text>
             </View>
             <View
               style={[
                 styles.statusPill,
-                { backgroundColor: gatewayOnline ? colors.success : colors.danger },
+                { backgroundColor: gatewayOnline ? '#10B981' : colors.danger },
               ]}
             >
               {gatewayOnline ? (
-                <CheckCircle2 size={12} color="#FFFFFF" />
+                <CheckCircle2 size={11} color="#FFFFFF" />
               ) : (
-                <XCircle size={12} color="#FFFFFF" />
+                <XCircle size={11} color="#FFFFFF" />
               )}
-              <Text style={styles.statusPillText}>
-                {gatewayOnline ? 'ONLINE' : 'OFFLINE'}
-              </Text>
+              <Text style={styles.statusPillText}>{gatewayOnline ? 'ONLINE' : 'OFFLINE'}</Text>
             </View>
           </View>
 
-          {/* 5 Microservice Cluster Nodes */}
-          <View style={styles.clusterList}>
-            {clusterServices.map((node, index) => {
+          {/* Visual Vertical Trunk from Gateway */}
+          <View style={styles.trunkStemWrap}>
+            <View style={[styles.trunkStem, { backgroundColor: colors.primary }]} />
+          </View>
+
+          {/* TIER 2: Branch Rail -> 6 Microservices + Isolated DB Cylinders */}
+          <View style={[styles.branchRail, { borderLeftColor: colors.primary }]}>
+            {clusterServices.map((node) => {
               const isHealthy = gatewayOnline && node.status.toLowerCase() === 'healthy';
+              const meta = SERVICE_NODE_META[node.service];
+              const canOpen = Boolean(meta && (!meta.permission || hasPermission(meta.permission)));
+
               return (
-                <View
-                  key={node.service}
-                  style={[
-                    styles.clusterNodeItem,
-                    {
-                      backgroundColor: colors.surfaceMuted,
-                      borderColor: isHealthy ? colors.border : colors.danger,
-                    },
-                  ]}
-                >
-                  <View style={styles.clusterNodeTop}>
-                    <View style={styles.nodeTitleLine}>
-                      <View
-                        style={[
-                          styles.statusDot,
-                          { backgroundColor: isHealthy ? colors.success : colors.danger },
-                        ]}
-                      />
-                      <Text style={[styles.nodeName, { color: colors.text }]}>
-                        {index + 2}. {node.service}
-                      </Text>
-                      <Text style={[styles.portTag, { color: colors.textMuted }]}>
-                        :{node.port}
-                      </Text>
+                <View key={node.service} style={styles.branchRow}>
+                  {/* Horizontal branch tick */}
+                  <View style={[styles.branchTick, { backgroundColor: colors.primary }]} />
+
+                  <Pressable
+                    disabled={!canOpen}
+                    onPress={() => {
+                      if (meta && canOpen) router.push(meta.route);
+                    }}
+                    style={[
+                      styles.clusterNodeItem,
+                      {
+                        backgroundColor: colors.surfaceMuted,
+                        borderColor: isHealthy ? colors.border : colors.danger,
+                      },
+                    ]}
+                  >
+                    <View style={styles.clusterNodeTop}>
+                      <View style={styles.nodeTitleLine}>
+                        <View
+                          style={[
+                            styles.statusDot,
+                            { backgroundColor: isHealthy ? (meta?.accent ?? colors.success) : colors.danger },
+                          ]}
+                        />
+                        <Text style={[styles.nodeName, { color: colors.text }]}>{node.service}</Text>
+                        <Text style={[styles.portTag, { color: colors.textMuted }]}>:{node.port}</Text>
+                      </View>
+
+                      <View style={styles.nodeRightMeta}>
+                        <View
+                          style={[
+                            styles.nodeStatusBadge,
+                            { backgroundColor: isHealthy ? colors.successLight : colors.dangerLight },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.nodeStatusText,
+                              { color: isHealthy ? colors.success : colors.danger },
+                            ]}
+                          >
+                            {isHealthy ? `${node.latencyMs}ms` : 'OFFLINE'}
+                          </Text>
+                        </View>
+                        {canOpen ? <ChevronRight size={14} color={colors.textMuted} /> : null}
+                      </View>
                     </View>
 
-                    <View
-                      style={[
-                        styles.nodeStatusBadge,
-                        { backgroundColor: isHealthy ? colors.successLight : colors.dangerLight },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.nodeStatusText,
-                          { color: isHealthy ? colors.success : colors.danger },
-                        ]}
-                      >
-                        {isHealthy ? `Reachable • ${node.latencyMs}ms` : 'Unreachable'}
+                    {meta ? (
+                      <Text numberOfLines={1} style={[styles.nodeCapability, { color: colors.textSecondary }]}>
+                        {meta.subtitle}
                       </Text>
-                    </View>
-                  </View>
+                    ) : null}
 
-                  <View style={styles.dbLine}>
-                    <Database size={12} color={colors.textMuted} />
-                    <Text numberOfLines={1} style={[styles.dbName, { color: colors.textSecondary }]}>
-                      {node.database}
-                    </Text>
-                  </View>
+                    {/* Attached Isolated DB Pill */}
+                    <View style={styles.isolatedDbPill}>
+                      <Database size={11} color="#5EEAD4" />
+                      <Text numberOfLines={1} style={styles.isolatedDbText}>
+                        {node.database}
+                      </Text>
+                      <Text style={styles.isolatedDbTag}>DB</Text>
+                    </View>
+                  </Pressable>
                 </View>
               );
             })}
+          </View>
+
+          {/* TIER 3: BuildingBlocks Shared Kernel Bar */}
+          <View style={styles.sharedKernelCard}>
+            <View style={styles.sharedKernelHeader}>
+              <Cpu size={13} color="#5EEAD4" />
+              <Text style={styles.sharedKernelTitle}>BUILDINGBLOCKS SHARED KERNEL</Text>
+            </View>
+            <View style={styles.sharedKernelTags}>
+              {SHARED_KERNEL_TAGS.map((tag) => (
+                <View key={tag} style={styles.sharedKernelChip}>
+                  <Text style={styles.sharedKernelChipText}>{tag}</Text>
+                </View>
+              ))}
+            </View>
           </View>
 
           {healthQuery.data?.timestamp ? (
@@ -367,7 +511,7 @@ export default function DashboardTab() {
           ) : null}
         </View>
 
-        {/* Cross-Service Financial & Operational Metrics */}
+        {/* Cross-Service Operational Metrics (6 Microservices) */}
         {!canViewDashboard ? (
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.cardTitle, { color: colors.text }]}>Ringkasan Terbatas</Text>
@@ -433,12 +577,40 @@ export default function DashboardTab() {
                   <Users size={16} color={colors.success} />
                 </View>
                 <Text style={[styles.kpiLabel, { color: colors.textSecondary }]}>
-                  Users & Roles (:5081)
+                  Users &amp; Roles (:5081)
                 </Text>
                 <Text style={[styles.kpiValue, { color: colors.text }]}>
                   {summaryQuery.isLoading
                     ? '...'
                     : `${summaryQuery.data?.activeUsers ?? 0} / ${summaryQuery.data?.totalRoles ?? 0}R`}
+                </Text>
+              </View>
+
+              <View style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={[styles.kpiIcon, { backgroundColor: colors.dangerLight }]}>
+                  <Megaphone size={16} color={colors.danger} />
+                </View>
+                <Text style={[styles.kpiLabel, { color: colors.textSecondary }]}>
+                  Newsroom (:5085)
+                </Text>
+                <Text style={[styles.kpiValue, { color: colors.text }]}>
+                  {announcementStatsQuery.isLoading
+                    ? '...'
+                    : `${announcementStatsQuery.data?.publishedAnnouncements ?? 0} Berita`}
+                </Text>
+              </View>
+
+              <View style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={[styles.kpiIcon, { backgroundColor: colors.primaryLight }]}>
+                  <Layers size={16} color={colors.primary} />
+                </View>
+                <Text style={[styles.kpiLabel, { color: colors.textSecondary }]}>
+                  Master Lookups (:5086)
+                </Text>
+                <Text style={[styles.kpiValue, { color: colors.text }]}>
+                  {masterDataStatsQuery.isLoading
+                    ? '...'
+                    : `${masterDataStatsQuery.data?.totalGroups ?? 0}G / ${masterDataStatsQuery.data?.activeItems ?? 0}`}
                 </Text>
               </View>
             </View>
@@ -579,22 +751,23 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
-  shortcutRow: {
-    flexDirection: 'row',
+  shortcutScroll: {
     gap: 10,
+    paddingRight: 4,
   },
   shortcutBtn: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     borderRadius: radius.lg,
     borderWidth: 1,
-    padding: 12,
+    paddingVertical: 11,
+    paddingHorizontal: 13,
+    minWidth: 140,
   },
   shortcutIcon: {
-    width: 36,
-    height: 36,
+    width: 34,
+    height: 34,
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
@@ -605,7 +778,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
     borderWidth: 1,
     padding: 16,
-    gap: 12,
+    gap: 10,
   },
   clusterHeader: {
     flexDirection: 'row',
@@ -619,6 +792,13 @@ const styles = StyleSheet.create({
     gap: 10,
     flex: 1,
   },
+  topologyHeaderIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   cardTitle: { fontSize: 15, fontWeight: '700' },
   clusterSubtitle: { fontSize: 11, marginTop: 2 },
   refreshIconBtn: {
@@ -629,19 +809,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  gatewayRow: {
+  gatewayHub: {
+    backgroundColor: '#0F172A',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 10,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderRadius: radius.lg,
-    padding: 12,
+    padding: 13,
   },
+  gatewayTitle: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  gatewaySub: { color: '#94A3B8', fontSize: 11, marginTop: 2 },
   nodeLeft: { flex: 1, gap: 2 },
   nodeTitleLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   nodeName: { fontSize: 13, fontWeight: '700' },
-  nodeSub: { fontSize: 11 },
   statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -655,18 +837,46 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
   },
-  clusterList: { gap: 8 },
+  trunkStemWrap: {
+    paddingLeft: 18,
+    marginVertical: -6,
+  },
+  trunkStem: {
+    width: 2,
+    height: 12,
+  },
+  branchRail: {
+    marginLeft: 18,
+    borderLeftWidth: 2,
+    gap: 8,
+    paddingTop: 2,
+    paddingBottom: 2,
+  },
+  branchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  branchTick: {
+    width: 12,
+    height: 2,
+  },
   clusterNodeItem: {
+    flex: 1,
     borderWidth: 1,
     borderRadius: radius.md,
-    padding: 11,
+    padding: 10,
     gap: 6,
   },
   clusterNodeTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 8,
+    gap: 6,
+  },
+  nodeRightMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   statusDot: {
     width: 8,
@@ -675,21 +885,79 @@ const styles = StyleSheet.create({
   },
   portTag: { fontSize: 11, fontWeight: '600' },
   nodeStatusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
     borderRadius: radius.full,
   },
   nodeStatusText: {
     fontSize: 10,
     fontWeight: '700',
   },
-  dbLine: {
+  nodeCapability: {
+    fontSize: 11,
+  },
+  isolatedDbPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingLeft: 14,
+    backgroundColor: '#0F172A',
+    borderRadius: radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
   },
-  dbName: { fontSize: 11, fontWeight: '500' },
+  isolatedDbText: {
+    flex: 1,
+    color: '#E2E8F0',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  isolatedDbTag: {
+    color: '#5EEAD4',
+    fontSize: 9,
+    fontWeight: '800',
+    backgroundColor: 'rgba(20, 184, 166, 0.2)',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  sharedKernelCard: {
+    backgroundColor: '#0F172A',
+    borderRadius: radius.lg,
+    padding: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    marginTop: 2,
+  },
+  sharedKernelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sharedKernelTitle: {
+    color: '#F8FAFC',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  sharedKernelTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  sharedKernelChip: {
+    backgroundColor: '#1E293B',
+    borderWidth: 1,
+    borderColor: '#334155',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.full,
+  },
+  sharedKernelChipText: {
+    color: '#5EEAD4',
+    fontSize: 10,
+    fontWeight: '600',
+  },
   timestampNote: { fontSize: 11, textAlign: 'right' },
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   kpiCard: {
@@ -707,7 +975,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   kpiLabel: { fontSize: 11, fontWeight: '600' },
-  kpiValue: { fontSize: 18, fontWeight: '800' },
+  kpiValue: { fontSize: 17, fontWeight: '800' },
   kpiValueMoney: { fontSize: 14, fontWeight: '800' },
   sectionHeaderRow: {
     flexDirection: 'row',
