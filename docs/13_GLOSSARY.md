@@ -145,6 +145,12 @@ Mekanisme anti *double-submit* di `BuildingBlocks.Infrastructure/Middleware/Idem
 ### Unified Lookup Table (`MasterData.Api :5086`)
 Pola 1 tabel master referensi bersama (`MasterLookups` di `NetStarterPack_MasterDataDb`) untuk menampung berbagai grup dropdown lintas microservice (`PRODUCT_CATEGORY`, `UNIT_OF_MEASURE`, `PAYMENT_METHOD`, `PRIORITY_LEVEL`, `DOCUMENT_TYPE`) lengkap dengan dukungan parent-child cascading, `SortOrder`, `IsActive`, `IsSystem`, dan `MetadataJson`. Microservice lain cukup menyimpan nilai `Code`/`Name` tanpa Foreign Key lintas database.
 
+### HTTP Resilience (`Polly v8` / `Microsoft.Extensions.Http.Resilience`)
+Pipeline ketahanan komunikasi HTTP antar-microservice di `BuildingBlocks.Infrastructure/Resilience/HttpResilienceExtensions.cs` yang menggabungkan **Total Timeout → Exponential Backoff Retry (+ Jitter) → Circuit Breaker → Per-Attempt Timeout**. Dipasang otomatis pada `HttpEventBus`, `CatalogStatsHttpClient`, dan `GatewayAggregator` supaya gangguan jaringan singkat otomatis di-retry, sedangkan service yang sedang down berkepanjangan langsung *fail-fast* lewat Circuit Breaker tanpa bikin seluruh sistem ikut hang.
+
+### API Versioning (`Asp.Versioning.Mvc`)
+Mekanisme penomoran versi kontrak REST API di `BaseApiController` dan `BuildingBlocks.Infrastructure` yang mendukung path kanonis **`/api/v1/...`**, header `X-Api-Version`, dan query `?api-version=1.0`, sambil tetap mempertahankan alias `/api/...` (*backward-compatible* ke v1.0) serta melaporkan versi aktif via header `api-supported-versions`.
+
 ### Axios Interceptor & Antrean `failedQueue` (`frontend/src/services/api.ts`)
 Menempelkan JWT secara otomatis ke setiap request yang menuju API Gateway (`:5080`), serta menahan request paralel di `failedQueue` saat terjadi `401` untuk melakukan *Refresh Token Rotation* otomatis ke `/api/auth/refresh`.
 

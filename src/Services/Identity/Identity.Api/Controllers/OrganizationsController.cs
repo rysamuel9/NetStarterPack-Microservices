@@ -10,7 +10,6 @@ using Microsoft.AspNetCore.Mvc;
 namespace Identity.Api.Controllers;
 
 [Authorize]
-[Route("api/[controller]")]
 public class OrganizationsController(IOrganizationService organizationService) : BaseApiController
 {
     /// <summary>Mengambil struktur pohon lengkap organisasi (Direktorat -> Divisi -> Departemen + Bos &amp; Anggota).</summary>

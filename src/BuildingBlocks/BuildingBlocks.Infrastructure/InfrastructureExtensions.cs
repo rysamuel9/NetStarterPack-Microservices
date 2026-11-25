@@ -1,9 +1,12 @@
 ﻿using System.Diagnostics;
+using Asp.Versioning;
 using BuildingBlocks.Core.Attributes;
+using BuildingBlocks.Core.Constants;
 using BuildingBlocks.Core.Interfaces;
 using BuildingBlocks.Infrastructure.Caching;
 using BuildingBlocks.Infrastructure.Messaging;
 using BuildingBlocks.Infrastructure.Middleware;
+using BuildingBlocks.Infrastructure.Resilience;
 using BuildingBlocks.Security;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -27,6 +30,7 @@ public static class InfrastructureExtensions
         services.Configure<CacheSettings>(configuration.GetSection(CacheSettings.SectionName));
         services.Configure<ServiceEndpointsSettings>(configuration.GetSection(ServiceEndpointsSettings.SectionName));
         services.Configure<IdempotencySettings>(configuration.GetSection(IdempotencySettings.SectionName));
+        services.Configure<HttpResilienceSettings>(configuration.GetSection(HttpResilienceSettings.SectionName));
 
         // 1. Setup Hybrid Caching (L1 Memory + L2 Redis / InMemory)
         services.AddMemoryCache();
@@ -45,16 +49,34 @@ public static class InfrastructureExtensions
         }
         services.AddSingleton<ICacheService, DistributedCacheService>();
 
-        // 2. Setup HTTP EventBus untuk komunikasi lintas microservice
-        services.AddHttpClient<IEventBus, HttpEventBus>();
+        // 2. Setup HTTP EventBus dengan Polly v8 Resilience (Retry + Circuit Breaker + Timeout)
+        services.AddHttpClient<IEventBus, HttpEventBus>()
+                .AddStandardMicroserviceResilience(configuration);
 
         // 3. Setup Global Exception Handler & ProblemDetails
         services.AddExceptionHandler<GlobalExceptionHandler>();
         services.AddProblemDetails();
 
-        // 4. Setup Controllers & OpenAPI (otomatis mendokumentasikan header Idempotency-Key untuk endpoint [Idempotent])
+        // 4. Setup Controllers, API Versioning (/api/v1/... + backward-compatible /api/...), & OpenAPI
         services.AddControllers();
-        services.AddOpenApi(options =>
+        services.AddApiVersioning(options =>
+        {
+            options.DefaultApiVersion = new ApiVersion(1, 0);
+            options.AssumeDefaultVersionWhenUnspecified = true;
+            options.ReportApiVersions = true;
+            options.ApiVersionReader = ApiVersionReader.Combine(
+                new UrlSegmentApiVersionReader(),
+                new HeaderApiVersionReader(ApiVersioningConstants.VersionHeader),
+                new QueryStringApiVersionReader(ApiVersioningConstants.VersionQueryParam));
+        })
+        .AddMvc()
+        .AddApiExplorer(options =>
+        {
+            options.GroupNameFormat = "'v'VVV";
+            options.SubstituteApiVersionInUrl = true;
+        });
+
+        services.AddOpenApi("v1", options =>
         {
             options.AddOperationTransformer((operation, context, _) =>
             {
@@ -80,6 +102,33 @@ public static class InfrastructureExtensions
 
                 return Task.CompletedTask;
             });
+
+            // Bersihkan duplikat path legacy (/api/...) di dokumen OpenAPI jika versi kanonis (/api/v1/...) sudah ada,
+            // supaya Swagger UI / Scalar tetap rapi sambil tetap mendukung alias /api/... di runtime.
+            options.AddDocumentTransformer((document, _, _) =>
+            {
+                if (document.Paths is not null)
+                {
+                    var legacyKeysToRemove = document.Paths.Keys
+                        .Where(path => path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) &&
+                                       !path.StartsWith("/api/v", StringComparison.OrdinalIgnoreCase) &&
+                                       !path.StartsWith("/api/internal/", StringComparison.OrdinalIgnoreCase) &&
+                                       !string.Equals(path, "/api/health", StringComparison.OrdinalIgnoreCase))
+                        .Where(legacyPath =>
+                        {
+                            var versionedCandidate = "/api/v1/" + legacyPath["/api/".Length..];
+                            return document.Paths.ContainsKey(versionedCandidate);
+                        })
+                        .ToList();
+
+                    foreach (var key in legacyKeysToRemove)
+                    {
+                        document.Paths.Remove(key);
+                    }
+                }
+
+                return Task.CompletedTask;
+            });
         });
 
         // 5. Setup CORS
@@ -97,7 +146,9 @@ public static class InfrastructureExtensions
                       .WithExposedHeaders(
                           IdempotencyHeaders.Key,
                           IdempotencyHeaders.Replayed,
-                          CurrentUserService.CorrelationHeaderName);
+                          CurrentUserService.CorrelationHeaderName,
+                          ApiVersioningConstants.SupportedVersionsHeader,
+                          ApiVersioningConstants.DeprecatedVersionsHeader);
             });
         });
 
@@ -209,14 +260,18 @@ public static class InfrastructureExtensions
 
         app.MapControllers();
 
-        app.MapGet("/api/health", () => Results.Ok(new
+        object BuildHealthPayload() => new
         {
             service = serviceName,
             status = "Healthy",
+            apiVersion = ApiVersioningConstants.DefaultVersion,
             framework = ".NET 10.0 LTS",
             architecture = "Microservices + Compact Onion",
             timestamp = DateTime.UtcNow
-        })).AllowAnonymous();
+        };
+
+        app.MapGet("/api/health", () => Results.Ok(BuildHealthPayload())).AllowAnonymous();
+        app.MapGet("/api/v1/health", () => Results.Ok(BuildHealthPayload())).AllowAnonymous();
 
         return app;
     }

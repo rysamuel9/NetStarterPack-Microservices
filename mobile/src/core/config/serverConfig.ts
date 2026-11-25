@@ -16,7 +16,7 @@ export function normalizeGatewayUrl(rawUrl: string): string {
   }
 
   const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
-  return withProtocol.replace(/\/+$/, '').replace(/\/api$/i, '');
+  return withProtocol.replace(/\/+$/, '').replace(/\/api(\/v\d+)?$/i, '');
 }
 
 export function getGatewayUrl(): string {
@@ -24,7 +24,7 @@ export function getGatewayUrl(): string {
 }
 
 export function getApiBaseUrl(): string {
-  return `${activeGatewayUrl}/api`;
+  return `${activeGatewayUrl}/api/v1`;
 }
 
 export function resolveMediaUrl(url?: string | null): string | undefined {

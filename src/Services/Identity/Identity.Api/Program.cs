@@ -1,4 +1,5 @@
 ﻿using BuildingBlocks.Infrastructure;
+using BuildingBlocks.Infrastructure.Resilience;
 using BuildingBlocks.Security;
 using Identity.Api.Application.Interfaces;
 using Identity.Api.Application.Services;
@@ -62,7 +63,8 @@ builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddScoped<IMenuService, MenuService>();
 builder.Services.AddScoped<IOrganizationService, OrganizationService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
-builder.Services.AddHttpClient<ICatalogStatsClient, CatalogStatsHttpClient>();
+builder.Services.AddHttpClient<ICatalogStatsClient, CatalogStatsHttpClient>()
+    .AddStandardMicroserviceResilience(builder.Configuration);
 builder.Services.AddScoped<IdentityDatabaseSeeder>();
 
 var app = builder.Build();

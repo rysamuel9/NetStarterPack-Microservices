@@ -12,7 +12,6 @@ using Microsoft.AspNetCore.StaticFiles;
 
 namespace Announcement.Api.Controllers;
 
-[Route("api/[controller]")]
 public class AnnouncementsController(
     IAnnouncementService announcementService,
     IHostEnvironment hostEnvironment) : BaseApiController

@@ -4,8 +4,10 @@ using System.Text.Json.Nodes;
 using System.Threading.RateLimiting;
 using BuildingBlocks.Core.Attributes;
 using BuildingBlocks.Core.Common;
+using BuildingBlocks.Core.Constants;
 using BuildingBlocks.Core.Contracts;
 using BuildingBlocks.Infrastructure.Middleware;
+using BuildingBlocks.Infrastructure.Resilience;
 using BuildingBlocks.Security;
 using Scalar.AspNetCore;
 
@@ -16,10 +18,13 @@ builder.Services
     .AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
-builder.Services.AddHttpClient("GatewayAggregator", client =>
-{
-    client.Timeout = TimeSpan.FromSeconds(4);
-});
+builder.Services.AddHttpClient("GatewayAggregator")
+    .AddStandardMicroserviceResilience(builder.Configuration, opts =>
+    {
+        opts.MaxRetryAttempts = 1;
+        opts.AttemptTimeoutSeconds = 3;
+        opts.TotalRequestTimeoutSeconds = 5;
+    });
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
@@ -64,7 +69,9 @@ builder.Services.AddCors(options =>
               .WithExposedHeaders(
                   IdempotencyHeaders.Key,
                   IdempotencyHeaders.Replayed,
-                  CurrentUserService.CorrelationHeaderName);
+                  CurrentUserService.CorrelationHeaderName,
+                  ApiVersioningConstants.SupportedVersionsHeader,
+                  ApiVersioningConstants.DeprecatedVersionsHeader);
     });
 });
 
@@ -296,8 +303,8 @@ app.MapGet("/swagger", () => Results.Content("""
 </html>
 """, "text/html")).AllowAnonymous();
 
-// 7. Aggregated Microservices Health & Topology Check (/api/health)
-app.MapGet("/api/health", async (IHttpClientFactory httpClientFactory) =>
+// 7. Aggregated Microservices Health & Topology Check (/api/health & /api/v1/health)
+async Task<IResult> BuildAggregatedHealthAsync(IHttpClientFactory httpClientFactory)
 {
     var client = httpClientFactory.CreateClient("GatewayAggregator");
     var identityUrl = builder.Configuration["ServiceEndpoints:IdentityServiceUrl"] ?? "http://localhost:5081";
@@ -307,12 +314,12 @@ app.MapGet("/api/health", async (IHttpClientFactory httpClientFactory) =>
     var announcementUrl = builder.Configuration["ServiceEndpoints:AnnouncementServiceUrl"] ?? "http://localhost:5085";
     var masterDataUrl = builder.Configuration["ServiceEndpoints:MasterDataServiceUrl"] ?? "http://localhost:5086";
 
-    var identityHealth = await ProbeServiceAsync(client, "Identity.Api", $"{identityUrl}/api/health", "NetStarterPack_IdentityDb", 5081);
-    var catalogHealth = await ProbeServiceAsync(client, "Catalog.Api", $"{catalogUrl}/api/health", "NetStarterPack_CatalogDb", 5082);
-    var orderHealth = await ProbeServiceAsync(client, "Order.Api", $"{orderUrl}/api/health", "NetStarterPack_OrderDb", 5083);
-    var workflowHealth = await ProbeServiceAsync(client, "Workflow.Api", $"{workflowUrl}/api/health", "NetStarterPack_WorkflowDb", 5084);
-    var announcementHealth = await ProbeServiceAsync(client, "Announcement.Api", $"{announcementUrl}/api/health", "NetStarterPack_AnnouncementDb", 5085);
-    var masterDataHealth = await ProbeServiceAsync(client, "MasterData.Api", $"{masterDataUrl}/api/health", "NetStarterPack_MasterDataDb", 5086);
+    var identityHealth = await ProbeServiceAsync(client, "Identity.Api", $"{identityUrl}/api/v1/health", "NetStarterPack_IdentityDb", 5081);
+    var catalogHealth = await ProbeServiceAsync(client, "Catalog.Api", $"{catalogUrl}/api/v1/health", "NetStarterPack_CatalogDb", 5082);
+    var orderHealth = await ProbeServiceAsync(client, "Order.Api", $"{orderUrl}/api/v1/health", "NetStarterPack_OrderDb", 5083);
+    var workflowHealth = await ProbeServiceAsync(client, "Workflow.Api", $"{workflowUrl}/api/v1/health", "NetStarterPack_WorkflowDb", 5084);
+    var announcementHealth = await ProbeServiceAsync(client, "Announcement.Api", $"{announcementUrl}/api/v1/health", "NetStarterPack_AnnouncementDb", 5085);
+    var masterDataHealth = await ProbeServiceAsync(client, "MasterData.Api", $"{masterDataUrl}/api/v1/health", "NetStarterPack_MasterDataDb", 5086);
 
     var allHealthy = identityHealth.Status == "Healthy"
         && catalogHealth.Status == "Healthy"
@@ -325,12 +332,16 @@ app.MapGet("/api/health", async (IHttpClientFactory httpClientFactory) =>
     {
         gateway = "Gateway.Api (YARP Reverse Proxy)",
         status = allHealthy ? "Healthy" : "Degraded",
+        apiVersion = ApiVersioningConstants.DefaultVersion,
         framework = ".NET 10.0 LTS",
         architecture = "Microservices + Compact Onion + YARP Gateway",
         services = new[] { identityHealth, catalogHealth, orderHealth, workflowHealth, announcementHealth, masterDataHealth },
         timestamp = DateTime.UtcNow
     });
-}).AllowAnonymous();
+}
+
+app.MapGet("/api/health", BuildAggregatedHealthAsync).AllowAnonymous();
+app.MapGet("/api/v1/health", BuildAggregatedHealthAsync).AllowAnonymous();
 
 // 8. Map YARP Reverse Proxy Routes
 app.MapReverseProxy();

@@ -1,7 +1,7 @@
 import axios, { type InternalAxiosRequestConfig } from 'axios';
 import type { ApiResult, AuthResponse } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
 export const avatarUrlFor = (userId: string) => `${API_BASE_URL}/auth/avatar/${userId}`;
 
