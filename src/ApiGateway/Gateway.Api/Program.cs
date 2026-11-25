@@ -82,6 +82,7 @@ if (app.Environment.IsDevelopment())
     var orderPort = builder.Configuration.GetValue<int>("MicroservicesOrchestrator:OrderPort", 5083);
     var workflowPort = builder.Configuration.GetValue<int>("MicroservicesOrchestrator:WorkflowPort", 5084);
     var announcementPort = builder.Configuration.GetValue<int>("MicroservicesOrchestrator:AnnouncementPort", 5085);
+    var masterDataPort = builder.Configuration.GetValue<int>("MicroservicesOrchestrator:MasterDataPort", 5086);
     var spaPort = builder.Configuration.GetValue<int>("MicroservicesOrchestrator:SpaPort", 5173);
 
     var solutionRoot = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "..", "..", ".."));
@@ -120,6 +121,13 @@ if (app.Environment.IsDevelopment())
             serviceName: "Announcement.Api",
             port: announcementPort,
             projectDir: Path.Combine(solutionRoot, "src", "Services", "Announcement", "Announcement.Api"),
+            spawnedProcesses,
+            app.Logger);
+
+        TryStartDotnetMicroservice(
+            serviceName: "MasterData.Api",
+            port: masterDataPort,
+            projectDir: Path.Combine(solutionRoot, "src", "Services", "MasterData", "MasterData.Api"),
             spawnedProcesses,
             app.Logger);
     }
@@ -186,6 +194,7 @@ app.MapGet("/openapi/v1.json", async (IHttpClientFactory httpClientFactory) =>
     var orderUrl = builder.Configuration["ServiceEndpoints:OrderServiceUrl"] ?? "http://localhost:5083";
     var workflowUrl = builder.Configuration["ServiceEndpoints:WorkflowServiceUrl"] ?? "http://localhost:5084";
     var announcementUrl = builder.Configuration["ServiceEndpoints:AnnouncementServiceUrl"] ?? "http://localhost:5085";
+    var masterDataUrl = builder.Configuration["ServiceEndpoints:MasterDataServiceUrl"] ?? "http://localhost:5086";
 
     var rootDoc = new JsonObject
     {
@@ -194,7 +203,7 @@ app.MapGet("/openapi/v1.json", async (IHttpClientFactory httpClientFactory) =>
         {
             ["title"] = "NetStarterPack Microservices — Unified API Gateway (YARP)",
             ["version"] = "v1",
-            ["description"] = "Dokumentasi gabungan seluruh Microservice (Identity :5081, Catalog :5082, Order :5083, Workflow :5084, & Announcement :5085) melalui YARP API Gateway (:5080)."
+            ["description"] = "Dokumentasi gabungan seluruh Microservice (Identity :5081, Catalog :5082, Order :5083, Workflow :5084, Announcement :5085, & MasterData :5086) melalui YARP API Gateway (:5080)."
         },
         ["servers"] = new JsonArray(new JsonObject { ["url"] = "http://localhost:5080", ["description"] = "YARP API Gateway (Port 5080)" }),
         ["paths"] = new JsonObject(),
@@ -223,6 +232,7 @@ app.MapGet("/openapi/v1.json", async (IHttpClientFactory httpClientFactory) =>
     await MergeMicroserviceOpenApiAsync(client, $"{orderUrl}/openapi/v1.json", mergedPaths, mergedSchemas);
     await MergeMicroserviceOpenApiAsync(client, $"{workflowUrl}/openapi/v1.json", mergedPaths, mergedSchemas);
     await MergeMicroserviceOpenApiAsync(client, $"{announcementUrl}/openapi/v1.json", mergedPaths, mergedSchemas);
+    await MergeMicroserviceOpenApiAsync(client, $"{masterDataUrl}/openapi/v1.json", mergedPaths, mergedSchemas);
 
     return Results.Content(rootDoc.ToJsonString(), "application/json");
 }).AllowAnonymous();
@@ -261,6 +271,7 @@ app.MapGet("/swagger", () => Results.Content("""
       <a href="http://localhost:5083/swagger" target="_blank">Order (:5083) &nearr;</a>
       <a href="http://localhost:5084/swagger" target="_blank">Workflow (:5084) &nearr;</a>
       <a href="http://localhost:5085/swagger" target="_blank">Announcement (:5085) &nearr;</a>
+      <a href="http://localhost:5086/swagger" target="_blank">MasterData (:5086) &nearr;</a>
       <a href="/scalar/v1">Unified Scalar &rarr;</a>
       <a href="http://localhost:5173" target="_blank">Web React (:5173) &rarr;</a>
     </div>
@@ -294,18 +305,21 @@ app.MapGet("/api/health", async (IHttpClientFactory httpClientFactory) =>
     var orderUrl = builder.Configuration["ServiceEndpoints:OrderServiceUrl"] ?? "http://localhost:5083";
     var workflowUrl = builder.Configuration["ServiceEndpoints:WorkflowServiceUrl"] ?? "http://localhost:5084";
     var announcementUrl = builder.Configuration["ServiceEndpoints:AnnouncementServiceUrl"] ?? "http://localhost:5085";
+    var masterDataUrl = builder.Configuration["ServiceEndpoints:MasterDataServiceUrl"] ?? "http://localhost:5086";
 
     var identityHealth = await ProbeServiceAsync(client, "Identity.Api", $"{identityUrl}/api/health", "NetStarterPack_IdentityDb", 5081);
     var catalogHealth = await ProbeServiceAsync(client, "Catalog.Api", $"{catalogUrl}/api/health", "NetStarterPack_CatalogDb", 5082);
     var orderHealth = await ProbeServiceAsync(client, "Order.Api", $"{orderUrl}/api/health", "NetStarterPack_OrderDb", 5083);
     var workflowHealth = await ProbeServiceAsync(client, "Workflow.Api", $"{workflowUrl}/api/health", "NetStarterPack_WorkflowDb", 5084);
     var announcementHealth = await ProbeServiceAsync(client, "Announcement.Api", $"{announcementUrl}/api/health", "NetStarterPack_AnnouncementDb", 5085);
+    var masterDataHealth = await ProbeServiceAsync(client, "MasterData.Api", $"{masterDataUrl}/api/health", "NetStarterPack_MasterDataDb", 5086);
 
     var allHealthy = identityHealth.Status == "Healthy"
         && catalogHealth.Status == "Healthy"
         && orderHealth.Status == "Healthy"
         && workflowHealth.Status == "Healthy"
-        && announcementHealth.Status == "Healthy";
+        && announcementHealth.Status == "Healthy"
+        && masterDataHealth.Status == "Healthy";
 
     return Results.Ok(new
     {
@@ -313,7 +327,7 @@ app.MapGet("/api/health", async (IHttpClientFactory httpClientFactory) =>
         status = allHealthy ? "Healthy" : "Degraded",
         framework = ".NET 10.0 LTS",
         architecture = "Microservices + Compact Onion + YARP Gateway",
-        services = new[] { identityHealth, catalogHealth, orderHealth, workflowHealth, announcementHealth },
+        services = new[] { identityHealth, catalogHealth, orderHealth, workflowHealth, announcementHealth, masterDataHealth },
         timestamp = DateTime.UtcNow
     });
 }).AllowAnonymous();

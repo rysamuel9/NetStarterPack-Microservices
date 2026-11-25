@@ -1,7 +1,9 @@
 ﻿import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Plus, Search, Pencil, Trash2, Package, X, Database, ExternalLink } from 'lucide-react';
 import { api, getErrorMessage } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useLookup } from '../../hooks/useLookup';
 import { formatCurrency } from '../../utils/formatters';
 import type { ApiResult, ProductItem } from '../../types';
 
@@ -10,6 +12,9 @@ export const ProductsPage: React.FC = () => {
   const canCreate = hasPermission('Products.Create');
   const canEdit = hasPermission('Products.Edit');
   const canDelete = hasPermission('Products.Delete');
+  const canViewLookups = hasPermission('Lookups.View');
+
+  const { items: categoryLookups } = useLookup('PRODUCT_CATEGORY', { activeOnly: true });
 
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [search, setSearch] = useState('');
@@ -64,7 +69,7 @@ export const ProductsPage: React.FC = () => {
     setForm({
       sku: `PRD-${Math.floor(100 + Math.random() * 900)}`,
       name: '',
-      category: 'Cloud & Infrastructure',
+      category: categoryLookups[0]?.name || 'Cloud & Infrastructure',
       description: '',
       price: 1000000,
       stock: 10,
@@ -304,14 +309,43 @@ export const ProductsPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Kategori</label>
-                  <input
-                    type="text"
-                    required
-                    value={form.category}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm"
-                  />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-600">Kategori</label>
+                    {canViewLookups && (
+                      <Link
+                        to="/lookups"
+                        className="text-[11px] font-medium text-teal-600 hover:text-teal-700"
+                      >
+                        Kelola Master &rarr;
+                      </Link>
+                    )}
+                  </div>
+                  {categoryLookups.length > 0 ? (
+                    <select
+                      required
+                      value={form.category}
+                      onChange={(e) => setForm({ ...form, category: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white"
+                    >
+                      {form.category &&
+                        !categoryLookups.some((c) => c.name === form.category) && (
+                          <option value={form.category}>{form.category}</option>
+                        )}
+                      {categoryLookups.map((cat) => (
+                        <option key={cat.id} value={cat.name}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      required
+                      value={form.category}
+                      onChange={(e) => setForm({ ...form, category: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm"
+                    />
+                  )}
                 </div>
               </div>
 

@@ -29,6 +29,7 @@ import {
 } from 'lucide-react-native';
 import { apiClient, getErrorMessage } from '@/core/api/client';
 import { useAuthStore } from '@/core/auth/authStore';
+import { useLookup } from '@/core/hooks/useLookup';
 import { useTheme } from '@/core/theme/themeStore';
 import { radius } from '@/core/theme/tokens';
 import type { ApiResult, ProductItem } from '@/core/types';
@@ -87,6 +88,12 @@ export default function ProductsScreen() {
       return res.data.data;
     },
   });
+
+  const categoryLookupQuery = useLookup('PRODUCT_CATEGORY', true);
+  const categoryOptions = useMemo(() => {
+    const dynamicNames = (categoryLookupQuery.data ?? []).map((x) => x.name).filter(Boolean);
+    return dynamicNames.length > 0 ? dynamicNames : CATEGORY_PRESETS;
+  }, [categoryLookupQuery.data]);
 
   const saveMutation = useMutation({
     mutationFn: async (payload: ProductPayload) => {
@@ -460,7 +467,7 @@ export default function ProductsScreen() {
                   style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text }]}
                 />
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetRow}>
-                  {CATEGORY_PRESETS.map((preset) => (
+                  {categoryOptions.map((preset) => (
                     <Pressable
                       key={preset}
                       onPress={() => setCategory(preset)}

@@ -1,14 +1,14 @@
 # Catatan Lapangan & Playbook Troubleshooting IIS (NetStarterPack Microservices)
 
-Dokumen ini adalah rangkuman kasus nyata yang sering muncul waktu deploy & menjalankan **NetStarterPack Microservices (7 Site: Gateway + 5 Service + React SPA)** di **IIS Windows**, lengkap dengan semua opsi solusinya biar nggak lupa pas deploy ulang atau pindah server.
+Dokumen ini adalah rangkuman kasus nyata yang sering muncul waktu deploy & menjalankan **NetStarterPack Microservices (8 Site: Gateway + 6 Service + React SPA)** di **IIS Windows**, lengkap dengan semua opsi solusinya biar nggak lupa pas deploy ulang atau pindah server.
 
 Untuk panduan langkah deploy dari nol + update selektif harian, lihat juga [`docs/11_IIS_DEPLOYMENT_GUIDE.md`](11_IIS_DEPLOYMENT_GUIDE.md).
 
 ---
 
-## 1. Checklist Cepat: 7 Folder, 7 AppPool, & 7 Site IIS
+## 1. Checklist Cepat: 8 Folder, 8 AppPool, & 8 Site IIS
 
-Hasil dari `.\publish-iis.ps1 -Target All` menghasilkan **7 folder** di `publish-iis\` yang di-copy ke `C:\inetpub\nsp-ms\` (atau folder tujuanmu di `C:\inetpub\`):
+Hasil dari `.\publish-iis.ps1 -Target All` menghasilkan **8 folder** di `publish-iis\` yang di-copy ke `C:\inetpub\nsp-ms\` (atau folder tujuanmu di `C:\inetpub\`):
 
 | No | Folder Publish | Site Name (Saran) | App Pool (`No Managed Code`) | Port | Catatan Khusus |
 | :-: | :--- | :--- | :--- | :---: | :--- |
@@ -17,8 +17,9 @@ Hasil dari `.\publish-iis.ps1 -Target All` menghasilkan **7 folder** di `publish
 | 3 | `order-api` | `nsp-order-api` | `nsp-order-pool` | `5083` | DB `NetStarterPack_OrderDb` |
 | 4 | `workflow-api` | `nsp-workflow-api` | `nsp-workflow-pool` | `5084` | DB `NetStarterPack_WorkflowDb` |
 | 5 | `announcement-api` | `nsp-announcement-api` | `nsp-announcement-pool` | `5085` | DB `NetStarterPack_AnnouncementDb` + butuh izin Write folder + WebSocket |
-| 6 | `gateway-api` | `nsp-gateway-api` | `nsp-gateway-pool` | `5080` | Set `AutoStartBackendServices: false` & `AutoStartFrontendSpa: false` |
-| 7 | `frontend-web` | `nsp-frontend` | `nsp-frontend-pool` | `5173` / `80` | Hasil build statis React (`index.html`, `assets/`, `web.config`) |
+| 6 | `masterdata-api` | `nsp-masterdata-api` | `nsp-masterdata-pool` | `5086` | DB `NetStarterPack_MasterDataDb` (Unified Lookups + Hybrid Cache L1/L2) |
+| 7 | `gateway-api` | `nsp-gateway-api` | `nsp-gateway-pool` | `5080` | Set `AutoStartBackendServices: false` & `AutoStartFrontendSpa: false` |
+| 8 | `frontend-web` | `nsp-frontend` | `nsp-frontend-pool` | `5173` / `80` | Hasil build statis React (`index.html`, `assets/`, `web.config`) |
 
 ### Prasyarat IIS yang Wajib Dicek Sekali
 1. **.NET 10.0 Hosting Bundle** (setelah install, jalankan `net stop was /y` lalu `net start w3svc` lewat CMD/PowerShell Admin).

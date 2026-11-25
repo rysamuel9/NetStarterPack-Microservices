@@ -17,6 +17,7 @@ public class ServiceEndpointsSettings
     public string OrderServiceUrl { get; set; } = "http://localhost:5083";
     public string WorkflowServiceUrl { get; set; } = "http://localhost:5084";
     public string AnnouncementServiceUrl { get; set; } = "http://localhost:5085";
+    public string MasterDataServiceUrl { get; set; } = "http://localhost:5086";
 }
 
 /// <summary>

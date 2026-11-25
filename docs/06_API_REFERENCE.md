@@ -16,6 +16,7 @@ Ketika aplikasi berjalan, kamu bisa mengetes API lewat **Unified Gateway** (semu
 | **4. Order Microservice (Standalone)** | `http://localhost:5083/swagger` | `http://localhost:5083/scalar/v1` | `http://localhost:5083/openapi/v1.json` |
 | **5. Workflow Microservice (Standalone)** | `http://localhost:5084/swagger` | `http://localhost:5084/scalar/v1` | `http://localhost:5084/openapi/v1.json` |
 | **6. Announcement Microservice (Standalone)** | `http://localhost:5085/swagger` | `http://localhost:5085/scalar/v1` | `http://localhost:5085/openapi/v1.json` |
+| **7. MasterData Microservice (Standalone)** | `http://localhost:5086/swagger` | `http://localhost:5086/scalar/v1` | `http://localhost:5086/openapi/v1.json` |
 
 ---
 
@@ -36,7 +37,8 @@ Konfigurasi di [`src/ApiGateway/Gateway.Api/appsettings.json`](../src/ApiGateway
 | `/api/workflows` & `/api/workflows/{**catch-all}` | `workflow-cluster` | `http://localhost:5084` (`Workflow.Api`) | `NetStarterPack_WorkflowDb` |
 | `/api/announcements` & `/api/announcements/{**catch-all}` | `announcement-cluster` | `http://localhost:5085` (`Announcement.Api`) | `NetStarterPack_AnnouncementDb` |
 | `/hubs/announcements` & `/hubs/announcements/{**catch-all}` *(WebSocket/SignalR)* | `announcement-cluster` | `http://localhost:5085` (`Announcement.Api`) | Realtime SignalR Hub (`?access_token=<JWT>`) |
-| `/api/health` | *(Ditangani langsung oleh Gateway)* | Aggregated Health Probe ke `:5081`, `:5082`, `:5083`, `:5084`, & `:5085` | — |
+| `/api/lookups` & `/api/lookups/{**catch-all}` | `masterdata-cluster` | `http://localhost:5086` (`MasterData.Api`) | `NetStarterPack_MasterDataDb` |
+| `/api/health` | *(Ditangani langsung oleh Gateway)* | Aggregated Health Probe ke `:5081`, `:5082`, `:5083`, `:5084`, `:5085`, & `:5086` | — |
 
 ---
 
@@ -212,3 +214,19 @@ X-Idempotent-Replayed: true
 | `POST` | `/api/announcements/upload?kind=Banner\|Image\|File` | `Announcements.Manage` *(Tim HR)* | Upload banner, lampiran gambar, atau lampiran file (maks. 10 MB) |
 | `GET` | `/api/announcements/files/{storedFileName}` | Publik / Static Stream | Menampilkan gambar banner/lampiran atau download file (`?download=true`) |
 | `GET` | `/api/announcements/stats` | Publik / Aggregator | Statistik ringkas `AnnouncementStatsDto` |
+
+---
+
+## 10. Endpoint `MasterData.Api` (`Port 5086` — Unified Lookups, Lewat Gateway `Port 5080`)
+
+| Method | Endpoint | Permission / Akses | Fungsi |
+| :---: | :--- | :--- | :--- |
+| `GET` | `/api/lookups/groups` | `[Authorize]` | Daftar seluruh `GroupCode` yang tersedia beserta jumlah item aktif & sistem |
+| `GET` | `/api/lookups?groupCode=&activeOnly=false&parentId=&search=` | `[Authorize]` | Ambil daftar item lookup (mendukung filter aktif, cascading `parentId`, & pencarian; di-cache Hybrid L1/L2) |
+| `GET` | `/api/lookups/batch?groups=PRODUCT_CATEGORY,UNIT_OF_MEASURE&activeOnly=true` | `[Authorize]` | Ambil beberapa grup lookup sekaligus dalam 1 HTTP request |
+| `GET` | `/api/lookups/{id}` | `[Authorize]` | Detail 1 item lookup |
+| `GET` | `/api/lookups/stats` | Publik / Aggregator | Ringkasan statistik `MasterDataStatsDto` |
+| `POST` | `/api/lookups` | `Lookups.Manage` + `[Idempotent]` | Tambah item lookup baru (ke grup lama atau grup baru) + invalidate cache + audit log |
+| `PUT` | `/api/lookups/{id}` | `Lookups.Manage` + `[Idempotent]` | Ubah item lookup (untuk item `isSystem`, `groupCode` & `code` dikunci) |
+| `PATCH` | `/api/lookups/{id}/status` | `Lookups.Manage` + `[Idempotent]` | Toggle status aktif/nonaktif tanpa menghapus data historis |
+| `DELETE` | `/api/lookups/{id}` | `Lookups.Manage` | Soft-delete item non-sistem yang tidak memiliki child |

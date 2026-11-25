@@ -9,6 +9,7 @@ public static class CacheKeys
     public const string OrdersPrefix = "orders:";
     public const string WorkflowsPrefix = "workflows:";
     public const string AnnouncementsPrefix = "announcements:";
+    public const string LookupsPrefix = "lookups:";
     public const string OrganizationPrefix = "org:";
     public const string MenusPrefix = "menus:";
     public const string RolesPrefix = "roles:";
@@ -42,6 +43,21 @@ public static class CacheKeys
 
     public static string AnnouncementStats() =>
         $"{AnnouncementsPrefix}stats";
+
+    public static string LookupGroups() =>
+        $"{LookupsPrefix}groups";
+
+    public static string LookupList(string? groupCode, bool activeOnly, Guid? parentId, string? search) =>
+        $"{LookupsPrefix}list:g={groupCode?.Trim().ToUpperInvariant() ?? "ALL"}:a={activeOnly}:p={parentId?.ToString() ?? "none"}:s={search?.Trim().ToLowerInvariant() ?? "all"}";
+
+    public static string LookupBatch(IEnumerable<string> groupCodes, bool activeOnly) =>
+        $"{LookupsPrefix}batch:g={string.Join(",", groupCodes.Select(g => g.Trim().ToUpperInvariant()).Distinct().OrderBy(g => g))}:a={activeOnly}";
+
+    public static string LookupById(Guid id) =>
+        $"{LookupsPrefix}id:{id}";
+
+    public static string LookupStats() =>
+        $"{LookupsPrefix}stats";
 
     public static string OrganizationTree() =>
         $"{OrganizationPrefix}tree";

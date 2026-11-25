@@ -6,6 +6,7 @@ using BuildingBlocks.Core.Attributes;
 using BuildingBlocks.Infrastructure.Middleware;
 using Catalog.Api.Controllers;
 using Identity.Api.Controllers;
+using MasterData.Api.Controllers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -377,6 +378,10 @@ public class IdempotencyMiddlewareTests
             (typeof(OrganizationsController), nameof(OrganizationsController.CreateDivision)),
             (typeof(OrganizationsController), nameof(OrganizationsController.CreateDepartment)),
             (typeof(OrganizationsController), nameof(OrganizationsController.CreatePosition)),
+            // MasterData.Api
+            (typeof(LookupsController), nameof(LookupsController.Create)),
+            (typeof(LookupsController), nameof(LookupsController.Update)),
+            (typeof(LookupsController), nameof(LookupsController.ToggleStatus)),
         };
 
         foreach (var (controller, methodName) in expectedIdempotentActions)
