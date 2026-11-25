@@ -16,6 +16,7 @@ Ketika aplikasi berjalan, kamu bisa mengetes API lewat **Unified Gateway** (semu
 | **4. Order Microservice (Standalone)** | `http://localhost:5083/swagger` | `http://localhost:5083/scalar/v1` | `http://localhost:5083/openapi/v1.json` |
 | **5. Workflow Microservice (Standalone)** | `http://localhost:5084/swagger` | `http://localhost:5084/scalar/v1` | `http://localhost:5084/openapi/v1.json` |
 | **6. Announcement Microservice (Standalone)** | `http://localhost:5085/swagger` | `http://localhost:5085/scalar/v1` | `http://localhost:5085/openapi/v1.json` |
+| **7. MasterData Microservice (Standalone)** | `http://localhost:5086/swagger` | `http://localhost:5086/scalar/v1` | `http://localhost:5086/openapi/v1.json` |
 
 ---
 
@@ -36,16 +37,26 @@ Konfigurasi di [`src/ApiGateway/Gateway.Api/appsettings.json`](../src/ApiGateway
 | `/api/workflows` & `/api/workflows/{**catch-all}` | `workflow-cluster` | `http://localhost:5084` (`Workflow.Api`) | `NetStarterPack_WorkflowDb` |
 | `/api/announcements` & `/api/announcements/{**catch-all}` | `announcement-cluster` | `http://localhost:5085` (`Announcement.Api`) | `NetStarterPack_AnnouncementDb` |
 | `/hubs/announcements` & `/hubs/announcements/{**catch-all}` *(WebSocket/SignalR)* | `announcement-cluster` | `http://localhost:5085` (`Announcement.Api`) | Realtime SignalR Hub (`?access_token=<JWT>`) |
-| `/api/health` | *(Ditangani langsung oleh Gateway)* | Aggregated Health Probe ke `:5081`, `:5082`, `:5083`, `:5084`, & `:5085` | — |
+| `/api/lookups` & `/api/lookups/{**catch-all}` | `masterdata-cluster` | `http://localhost:5086` (`MasterData.Api`) | `NetStarterPack_MasterDataDb` |
+| `/api/health` | *(Ditangani langsung oleh Gateway)* | Aggregated Health Probe ke `:5081`, `:5082`, `:5083`, `:5084`, `:5085`, & `:5086` | — |
 
 ---
 
 ## 3. Standar Format Response, Header Tracing, & HTTP Status Code
 
-### A. Header Distributed Tracing (`X-Correlation-Id`)
-Setiap response dari Gateway maupun Microservice selalu menyertakan header:
+### A. Header Distributed Tracing & Idempotency
+Setiap response dari Gateway maupun Microservice selalu menyertakan header tracing:
 ```http
 X-Correlation-Id: 9a4f2c1b8e7d4a5b9c0d1e2f3a4b5c6d
+```
+
+Untuk endpoint mutasi yang memiliki atribut `[Idempotent]` (Create/Update/Approve/Reject/Resubmit/Comment di `Workflow`, `Order`, `Catalog`, `Announcement`, dan `Identity`), client bisa mengirim header `Idempotency-Key` (UUID per aksi submit):
+```http
+Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000
+```
+Jika request yang sama terkirim ulang dalam masa TTL cache (default 30 menit), response lama langsung dikembalikan dari Hybrid Cache L1/L2 tanpa mengeksekusi database dua kali, disertai header penanda:
+```http
+X-Idempotent-Replayed: true
 ```
 
 ### B. Daftar Kode Status HTTP
@@ -53,11 +64,12 @@ X-Correlation-Id: 9a4f2c1b8e7d4a5b9c0d1e2f3a4b5c6d
 | :---: | :--- | :--- |
 | **`200 OK`** | Berhasil | Saat mengambil data (`GET`), mengubah data (`PUT`), atau menghapus data (`DELETE`) |
 | **`201 Created`** | Berhasil Dibuat | Saat berhasil menambah data baru (`POST`) |
-| **`400 Bad Request`** | Input Tidak Valid | Saat field wajib kosong, password lama salah, atau mencoba menghapus role/akun sistem (`superadmin`) |
+| **`400 Bad Request`** | Input Tidak Valid | Saat field wajib kosong, password lama salah, `Idempotency-Key` terlalu panjang/kosong (pada `RequireKey = true`), atau mencoba menghapus role/akun sistem (`superadmin`) |
 | **`401 Unauthorized`** | Belum Login / Token Invalid | Saat header `Authorization: Bearer <token>` kosong/expired, atau `X-Internal-Api-Key` salah pada endpoint internal |
 | **`403 Forbidden`** | Hak Akses Ditolak | Saat klaim JWT user tidak memiliki kode `permission` yang diminta oleh `[HasPermission("...")]` |
 | **`404 Not Found`** | Data Tidak Ditemukan | Saat `Guid id` tidak ditemukan atau sudah di-*soft-delete* |
-| **`409 Conflict`** | Duplikasi Data Unik | Saat `Username`, `Email`, `Role Name`, `Menu Code`, atau `Product SKU` sudah terdaftar |
+| **`409 Conflict`** | Konflik / Request Sedang Diproses | Saat data unik sudah terdaftar (`Username`, `Email`, `SKU`, dll.) **atau** request duplikat dengan `Idempotency-Key` yang sama masih sedang diproses |
+| **`422 Unprocessable Entity`** | Payload Tidak Cocok | Saat `Idempotency-Key` yang sama dipakai ulang untuk payload request yang berbeda |
 | **`429 Too Many Requests`** | Rate Limit Gateway | Saat 1 IP mengirim lebih dari 300 request dalam 1 menit ke `Gateway.Api` |
 | **`500 Internal Server Error`** | Kesalahan Teknis Server | Ditangkap otomatis oleh `GlobalExceptionHandler` beserta `X-Correlation-Id` |
 
@@ -202,3 +214,19 @@ X-Correlation-Id: 9a4f2c1b8e7d4a5b9c0d1e2f3a4b5c6d
 | `POST` | `/api/announcements/upload?kind=Banner\|Image\|File` | `Announcements.Manage` *(Tim HR)* | Upload banner, lampiran gambar, atau lampiran file (maks. 10 MB) |
 | `GET` | `/api/announcements/files/{storedFileName}` | Publik / Static Stream | Menampilkan gambar banner/lampiran atau download file (`?download=true`) |
 | `GET` | `/api/announcements/stats` | Publik / Aggregator | Statistik ringkas `AnnouncementStatsDto` |
+
+---
+
+## 10. Endpoint `MasterData.Api` (`Port 5086` — Unified Lookups, Lewat Gateway `Port 5080`)
+
+| Method | Endpoint | Permission / Akses | Fungsi |
+| :---: | :--- | :--- | :--- |
+| `GET` | `/api/lookups/groups` | `[Authorize]` | Daftar seluruh `GroupCode` yang tersedia beserta jumlah item aktif & sistem |
+| `GET` | `/api/lookups?groupCode=&activeOnly=false&parentId=&search=` | `[Authorize]` | Ambil daftar item lookup (mendukung filter aktif, cascading `parentId`, & pencarian; di-cache Hybrid L1/L2) |
+| `GET` | `/api/lookups/batch?groups=PRODUCT_CATEGORY,UNIT_OF_MEASURE&activeOnly=true` | `[Authorize]` | Ambil beberapa grup lookup sekaligus dalam 1 HTTP request |
+| `GET` | `/api/lookups/{id}` | `[Authorize]` | Detail 1 item lookup |
+| `GET` | `/api/lookups/stats` | Publik / Aggregator | Ringkasan statistik `MasterDataStatsDto` |
+| `POST` | `/api/lookups` | `Lookups.Manage` + `[Idempotent]` | Tambah item lookup baru (ke grup lama atau grup baru) + invalidate cache + audit log |
+| `PUT` | `/api/lookups/{id}` | `Lookups.Manage` + `[Idempotent]` | Ubah item lookup (untuk item `isSystem`, `groupCode` & `code` dikunci) |
+| `PATCH` | `/api/lookups/{id}/status` | `Lookups.Manage` + `[Idempotent]` | Toggle status aktif/nonaktif tanpa menghapus data historis |
+| `DELETE` | `/api/lookups/{id}` | `Lookups.Manage` | Soft-delete item non-sistem yang tidak memiliki child |

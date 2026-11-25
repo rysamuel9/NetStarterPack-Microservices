@@ -1,3 +1,4 @@
+using BuildingBlocks.Core.Attributes;
 using BuildingBlocks.Core.Constants;
 using BuildingBlocks.Infrastructure.Controllers;
 using BuildingBlocks.Security;
@@ -26,6 +27,7 @@ public class OrganizationsController(IOrganizationService organizationService) :
 
     [HttpPost("directorates")]
     [HasPermission(Permissions.Organization.Manage)]
+    [Idempotent]
     public async Task<IActionResult> CreateDirectorate([FromBody] CreateOrUpdateDirectorateRequest request, CancellationToken ct) =>
         ToActionResult(await organizationService.CreateDirectorateAsync(request, ct));
 
@@ -47,6 +49,7 @@ public class OrganizationsController(IOrganizationService organizationService) :
 
     [HttpPost("divisions")]
     [HasPermission(Permissions.Organization.Manage)]
+    [Idempotent]
     public async Task<IActionResult> CreateDivision([FromBody] CreateOrUpdateDivisionRequest request, CancellationToken ct) =>
         ToActionResult(await organizationService.CreateDivisionAsync(request, ct));
 
@@ -68,6 +71,7 @@ public class OrganizationsController(IOrganizationService organizationService) :
 
     [HttpPost("departments")]
     [HasPermission(Permissions.Organization.Manage)]
+    [Idempotent]
     public async Task<IActionResult> CreateDepartment([FromBody] CreateOrUpdateDepartmentRequest request, CancellationToken ct) =>
         ToActionResult(await organizationService.CreateDepartmentAsync(request, ct));
 
@@ -89,6 +93,7 @@ public class OrganizationsController(IOrganizationService organizationService) :
 
     [HttpPost("positions")]
     [HasPermission(Permissions.Organization.Manage)]
+    [Idempotent]
     public async Task<IActionResult> CreatePosition([FromBody] CreateOrUpdatePositionRequest request, CancellationToken ct) =>
         ToActionResult(await organizationService.CreatePositionAsync(request, ct));
 

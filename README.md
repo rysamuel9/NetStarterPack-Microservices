@@ -49,6 +49,7 @@ Seluruh panduan teknis sudah disusun berurutan (dari konsep inti sampai deployme
 | **`Order.Api`** *(Example 2: Order CRUD)* | `5083` | `NetStarterPack_OrderDb` | Contoh Microservice Mandiri ke-2 (CRUD `Orders` + kalkulasi total otomatis + Cache + EventBus + Soft-Delete). |
 | **`Workflow.Api`** *(Example 3 Advanced)* | `5084` | `NetStarterPack_WorkflowDb` | **Dynamic Form Builder & Multi-Level Approval Engine** (Hybrid Relational + JSON Schema, State Machine, Working List, Tracking Stepper, & 7-Layer Security). |
 | **`Announcement.Api`** *(HR Newsroom)* | `5085` | `NetStarterPack_AnnouncementDb` | **Internal Announcement & Newsroom** (Compact Rich Text Editor, Banner & Image/File Uploads, Like, On/Off Comment oleh HR, Bell Unread Feed, & Pagination 10/halaman). |
+| **`MasterData.Api`** *(Unified Lookups)* | `5086` | `NetStarterPack_MasterDataDb` | **Unified Master Data & Lookup Service** (1 tabel referensi bersama untuk dropdown lintas service: `PRODUCT_CATEGORY`, `UNIT_OF_MEASURE`, `PAYMENT_METHOD`, `PRIORITY_LEVEL`, `DOCUMENT_TYPE`, cascading parent-child, Hybrid Cache L1/L2, & `[Idempotent]`). |
 | **`Frontend`** *(React 19 + TS + Tailwind v4)* | `5173` | — | SPA Web Frontend yang cukup menembak ke **1 URL Gateway (`http://localhost:5080`)** tanpa perlu tahu di belakang ada berapa microservice. |
 | **`Mobile`** *(React Native + Expo SDK 58 + TS)* | `8081` *(Metro)* | — | Aplikasi Mobile Android/iOS (*Expo Go-ready*) yang juga menembak 1 pintu **`Gateway.Api (:5080)`** (LAN/HTTPS), lengkap dengan SecureStore, Biometric 2-in-1, Offline Cache, SignalR, & 14 modul RBAC. |
 
@@ -132,7 +133,8 @@ net-starterpack-microservice/
 │       ├── Catalog/Catalog.Api/                  # [PORT 5082] Compact Onion (Products CRUD + Cache)
 │       ├── Order/Order.Api/                      # [PORT 5083] Compact Onion (Orders CRUD + Stats)
 │       ├── Workflow/Workflow.Api/                # [PORT 5084] Compact Onion (Dynamic Form & Multi-Level Approval)
-│       └── Announcement/Announcement.Api/        # [PORT 5085] Compact Onion (HR Newsroom + SignalR Hub)
+│       ├── Announcement/Announcement.Api/        # [PORT 5085] Compact Onion (HR Newsroom + SignalR Hub)
+│       └── MasterData/MasterData.Api/            # [PORT 5086] Compact Onion (Unified Lookups + Hybrid Cache)
 ├── tests/
 │   └── NetStarterPack.Microservices.UnitTests/   # Unit tests modular: Common/, BuildingBlocks/, Services/*, & CrossService/
 ├── frontend/                                     # React 19 + TypeScript + Vite 8 + Tailwind CSS v4 (Port 5173)

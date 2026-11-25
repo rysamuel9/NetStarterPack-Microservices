@@ -20,6 +20,7 @@
     <ProjectReference Include="..\..\Services\Order\Order.Api\Order.Api.csproj" ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all" />
     <ProjectReference Include="..\..\Services\Workflow\Workflow.Api\Workflow.Api.csproj" ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all" />
     <ProjectReference Include="..\..\Services\Announcement\Announcement.Api\Announcement.Api.csproj" ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all" />
+    <ProjectReference Include="..\..\Services\MasterData\MasterData.Api\MasterData.Api.csproj" ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all" />
   </ItemGroup>
 
   <ItemGroup>

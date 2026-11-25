@@ -139,6 +139,12 @@ Arsitektur cache 2 tingkat di `BuildingBlocks.Infrastructure/Caching/Distributed
 - **L1 Cache**: Menyimpan objek C# di RAM lokal microservice (`< 0.01ms`).
 - **L2 Cache**: Menyimpan JSON di server Redis terpusat ketika `"CacheSettings:Provider"` diatur ke `"Redis"`, lengkap dengan `try-catch` *safe fallback* dan pelacak key `_trackedKeys` untuk `RemoveByPrefixAsync`.
 
+### Idempotency Middleware & `Idempotency-Key` (`BuildingBlocks.Infrastructure`)
+Mekanisme anti *double-submit* di `BuildingBlocks.Infrastructure/Middleware/IdempotencyMiddleware.cs` menggunakan atribut `[Idempotent]` dan Hybrid Cache L1/L2. Saat user klik tombol Submit/Approve dua kali pada jaringan lambat, request pertama diproses dan respons `2xx`-nya disimpan sementara di cache berdasarkan `Idempotency-Key`. Request duplikat dengan key dan payload sama langsung menerima replay respons lama (`X-Idempotent-Replayed: true`), request paralel yang masih berjalan ditahan dengan `409 Conflict`, dan key sama dengan payload berbeda ditolak dengan `422 Unprocessable Entity`.
+
+### Unified Lookup Table (`MasterData.Api :5086`)
+Pola 1 tabel master referensi bersama (`MasterLookups` di `NetStarterPack_MasterDataDb`) untuk menampung berbagai grup dropdown lintas microservice (`PRODUCT_CATEGORY`, `UNIT_OF_MEASURE`, `PAYMENT_METHOD`, `PRIORITY_LEVEL`, `DOCUMENT_TYPE`) lengkap dengan dukungan parent-child cascading, `SortOrder`, `IsActive`, `IsSystem`, dan `MetadataJson`. Microservice lain cukup menyimpan nilai `Code`/`Name` tanpa Foreign Key lintas database.
+
 ### Axios Interceptor & Antrean `failedQueue` (`frontend/src/services/api.ts`)
 Menempelkan JWT secara otomatis ke setiap request yang menuju API Gateway (`:5080`), serta menahan request paralel di `failedQueue` saat terjadi `401` untuk melakukan *Refresh Token Rotation* otomatis ke `/api/auth/refresh`.
 

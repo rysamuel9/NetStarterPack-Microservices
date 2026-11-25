@@ -38,6 +38,7 @@ public class IdentityDatabaseSeeder(
             await EnsureAnnouncementRolesUsersAndMenuAsync(cancellationToken);
             await EnsureOrganizationSchemaAndSeedAsync(cancellationToken);
             await EnsureExpandedCorporateEmployeesAsync(cancellationToken);
+            await EnsureMasterDataPermissionsAndMenuAsync(cancellationToken);
             return;
         }
 
@@ -507,7 +508,8 @@ public class IdentityDatabaseSeeder(
         await EnsureAnnouncementRolesUsersAndMenuAsync(cancellationToken);
         await EnsureOrganizationSchemaAndSeedAsync(cancellationToken);
         await EnsureExpandedCorporateEmployeesAsync(cancellationToken);
-        logger.LogInformation("Identity database seeded successfully with corporate workflow, HR announcements, & full organization master!");
+        await EnsureMasterDataPermissionsAndMenuAsync(cancellationToken);
+        logger.LogInformation("Identity database seeded successfully with corporate workflow, HR announcements, master lookups, & full organization master!");
     }
 
     private async Task EnsureOrderMicroserviceMenuAndPermissionsAsync(CancellationToken cancellationToken)
@@ -1574,5 +1576,105 @@ public class IdentityDatabaseSeeder(
 
         await dbContext.SaveChangesAsync(cancellationToken);
         logger.LogInformation("[Identity.Api] Expanded corporate employees seeded! Total 63 employees (4 C-Level, 8 Div Heads, 14 Dept Heads, 37 Leads & Staff).");
+    }
+
+    /// <summary>
+    /// Auto-upgrade aman untuk MasterData.Api (Port 5086):
+    /// menambahkan permission Lookups.View &amp; Lookups.Manage serta menu sidebar Master Data (Lookups) di /lookups.
+    /// </summary>
+    private async Task EnsureMasterDataPermissionsAndMenuAsync(CancellationToken cancellationToken)
+    {
+        var roles = await dbContext.Roles
+            .Include(r => r.RolePermissions)
+            .ToListAsync(cancellationToken);
+
+        var managerOrHigher = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            RoleNames.SuperAdmin,
+            RoleNames.Admin
+        };
+
+        var viewRoles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            RoleNames.SuperAdmin,
+            RoleNames.Admin,
+            RoleNames.Manager,
+            RoleNames.Viewer
+        };
+
+        var changed = false;
+
+        foreach (var role in roles)
+        {
+            var toGrant = new List<string>();
+            if (viewRoles.Contains(role.Name))
+            {
+                toGrant.Add(Permissions.Lookups.View);
+            }
+            if (managerOrHigher.Contains(role.Name))
+            {
+                toGrant.Add(Permissions.Lookups.Manage);
+            }
+
+            foreach (var code in toGrant)
+            {
+                if (!role.RolePermissions.Any(rp => rp.PermissionCode == code))
+                {
+                    await dbContext.RolePermissions.AddAsync(new RolePermission
+                    {
+                        RoleId = role.Id,
+                        PermissionCode = code,
+                        CreatedBy = "SystemSeeder"
+                    }, cancellationToken);
+                    changed = true;
+                }
+            }
+        }
+
+        var existingMenu = await dbContext.MenuItems
+            .FirstOrDefaultAsync(m => m.Code == "lookups" || m.Path == "/lookups", cancellationToken);
+
+        if (existingMenu is null)
+        {
+            existingMenu = new MenuItem
+            {
+                Code = "lookups",
+                Title = "Master Lookups",
+                Path = "/lookups",
+                Icon = "Database",
+                GroupName = "SYSTEM MESH",
+                SortOrder = 10,
+                RequiredPermission = Permissions.Lookups.View,
+                IsVisible = true,
+                Description = "Unified Master Data & Lookup Table (Kategori Produk, Satuan, Metode Bayar, Prioritas, dll.)",
+                CreatedBy = "SystemSeeder"
+            };
+            await dbContext.MenuItems.AddAsync(existingMenu, cancellationToken);
+            changed = true;
+        }
+
+        var existingRoleMenus = await dbContext.RoleMenus
+            .Where(rm => rm.MenuItemId == existingMenu.Id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var role in roles.Where(r => viewRoles.Contains(r.Name)))
+        {
+            if (!existingRoleMenus.Any(rm => rm.RoleId == role.Id))
+            {
+                await dbContext.RoleMenus.AddAsync(new RoleMenu
+                {
+                    RoleId = role.Id,
+                    MenuItemId = existingMenu.Id,
+                    CreatedBy = "SystemSeeder"
+                }, cancellationToken);
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            logger.LogInformation("[Identity.Api] Ensured MasterData.Api permissions (Lookups.View/Manage) & sidebar menu (/lookups).");
+        }
     }
 }

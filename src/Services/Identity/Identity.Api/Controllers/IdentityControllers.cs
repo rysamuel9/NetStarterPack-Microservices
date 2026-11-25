@@ -1,4 +1,5 @@
-﻿using BuildingBlocks.Core.Common;
+﻿using BuildingBlocks.Core.Attributes;
+using BuildingBlocks.Core.Common;
 using BuildingBlocks.Core.Constants;
 using BuildingBlocks.Core.Contracts;
 using BuildingBlocks.Infrastructure.Controllers;
@@ -100,6 +101,7 @@ public class UsersController(IUserService userService) : BaseApiController
 
     [HasPermission(Permissions.Users.Create)]
     [HttpPost]
+    [Idempotent]
     public async Task<IActionResult> Create([FromBody] CreateUserRequest request, CancellationToken cancellationToken) =>
         ToActionResult(await userService.CreateUserAsync(request, cancellationToken));
 
@@ -127,6 +129,7 @@ public class RolesController(IRoleService roleService) : BaseApiController
 
     [HasPermission(Permissions.Roles.Manage)]
     [HttpPost]
+    [Idempotent]
     public async Task<IActionResult> Create([FromBody] CreateOrUpdateRoleRequest request, CancellationToken cancellationToken) =>
         ToActionResult(await roleService.CreateRoleAsync(request, cancellationToken));
 
@@ -155,6 +158,7 @@ public class MenusController(IMenuService menuService) : BaseApiController
 
     [HasPermission(Permissions.Menus.Manage)]
     [HttpPost]
+    [Idempotent]
     public async Task<IActionResult> Create([FromBody] CreateOrUpdateMenuRequest request, CancellationToken cancellationToken) =>
         ToActionResult(await menuService.CreateMenuAsync(request, cancellationToken));
 

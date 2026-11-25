@@ -1,4 +1,5 @@
-﻿using BuildingBlocks.Core.Constants;
+﻿using BuildingBlocks.Core.Attributes;
+using BuildingBlocks.Core.Constants;
 using BuildingBlocks.Infrastructure.Controllers;
 using BuildingBlocks.Security;
 using Microsoft.AspNetCore.Authorization;
@@ -43,6 +44,7 @@ public class OrdersController(IOrderService orderService) : BaseApiController
     /// </summary>
     [HasPermission(Permissions.Orders.Create)]
     [HttpPost]
+    [Idempotent]
     public async Task<IActionResult> Create([FromBody] CreateOrUpdateOrderRequest request, CancellationToken cancellationToken) =>
         ToActionResult(await orderService.CreateOrderAsync(request, cancellationToken));
 
@@ -51,6 +53,7 @@ public class OrdersController(IOrderService orderService) : BaseApiController
     /// </summary>
     [HasPermission(Permissions.Orders.Edit)]
     [HttpPut("{id:guid}")]
+    [Idempotent]
     public async Task<IActionResult> Update(Guid id, [FromBody] CreateOrUpdateOrderRequest request, CancellationToken cancellationToken) =>
         ToActionResult(await orderService.UpdateOrderAsync(id, request, cancellationToken));
 

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { useAuthStore } from '@/core/auth/authStore';
 import { useTheme } from '@/core/theme/themeStore';
 import { radius } from '@/core/theme/tokens';
@@ -91,6 +91,10 @@ export default function MenusTab() {
     }
     if (normalizedPath === 'menus') {
       router.push('/(modules)/menus-list');
+      return;
+    }
+    if (normalizedPath === 'lookups') {
+      router.push('/(modules)/lookups' as Href);
       return;
     }
     if (normalizedPath === 'profile') {

@@ -1,4 +1,5 @@
-﻿using BuildingBlocks.Core.Constants;
+﻿using BuildingBlocks.Core.Attributes;
+using BuildingBlocks.Core.Constants;
 using BuildingBlocks.Infrastructure.Controllers;
 using BuildingBlocks.Security;
 using Catalog.Api.Application.DTOs;
@@ -43,6 +44,7 @@ public class ProductsController(IProductService productService) : BaseApiControl
     /// </summary>
     [HasPermission(Permissions.Products.Create)]
     [HttpPost]
+    [Idempotent]
     public async Task<IActionResult> Create([FromBody] CreateOrUpdateProductRequest request, CancellationToken cancellationToken) =>
         ToActionResult(await productService.CreateProductAsync(request, cancellationToken));
 
@@ -51,6 +53,7 @@ public class ProductsController(IProductService productService) : BaseApiControl
     /// </summary>
     [HasPermission(Permissions.Products.Edit)]
     [HttpPut("{id:guid}")]
+    [Idempotent]
     public async Task<IActionResult> Update(Guid id, [FromBody] CreateOrUpdateProductRequest request, CancellationToken cancellationToken) =>
         ToActionResult(await productService.UpdateProductAsync(id, request, cancellationToken));
 

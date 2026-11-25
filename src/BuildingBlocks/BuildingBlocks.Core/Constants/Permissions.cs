@@ -68,6 +68,12 @@ public static class Permissions
         public const string Manage = "Organization.Manage";
     }
 
+    public static class Lookups
+    {
+        public const string View = "Lookups.View";
+        public const string Manage = "Lookups.Manage";
+    }
+
     public static class Reports
     {
         public const string View = "Reports.View";
@@ -114,6 +120,9 @@ public static class Permissions
 
         new(Organization.View, "Lihat Struktur Organisasi", "Organization", "Melihat pohon struktur Direktorat, Divisi, Departemen, dan Master Posisi (Identity Service)"),
         new(Organization.Manage, "Kelola Master Organisasi", "Organization", "Membuat, mengubah, dan menghapus master Direktorat, Divisi, Departemen, dan Posisi (Identity Service)"),
+
+        new(Lookups.View, "Lihat Master Data / Lookups", "MasterData", "Melihat daftar grup dan item referensi lookup (MasterData Microservice)"),
+        new(Lookups.Manage, "Kelola Master Data / Lookups", "MasterData", "Menambah, mengubah, mengaktifkan/nonaktifkan, dan menghapus item Master Data (MasterData Microservice)"),
 
         new(Reports.View, "Lihat Laporan & Analitik", "Reports", "Mengakses halaman laporan manajemen"),
         new(Reports.Export, "Ekspor Laporan", "Reports", "Mengunduh/mengekspor data laporan"),

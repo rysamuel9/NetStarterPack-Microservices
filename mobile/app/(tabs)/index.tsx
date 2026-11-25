@@ -73,6 +73,14 @@ const DEFAULT_CLUSTER_NODES: ServiceNodeHealth[] = [
     database: 'NetStarterPack_AnnouncementDb',
     latencyMs: 0,
   },
+  {
+    service: 'MasterData.Api',
+    port: 5086,
+    url: '',
+    status: 'Unreachable',
+    database: 'NetStarterPack_MasterDataDb',
+    latencyMs: 0,
+  },
 ];
 
 export default function DashboardTab() {

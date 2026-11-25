@@ -1,13 +1,16 @@
 ﻿using System.Diagnostics;
+using BuildingBlocks.Core.Attributes;
 using BuildingBlocks.Core.Interfaces;
 using BuildingBlocks.Infrastructure.Caching;
 using BuildingBlocks.Infrastructure.Messaging;
 using BuildingBlocks.Infrastructure.Middleware;
+using BuildingBlocks.Security;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 
 namespace BuildingBlocks.Infrastructure;
@@ -23,6 +26,7 @@ public static class InfrastructureExtensions
     {
         services.Configure<CacheSettings>(configuration.GetSection(CacheSettings.SectionName));
         services.Configure<ServiceEndpointsSettings>(configuration.GetSection(ServiceEndpointsSettings.SectionName));
+        services.Configure<IdempotencySettings>(configuration.GetSection(IdempotencySettings.SectionName));
 
         // 1. Setup Hybrid Caching (L1 Memory + L2 Redis / InMemory)
         services.AddMemoryCache();
@@ -48,9 +52,35 @@ public static class InfrastructureExtensions
         services.AddExceptionHandler<GlobalExceptionHandler>();
         services.AddProblemDetails();
 
-        // 4. Setup Controllers & OpenAPI
+        // 4. Setup Controllers & OpenAPI (otomatis mendokumentasikan header Idempotency-Key untuk endpoint [Idempotent])
         services.AddControllers();
-        services.AddOpenApi();
+        services.AddOpenApi(options =>
+        {
+            options.AddOperationTransformer((operation, context, _) =>
+            {
+                var idempotentAttr = context.Description.ActionDescriptor.EndpointMetadata
+                    .OfType<IdempotentAttribute>()
+                    .FirstOrDefault();
+
+                if (idempotentAttr is not null)
+                {
+                    operation.Parameters ??= [];
+                    if (!operation.Parameters.Any(p => string.Equals(p.Name, IdempotencyHeaders.Key, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        operation.Parameters.Add(new OpenApiParameter
+                        {
+                            Name = IdempotencyHeaders.Key,
+                            In = ParameterLocation.Header,
+                            Required = idempotentAttr.RequireKey,
+                            Description = "Kunci unik (UUID) per aksi submit untuk mencegah double-submit via Hybrid Cache L1/L2.",
+                            Schema = new OpenApiSchema { Type = JsonSchemaType.String }
+                        });
+                    }
+                }
+
+                return Task.CompletedTask;
+            });
+        });
 
         // 5. Setup CORS
         services.AddCors(options =>
@@ -63,7 +93,11 @@ public static class InfrastructureExtensions
                 policy.WithOrigins(allowedOrigins)
                       .AllowAnyHeader()
                       .AllowAnyMethod()
-                      .AllowCredentials();
+                      .AllowCredentials()
+                      .WithExposedHeaders(
+                          IdempotencyHeaders.Key,
+                          IdempotencyHeaders.Replayed,
+                          CurrentUserService.CorrelationHeaderName);
             });
         });
 
@@ -171,6 +205,7 @@ public static class InfrastructureExtensions
         app.UseCors("AllowFrontend");
         app.UseAuthentication();
         app.UseAuthorization();
+        app.UseMiddleware<IdempotencyMiddleware>(serviceName);
 
         app.MapControllers();
 

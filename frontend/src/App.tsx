@@ -59,6 +59,9 @@ const RolesPage = lazy(() =>
 const MenusPage = lazy(() =>
   import('./pages/identity/MenusPage').then((m) => ({ default: m.MenusPage }))
 );
+const LookupsPage = lazy(() =>
+  import('./pages/masterdata/LookupsPage').then((m) => ({ default: m.LookupsPage }))
+);
 const UnderDevelopmentPage = lazy(() =>
   import('./pages/common/UnderDevelopmentPage').then((m) => ({ default: m.UnderDevelopmentPage }))
 );
@@ -191,6 +194,14 @@ export const App: React.FC = () => {
                 element={
                   <ProtectedRoute permission="Menus.View">
                     <MenusPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="lookups"
+                element={
+                  <ProtectedRoute permission="Lookups.View">
+                    <LookupsPage />
                   </ProtectedRoute>
                 }
               />

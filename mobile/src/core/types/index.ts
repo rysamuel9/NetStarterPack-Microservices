@@ -375,3 +375,33 @@ export interface DirectorateTreeNode {
   userCount: number;
   divisions: DivisionTreeNode[];
 }
+
+export interface LookupItem {
+  id: string;
+  groupCode: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  parentId?: string | null;
+  parentName?: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  isSystem: boolean;
+  metadataJson?: string | null;
+  createdAt: string;
+  createdBy?: string | null;
+}
+
+export interface LookupGroupSummary {
+  groupCode: string;
+  totalCount: number;
+  activeCount: number;
+  systemCount: number;
+}
+
+export interface MasterDataStats {
+  totalGroups: number;
+  totalItems: number;
+  activeItems: number;
+  inactiveItems: number;
+}
