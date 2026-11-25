@@ -48,10 +48,8 @@ public class HttpEventBus(
             request.Headers.Add("X-Internal-Api-Key", _jwtSettings.InternalApiKey);
             request.Headers.Add(CurrentUserService.CorrelationHeaderName, currentUserService.CorrelationId);
 
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            cts.CancelAfter(TimeSpan.FromSeconds(2));
-
-            var response = await httpClient.SendAsync(request, cts.Token);
+            // Timeout, Exponential Retry, & Circuit Breaker dikelola oleh Polly v8 (AddStandardMicroserviceResilience)
+            var response = await httpClient.SendAsync(request, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
                 logger.LogWarning(

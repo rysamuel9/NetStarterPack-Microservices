@@ -22,11 +22,9 @@ public class CatalogStatsHttpClient(
     {
         try
         {
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            cts.CancelAfter(TimeSpan.FromSeconds(2));
-
-            var url = $"{_endpoints.CatalogServiceUrl.TrimEnd('/')}/api/products/stats";
-            var response = await httpClient.GetFromJsonAsync<Result<CatalogStatsDto>>(url, cts.Token);
+            // Timeout, Retry, & Circuit Breaker dikelola secara terpusat oleh Polly v8 (AddStandardMicroserviceResilience)
+            var url = $"{_endpoints.CatalogServiceUrl.TrimEnd('/')}/api/v1/products/stats";
+            var response = await httpClient.GetFromJsonAsync<Result<CatalogStatsDto>>(url, cancellationToken);
             if (response is { Succeeded: true, Data: not null })
             {
                 return response.Data;

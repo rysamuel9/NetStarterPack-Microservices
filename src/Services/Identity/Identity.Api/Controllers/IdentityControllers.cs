@@ -1,4 +1,5 @@
-﻿using BuildingBlocks.Core.Attributes;
+﻿using Asp.Versioning;
+using BuildingBlocks.Core.Attributes;
 using BuildingBlocks.Core.Common;
 using BuildingBlocks.Core.Constants;
 using BuildingBlocks.Core.Contracts;
@@ -192,6 +193,7 @@ public class DashboardController(IDashboardService dashboardService) : BaseApiCo
 /// Diamankan dengan header X-Internal-Api-Key.
 /// </summary>
 [ApiController]
+[ApiVersionNeutral]
 [Route("api/internal/events")]
 public class InternalEventsController(
     IDashboardService dashboardService,

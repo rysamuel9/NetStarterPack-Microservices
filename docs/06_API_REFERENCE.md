@@ -44,9 +44,15 @@ Konfigurasi di [`src/ApiGateway/Gateway.Api/appsettings.json`](../src/ApiGateway
 
 ## 3. Standar Format Response, Header Tracing, & HTTP Status Code
 
-### A. Header Distributed Tracing & Idempotency
-Setiap response dari Gateway maupun Microservice selalu menyertakan header tracing:
+### A. API Versioning (`/api/v1/...`), Distributed Tracing, & Idempotency
+Semua endpoint publik di 6 microservice mendukung **API Versioning (`Asp.Versioning.Mvc`)** dengan 3 cara pemanggilan sekaligus:
+1. **URL Segment (Kanonis & default Web/Mobile)**: `/api/v1/products`, `/api/v1/orders`, `/api/v1/workflows`, `/api/v1/lookups`, dst.
+2. **Header**: `X-Api-Version: 1.0`
+3. **Query String**: `?api-version=1.0`
+
+Alias lama tanpa versi (`/api/products`, `/api/health`, dst.) tetap aktif (*backward-compatible* ke versi default `1.0`) agar aplikasi mobile versi lama atau integrasi eksisting tidak langsung putus. Setiap response otomatis menyertakan header:
 ```http
+api-supported-versions: 1.0
 X-Correlation-Id: 9a4f2c1b8e7d4a5b9c0d1e2f3a4b5c6d
 ```
 

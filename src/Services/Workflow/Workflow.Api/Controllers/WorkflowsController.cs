@@ -9,7 +9,6 @@ using Workflow.Api.Application.Interfaces;
 
 namespace Workflow.Api.Controllers;
 
-[Route("api/[controller]")]
 public class WorkflowsController : BaseApiController
 {
     private readonly IWorkflowService _workflowService;
