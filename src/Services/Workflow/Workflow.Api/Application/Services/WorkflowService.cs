@@ -361,17 +361,12 @@ public class WorkflowService(
 
         if (string.Equals(scope, "mine", StringComparison.OrdinalIgnoreCase))
         {
-            query = query.Where(r =>
-                r.RequesterUserId == currentUserService.UserId ||
-                string.Equals(r.RequesterUsername, currentUserService.Username, StringComparison.OrdinalIgnoreCase));
+            query = query.Where(IsRequester);
         }
-        else if (string.Equals(scope, "involved", StringComparison.OrdinalIgnoreCase) && !isSuperOrAdmin)
+        else if (!isSuperOrAdmin)
         {
-            var myRoles = currentUserService.Roles;
-            query = query.Where(r =>
-                r.RequesterUserId == currentUserService.UserId ||
-                string.Equals(r.RequesterUsername, currentUserService.Username, StringComparison.OrdinalIgnoreCase) ||
-                r.ApprovalSteps.Any(s => myRoles.Contains(s.ApproverRole, StringComparer.OrdinalIgnoreCase)));
+            // Anti-IDOR Guard: non-Admin/SuperAdmin hanya boleh melihat dokumen miliknya atau yang dia terlibat di alur approval
+            query = query.Where(CanCurrentUserAccessRequest);
         }
 
         if (!string.IsNullOrWhiteSpace(status))
@@ -409,7 +404,33 @@ public class WorkflowService(
             return Result<WorkflowRequestDto>.Failure("Dokumen pengajuan tidak ditemukan.", 404);
         }
 
+        if (!CanCurrentUserAccessRequest(entity))
+        {
+            return Result<WorkflowRequestDto>.Failure(
+                "Akses ditolak. Anda tidak memiliki izin melihat detail dokumen pengajuan ini.", 403);
+        }
+
         return Result<WorkflowRequestDto>.Success(MapRequest(entity, DeserializeFields(entity.FormTemplate.FieldsJson)));
+    }
+
+    private bool IsRequester(WorkflowRequest r) =>
+        (currentUserService.UserId is not null && r.RequesterUserId == currentUserService.UserId.Value) ||
+        (!string.IsNullOrWhiteSpace(currentUserService.Username) &&
+         string.Equals(r.RequesterUsername, currentUserService.Username, StringComparison.OrdinalIgnoreCase));
+
+    private bool CanCurrentUserAccessRequest(WorkflowRequest r)
+    {
+        var isSuperOrAdmin = currentUserService.Roles.Any(role =>
+            role.Equals(RoleNames.SuperAdmin, StringComparison.OrdinalIgnoreCase) ||
+            role.Equals(RoleNames.Admin, StringComparison.OrdinalIgnoreCase));
+
+        if (isSuperOrAdmin || IsRequester(r))
+        {
+            return true;
+        }
+
+        return r.ApprovalSteps.Any(s =>
+            currentUserService.Roles.Contains(s.ApproverRole, StringComparer.OrdinalIgnoreCase));
     }
 
     public async Task<Result<WorkflowRequestDto>> ApproveAsync(

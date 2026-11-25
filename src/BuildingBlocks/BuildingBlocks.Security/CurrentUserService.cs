@@ -29,9 +29,10 @@ public class CurrentUserService(IHttpContextAccessor httpContextAccessor) : ICur
     public IReadOnlyList<string> Permissions =>
         User?.FindAll("permission").Select(c => c.Value).Distinct().ToList() ?? [];
 
+    // Hanya percaya RemoteIpAddress yang sudah dinormalisasi oleh ASP.NET Core UseForwardedHeaders()
+    // agar attacker tidak bisa memalsukan IP lewat header X-Forwarded-For mentah.
     public string? IpAddress =>
-        httpContextAccessor.HttpContext?.Request.Headers["X-Forwarded-For"].FirstOrDefault()
-        ?? httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString();
+        httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString();
 
     public string CorrelationId =>
         httpContextAccessor.HttpContext?.Request.Headers[CorrelationHeaderName].FirstOrDefault()

@@ -1,15 +1,16 @@
 using Announcement.Api.Application.DTOs;
 using Announcement.Api.Application.Interfaces;
-using Microsoft.AspNetCore.Authorization;
+using BuildingBlocks.Core.Constants;
+using BuildingBlocks.Security;
 using Microsoft.AspNetCore.SignalR;
 
 namespace Announcement.Api.Infrastructure.Realtime;
 
 /// <summary>
 /// ASP.NET Core SignalR Hub untuk pembaruan realtime pengumuman (komentar, balasan, like, toggle komentar, &amp; notifikasi bel).
-/// Diautentikasi menggunakan Zero-Trust JWT yang sama (via query string ?access_token= pada koneksi WebSocket).
+/// Diautentikasi menggunakan Zero-Trust JWT + permission Announcements.View.
 /// </summary>
-[Authorize]
+[HasPermission(Permissions.Announcements.View)]
 public class AnnouncementHub : Hub
 {
     public static string RoomName(Guid announcementId) => $"announcement-{announcementId:N}";

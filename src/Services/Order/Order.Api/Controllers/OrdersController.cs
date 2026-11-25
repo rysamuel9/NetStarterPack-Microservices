@@ -25,8 +25,10 @@ public class OrdersController(IOrderService orderService) : BaseApiController
 
     /// <summary>
     /// Mengambil ringkasan statistik pesanan (TotalOrders, TotalRevenue, Pending, Completed).
+    /// Membutuhkan JWT login atau header X-Internal-Api-Key yang valid.
     /// </summary>
     [AllowAnonymous]
+    [RequireAuthenticatedOrInternalApiKey]
     [HttpGet("stats")]
     public async Task<IActionResult> GetStats(CancellationToken cancellationToken) =>
         ToActionResult(await orderService.GetOrderStatsAsync(cancellationToken));

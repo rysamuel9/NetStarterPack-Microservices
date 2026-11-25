@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Net;
 using Asp.Versioning;
 using BuildingBlocks.Core.Attributes;
 using BuildingBlocks.Core.Constants;
@@ -11,9 +12,13 @@ using BuildingBlocks.Infrastructure.Storage;
 using BuildingBlocks.Security;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 
@@ -68,9 +73,25 @@ public static class InfrastructureExtensions
         services.AddHttpClient<IEventBus, HttpEventBus>()
                 .AddStandardMicroserviceResilience(configuration);
 
-        // 3. Setup Global Exception Handler & ProblemDetails
+        // 3. Setup Global Exception Handler, ProblemDetails, & Trusted ForwardedHeaders
         services.AddExceptionHandler<GlobalExceptionHandler>();
         services.AddProblemDetails();
+        services.Configure<ForwardedHeadersOptions>(options =>
+        {
+            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+            options.ForwardLimit = 2;
+            var configuredProxies = configuration.GetSection("SecuritySettings:KnownProxies").Get<string[]>();
+            if (configuredProxies is { Length: > 0 })
+            {
+                foreach (var proxyIp in configuredProxies)
+                {
+                    if (IPAddress.TryParse(proxyIp, out var ip))
+                    {
+                        options.KnownProxies.Add(ip);
+                    }
+                }
+            }
+        });
 
         // 4. Setup Controllers, API Versioning (/api/v1/... + backward-compatible /api/...), & OpenAPI
         services.AddControllers();
@@ -205,18 +226,43 @@ public static class InfrastructureExtensions
             });
         }
 
+        // Security Guard: Cegah Production berjalan dengan default hardcoded JWT SecretKey / InternalApiKey
+        var jwtSettings = app.Services.GetService<IOptions<JwtSettings>>()?.Value;
+        var allowDefaultSecrets = app.Configuration.GetValue<bool>("SecuritySettings:AllowDefaultSecretsInProduction", false);
+        if (jwtSettings is not null && jwtSettings.HasDefaultSecrets())
+        {
+            if (app.Environment.IsDevelopment() || allowDefaultSecrets)
+            {
+                app.Logger.LogWarning(
+                    "[SECURITY WARNING] {ServiceName} masih menggunakan default JwtSettings SecretKey/InternalApiKey. Wajib diganti via Environment Variable / Vault sebelum deploy Production!",
+                    serviceName);
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    $"[{serviceName}] Startup diblokir: JwtSettings:SecretKey atau InternalApiKey masih menggunakan nilai default starterpack di environment {app.Environment.EnvironmentName}.");
+            }
+        }
+
+        app.UseForwardedHeaders();
         app.UseMiddleware<CorrelationIdMiddleware>();
+        app.UseMiddleware<SecurityHeadersMiddleware>();
         app.UseExceptionHandler();
 
-        app.MapOpenApi();
-        app.MapScalarApiReference(options =>
+        // Swagger / Scalar / OpenAPI hanya aktif di Development (atau jika diizinkan eksplisit via SecuritySettings:EnableApiDocsInProduction)
+        var enableApiDocs = app.Environment.IsDevelopment() ||
+                            app.Configuration.GetValue<bool>("SecuritySettings:EnableApiDocsInProduction", false);
+        if (enableApiDocs)
         {
-            options
-                .WithTitle($"{serviceTitle} — Scalar UI (.NET 10)")
-                .AddPreferredSecuritySchemes("Bearer");
-        });
+            app.MapOpenApi();
+            app.MapScalarApiReference(options =>
+            {
+                options
+                    .WithTitle($"{serviceTitle} — Scalar UI (.NET 10)")
+                    .AddPreferredSecuritySchemes("Bearer");
+            });
 
-        app.MapGet("/swagger", () => Results.Content($$"""
+            app.MapGet("/swagger", () => Results.Content($$"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -267,6 +313,7 @@ public static class InfrastructureExtensions
 </body>
 </html>
 """, "text/html")).AllowAnonymous();
+        }
 
         app.UseCors("AllowFrontend");
         app.UseAuthentication();

@@ -16,6 +16,7 @@ public static class CacheKeys
     public const string UsersPrefix = "users:";
     public const string DashboardPrefix = "dashboard:";
     public const string IdempotencyPrefix = "idempotency:";
+    public const string AuthLockoutPrefix = "auth:lockout:";
 
     public static string ProductList(string? search, string? category) =>
         $"{ProductsPrefix}list:s={search?.Trim().ToLowerInvariant() ?? "all"}:c={category?.Trim().ToLowerInvariant() ?? "all"}";
@@ -94,4 +95,10 @@ public static class CacheKeys
 
     public static string Idempotency(string serviceScope, string userScope, string method, string path, string idempotencyKey) =>
         $"{IdempotencyPrefix}{serviceScope.Trim().ToLowerInvariant()}:{userScope.Trim().ToLowerInvariant()}:{method.Trim().ToUpperInvariant()}:{path.Trim().ToLowerInvariant()}:{idempotencyKey.Trim()}";
+
+    public static string AuthFailedLogin(string normalizedIdentity) =>
+        $"{AuthLockoutPrefix}failed:{normalizedIdentity.Trim().ToLowerInvariant()}";
+
+    public static string AuthLockedUntil(string normalizedIdentity) =>
+        $"{AuthLockoutPrefix}locked:{normalizedIdentity.Trim().ToLowerInvariant()}";
 }

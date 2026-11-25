@@ -118,6 +118,14 @@ Pengelola transaksi atomik di masing-masing database microservice:
 
 ### Zero-Trust Stateless JWT Verification (`AddSharedJwtSecurity`)
 Arsitektur keamanan di mana setiap microservice memvalidasi keaslian token JWT dan mengecek izin `[HasPermission(...)]` secara mandiri di memori (0 ms) tanpa mempercayai mentah-mentah request dari jaringan dan tanpa perlu koneksi ke database `Identity.Api`.
+
+### Security Hardening Berlapis (Defense-in-Depth)
+Kumpulan kontrol keamanan aktif yang dipasang lintas Gateway, Identity, Business Microservices, dan Frontend:
+- **No-Escalation Guard (`UserService` & `RoleService`)**: Mencegah admin non-SuperAdmin menyentuh akun/role `SuperAdmin` atau memberikan permission yang ia sendiri tidak miliki.
+- **Distributed Account Lockout & Refresh Token Hashing + Reuse Detection (`AuthService`)**: Mengunci akun sementara di Hybrid Cache setelah 5x gagal login (`429`), menyimpan hanya hash SHA-256 refresh token di database, mencabut semua sesi jika token lama di-replay, serta menolak refresh token bagi akun non-aktif.
+- **Anti-IDOR (`WorkflowService` & `AuthService`)**: Membatasi tracking/detail workflow hanya bagi pemilik dokumen, approver terkait, atau Admin/SuperAdmin, serta memastikan logout hanya mencabut token milik sendiri.
+- **Dual-Layer HTML Sanitization (`HtmlSanitizer` + `DOMPurify`)**: Membersihkan HTML pengumuman berbasis parser DOM allowlist di backend dan frontend + validasi URL aset internal.
+- **Auth Rate Limiter, `SecurityHeadersMiddleware`, `UseForwardedHeaders`, & Constant-Time `X-Internal-Api-Key`**: Rate limit ketat 15 req/menit khusus endpoint auth, header keamanan standar (`nosniff`, `X-Frame-Options: DENY`, `CSP`, `HSTS`), perlindungan IP spoofing, serta `[RequireAuthenticatedOrInternalApiKey]` pada seluruh endpoint `/stats`.
 - **Di project ini digunakan pada**: `src/BuildingBlocks/BuildingBlocks.Security/PermissionAuthorization.cs`.
 
 ### Service-to-Service Auth (`X-Internal-Api-Key`)

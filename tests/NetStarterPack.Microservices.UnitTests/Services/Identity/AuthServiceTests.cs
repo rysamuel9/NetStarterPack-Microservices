@@ -64,10 +64,12 @@ public class AuthServiceTests
     public async Task Logout_ShouldRevokeActiveRefreshToken()
     {
         using var ctx = await TestDbFactory.CreateIdentityAsync();
-        var authService = new AuthService(ctx.Uow, ctx.Jwt, ctx.Hasher, new FakeCurrentUserService(), TestCacheFactory.CreateInMemory());
+        var currentUser = new FakeCurrentUserService();
+        var authService = new AuthService(ctx.Uow, ctx.Jwt, ctx.Hasher, currentUser, TestCacheFactory.CreateInMemory());
 
         var login = await authService.LoginAsync(new LoginRequest("superadmin", "Password123!"));
-        var refreshToken = login.Data!.RefreshToken;
+        currentUser.UserId = login.Data!.User.Id;
+        var refreshToken = login.Data.RefreshToken;
 
         var logoutRes = await authService.LogoutAsync(refreshToken);
         Assert.True(logoutRes.Succeeded);

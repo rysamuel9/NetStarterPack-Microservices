@@ -45,9 +45,28 @@ public class RoleService(
         }
 
         var roleName = request.Name.Trim();
+        var callerIsSuperAdmin = currentUserService.Roles.Contains(RoleNames.SuperAdmin, StringComparer.OrdinalIgnoreCase);
+        if (!callerIsSuperAdmin && roleName.Equals(RoleNames.SuperAdmin, StringComparison.OrdinalIgnoreCase))
+        {
+            return Result<RoleDto>.Failure("Akses ditolak. Tidak dapat membuat role bernama SuperAdmin.", 403);
+        }
+
         if (await unitOfWork.Roles.AnyAsync(r => r.Name.ToLower() == roleName.ToLower(), cancellationToken))
         {
             return Result<RoleDto>.Failure($"Role '{roleName}' sudah ada.", 409);
+        }
+
+        var requestedPermissions = (request.Permissions ?? []).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (!callerIsSuperAdmin)
+        {
+            var callerPermissions = new HashSet<string>(currentUserService.Permissions, StringComparer.OrdinalIgnoreCase);
+            var disallowed = requestedPermissions.Where(p => !callerPermissions.Contains(p)).ToList();
+            if (disallowed.Count > 0)
+            {
+                return Result<RoleDto>.Failure(
+                    $"Akses ditolak (Anti-Privilege-Escalation): Anda tidak dapat memberikan permission yang tidak Anda miliki ({string.Join(", ", disallowed)}).",
+                    403);
+            }
         }
 
         var role = new Role
@@ -105,6 +124,30 @@ public class RoleService(
         if (role is null)
         {
             return Result<RoleDto>.Failure("Role tidak ditemukan.", 404);
+        }
+
+        var callerIsSuperAdmin = currentUserService.Roles.Contains(RoleNames.SuperAdmin, StringComparer.OrdinalIgnoreCase);
+        if (!callerIsSuperAdmin &&
+            (role.Name.Equals(RoleNames.SuperAdmin, StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(request.Name?.Trim(), RoleNames.SuperAdmin, StringComparison.OrdinalIgnoreCase)))
+        {
+            return Result<RoleDto>.Failure("Akses ditolak. Hanya SuperAdmin yang diizinkan mengubah role SuperAdmin.", 403);
+        }
+
+        if (!callerIsSuperAdmin)
+        {
+            var callerPermissions = new HashSet<string>(currentUserService.Permissions, StringComparer.OrdinalIgnoreCase);
+            var disallowed = (request.Permissions ?? [])
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Where(p => !callerPermissions.Contains(p))
+                .ToList();
+
+            if (disallowed.Count > 0)
+            {
+                return Result<RoleDto>.Failure(
+                    $"Akses ditolak (Anti-Privilege-Escalation): Anda tidak dapat memberikan permission yang tidak Anda miliki ({string.Join(", ", disallowed)}).",
+                    403);
+            }
         }
 
         if (!role.Name.Equals(RoleNames.SuperAdmin, StringComparison.OrdinalIgnoreCase) &&

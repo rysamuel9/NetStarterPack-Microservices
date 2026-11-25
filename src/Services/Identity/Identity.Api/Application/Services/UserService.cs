@@ -84,6 +84,12 @@ public class UserService(
             return Result<UserDto>.Failure("Username, Email, dan Password wajib diisi.", 400);
         }
 
+        var passwordError = AuthService.ValidatePasswordStrength(request.Password);
+        if (passwordError is not null)
+        {
+            return Result<UserDto>.Failure(passwordError, 400);
+        }
+
         var username = request.Username.Trim().ToLowerInvariant();
         var email = request.Email.Trim().ToLowerInvariant();
 
@@ -102,6 +108,14 @@ public class UserService(
         if (matchedRoles.Count == 0)
         {
             return Result<UserDto>.Failure("Minimal satu role yang valid harus dipilih.", 400);
+        }
+
+        // Anti-Privilege-Escalation Guard: hanya SuperAdmin yang boleh menetapkan role SuperAdmin
+        var callerIsSuperAdmin = currentUserService.Roles.Contains(RoleNames.SuperAdmin, StringComparer.OrdinalIgnoreCase);
+        if (!callerIsSuperAdmin &&
+            matchedRoles.Any(r => r.Name.Equals(RoleNames.SuperAdmin, StringComparison.OrdinalIgnoreCase)))
+        {
+            return Result<UserDto>.Failure("Akses ditolak. Hanya SuperAdmin yang diizinkan menetapkan role SuperAdmin.", 403);
         }
 
         if (!Enum.TryParse<UserStatus>(request.Status, true, out var status))
@@ -170,6 +184,18 @@ public class UserService(
             return Result<UserDto>.Failure("Pengguna tidak ditemukan.", 404);
         }
 
+        var callerIsSuperAdmin = currentUserService.Roles.Contains(RoleNames.SuperAdmin, StringComparer.OrdinalIgnoreCase);
+        var targetIsSuperAdmin =
+            user.Username.Equals("superadmin", StringComparison.OrdinalIgnoreCase) ||
+            user.UserRoles.Any(ur => ur.Role is not null && !ur.Role.IsDeleted &&
+                                     ur.Role.Name.Equals(RoleNames.SuperAdmin, StringComparison.OrdinalIgnoreCase));
+
+        // Anti-Privilege-Escalation Guard: non-SuperAdmin tidak boleh memodifikasi/reset password akun SuperAdmin
+        if (targetIsSuperAdmin && !callerIsSuperAdmin)
+        {
+            return Result<UserDto>.Failure("Akses ditolak. Hanya SuperAdmin yang diizinkan mengubah data atau password akun SuperAdmin.", 403);
+        }
+
         var email = request.Email.Trim().ToLowerInvariant();
         if (await unitOfWork.Users.AnyAsync(u => u.Id != id && u.Email.ToLower() == email, cancellationToken))
         {
@@ -196,18 +222,31 @@ public class UserService(
         user.UpdatedAt = DateTime.UtcNow;
         user.UpdatedBy = currentUserService.Username ?? "System";
 
+        var shouldRevokeSessions = false;
+
         if (Enum.TryParse<UserStatus>(request.Status, true, out var status))
         {
             if (user.Username.Equals("superadmin", StringComparison.OrdinalIgnoreCase) && status != UserStatus.Active)
             {
                 return Result<UserDto>.Failure("Akun SuperAdmin utama tidak dapat dinonaktifkan.", 400);
             }
+            if (status != UserStatus.Active)
+            {
+                shouldRevokeSessions = true;
+            }
             user.Status = status;
         }
 
         if (!string.IsNullOrWhiteSpace(request.NewPassword))
         {
+            var passwordError = AuthService.ValidatePasswordStrength(request.NewPassword);
+            if (passwordError is not null)
+            {
+                return Result<UserDto>.Failure(passwordError, 400);
+            }
+
             user.PasswordHash = passwordHasher.HashPassword(request.NewPassword);
+            shouldRevokeSessions = true;
         }
 
         if (request.Roles is { Count: > 0 })
@@ -216,6 +255,12 @@ public class UserService(
             var matchedRoles = allRoles
                 .Where(r => request.Roles.Contains(r.Name, StringComparer.OrdinalIgnoreCase))
                 .ToList();
+
+            if (!callerIsSuperAdmin &&
+                matchedRoles.Any(r => r.Name.Equals(RoleNames.SuperAdmin, StringComparison.OrdinalIgnoreCase)))
+            {
+                return Result<UserDto>.Failure("Akses ditolak. Hanya SuperAdmin yang diizinkan menetapkan role SuperAdmin.", 403);
+            }
 
             if (user.Username.Equals("superadmin", StringComparison.OrdinalIgnoreCase) &&
                 !matchedRoles.Any(r => r.Name.Equals(RoleNames.SuperAdmin, StringComparison.OrdinalIgnoreCase)))
@@ -244,6 +289,17 @@ public class UserService(
                     await unitOfWork.Repository<UserRole>().AddAsync(newUr, cancellationToken);
                     user.UserRoles.Add(newUr);
                 }
+            }
+        }
+
+        if (shouldRevokeSessions)
+        {
+            var activeTokens = await unitOfWork.Repository<RefreshToken>()
+                .GetListAsync(rt => rt.UserId == user.Id && rt.RevokedAt == null, cancellationToken);
+            foreach (var rt in activeTokens)
+            {
+                rt.RevokedAt = DateTime.UtcNow;
+                unitOfWork.Repository<RefreshToken>().Update(rt);
             }
         }
 
@@ -278,9 +334,25 @@ public class UserService(
             return Result.Failure("Akun SuperAdmin utama tidak dapat dihapus.", 400);
         }
 
+        var callerIsSuperAdmin = currentUserService.Roles.Contains(RoleNames.SuperAdmin, StringComparer.OrdinalIgnoreCase);
+        var targetIsSuperAdmin = user.UserRoles.Any(ur => ur.Role is not null && !ur.Role.IsDeleted &&
+                                                          ur.Role.Name.Equals(RoleNames.SuperAdmin, StringComparison.OrdinalIgnoreCase));
+        if (targetIsSuperAdmin && !callerIsSuperAdmin)
+        {
+            return Result.Failure("Akses ditolak. Hanya SuperAdmin yang diizinkan menghapus akun SuperAdmin.", 403);
+        }
+
         if (currentUserService.UserId == user.Id)
         {
             return Result.Failure("Anda tidak dapat menghapus akun Anda sendiri yang sedang login.", 400);
+        }
+
+        var activeTokens = await unitOfWork.Repository<RefreshToken>()
+            .GetListAsync(rt => rt.UserId == user.Id && rt.RevokedAt == null, cancellationToken);
+        foreach (var rt in activeTokens)
+        {
+            rt.RevokedAt = DateTime.UtcNow;
+            unitOfWork.Repository<RefreshToken>().Update(rt);
         }
 
         unitOfWork.Users.Remove(user);
