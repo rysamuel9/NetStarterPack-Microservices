@@ -1,9 +1,75 @@
-import axios from 'axios';
+import axios, { type InternalAxiosRequestConfig } from 'axios';
 import type { ApiResult, AuthResponse } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 export const avatarUrlFor = (userId: string) => `${API_BASE_URL}/auth/avatar/${userId}`;
+
+const IDEMPOTENCY_HEADER = 'Idempotency-Key';
+const IDEMPOTENCY_WINDOW_MS = 5000;
+const IDEMPOTENCY_EXCLUDED_PATHS = [
+  '/auth/login',
+  '/auth/refresh',
+  '/auth/logout',
+  '/auth/logout-all',
+  '/auth/change-password',
+  '/like',
+  '/toggle-comments',
+];
+
+interface IdempotentRequestConfig extends InternalAxiosRequestConfig {
+  _retry?: boolean;
+  _idempotencyFingerprint?: string;
+}
+
+const recentIdempotencyKeys = new Map<string, { key: string; expiresAt: number }>();
+
+/**
+ * Membuat Idempotency-Key (UUID v4) untuk mencegah double-submit pada aksi mutasi kritis.
+ */
+export function createIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `idem-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+function shouldAttachIdempotencyKey(config: InternalAxiosRequestConfig): boolean {
+  const method = (config.method || 'get').toLowerCase();
+  if (!['post', 'put', 'patch'].includes(method)) return false;
+  if (config.data instanceof FormData) return false;
+
+  const url = (config.url || '').toLowerCase();
+  return !IDEMPOTENCY_EXCLUDED_PATHS.some((excluded) => url.includes(excluded));
+}
+
+function resolveIdempotencyKey(config: IdempotentRequestConfig): string {
+  const now = Date.now();
+  if (recentIdempotencyKeys.size > 50) {
+    for (const [fp, entry] of recentIdempotencyKeys.entries()) {
+      if (entry.expiresAt <= now) recentIdempotencyKeys.delete(fp);
+    }
+  }
+
+  let serializedBody = '';
+  try {
+    serializedBody = typeof config.data === 'string' ? config.data : JSON.stringify(config.data ?? null);
+  } catch {
+    serializedBody = String(now);
+  }
+
+  const fingerprint = `${(config.method || '').toUpperCase()}:${config.url || ''}:${serializedBody}`;
+  config._idempotencyFingerprint = fingerprint;
+
+  const existing = recentIdempotencyKeys.get(fingerprint);
+  if (existing && existing.expiresAt > now) {
+    return existing.key;
+  }
+
+  const key = createIdempotencyKey();
+  recentIdempotencyKeys.set(fingerprint, { key, expiresAt: now + IDEMPOTENCY_WINDOW_MS });
+  return key;
+}
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -12,8 +78,9 @@ export const api = axios.create({
   },
 });
 
-// Request interceptor: attach JWT Access Token
-api.interceptors.request.use((config) => {
+// Request interceptor: attach JWT Access Token & automatic Idempotency-Key
+api.interceptors.request.use((rawConfig) => {
+  const config = rawConfig as IdempotentRequestConfig;
   const token = localStorage.getItem('nsp_access_token');
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -21,6 +88,10 @@ api.interceptors.request.use((config) => {
   // Upload file (FormData): biarkan browser yang set multipart/form-data + boundary
   if (config.data instanceof FormData && config.headers) {
     config.headers.delete('Content-Type');
+  }
+  // Otomatis pasang Idempotency-Key untuk POST/PUT/PATCH (cegah double-submit saat klik 2x / koneksi lambat)
+  if (shouldAttachIdempotencyKey(config) && config.headers && !config.headers.get(IDEMPOTENCY_HEADER)) {
+    config.headers.set(IDEMPOTENCY_HEADER, resolveIdempotencyKey(config));
   }
   return config;
 });
@@ -46,10 +117,16 @@ const processQueue = (error: unknown, token: string | null = null) => {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config;
+    const originalRequest = error.config as IdempotentRequestConfig | undefined;
+    const status = error.response?.status;
+
+    // Jika gagal validasi/client error (bukan 401 refresh dan bukan 409 in-flight), bersihkan cache key lokal agar user bisa langsung retry setelah memperbaiki input
+    if (originalRequest?._idempotencyFingerprint && status && status >= 400 && status !== 401 && status !== 409) {
+      recentIdempotencyKeys.delete(originalRequest._idempotencyFingerprint);
+    }
 
     if (
-      error.response?.status === 401 &&
+      status === 401 &&
       originalRequest &&
       !originalRequest._retry &&
       !originalRequest.url?.includes('/auth/login') &&

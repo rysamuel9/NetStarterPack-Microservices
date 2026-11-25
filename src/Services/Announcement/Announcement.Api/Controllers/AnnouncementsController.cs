@@ -1,6 +1,7 @@
 using Announcement.Api.Application.DTOs;
 using Announcement.Api.Application.Interfaces;
 using Announcement.Api.Infrastructure.Persistence;
+using BuildingBlocks.Core.Attributes;
 using BuildingBlocks.Core.Common;
 using BuildingBlocks.Core.Constants;
 using BuildingBlocks.Infrastructure.Controllers;
@@ -63,6 +64,7 @@ public class AnnouncementsController(
     /// <summary>Membuat dan menerbitkan pengumuman baru (khusus HRStaff, HRSupervisor, HRManager).</summary>
     [HttpPost]
     [HasPermission(Permissions.Announcements.Manage)]
+    [Idempotent]
     public async Task<IActionResult> Create(
         [FromBody] CreateOrUpdateAnnouncementRequest request,
         CancellationToken cancellationToken = default) =>
@@ -71,6 +73,7 @@ public class AnnouncementsController(
     /// <summary>Memperbarui isi pengumuman, banner, lampiran, atau pengaturan komentar (khusus Tim HR).</summary>
     [HttpPut("{id:guid}")]
     [HasPermission(Permissions.Announcements.Manage)]
+    [Idempotent]
     public async Task<IActionResult> Update(
         Guid id,
         [FromBody] CreateOrUpdateAnnouncementRequest request,
@@ -101,6 +104,7 @@ public class AnnouncementsController(
     /// <summary>Menambahkan komentar baru pada pengumuman (ditolak jika komentar sedang nonaktif).</summary>
     [HttpPost("{id:guid}/comments")]
     [HasPermission(Permissions.Announcements.View)]
+    [Idempotent]
     public async Task<IActionResult> AddComment(
         Guid id,
         [FromBody] CreateCommentRequest request,

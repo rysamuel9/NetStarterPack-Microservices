@@ -42,10 +42,19 @@ Konfigurasi di [`src/ApiGateway/Gateway.Api/appsettings.json`](../src/ApiGateway
 
 ## 3. Standar Format Response, Header Tracing, & HTTP Status Code
 
-### A. Header Distributed Tracing (`X-Correlation-Id`)
-Setiap response dari Gateway maupun Microservice selalu menyertakan header:
+### A. Header Distributed Tracing & Idempotency
+Setiap response dari Gateway maupun Microservice selalu menyertakan header tracing:
 ```http
 X-Correlation-Id: 9a4f2c1b8e7d4a5b9c0d1e2f3a4b5c6d
+```
+
+Untuk endpoint mutasi yang memiliki atribut `[Idempotent]` (Create/Update/Approve/Reject/Resubmit/Comment di `Workflow`, `Order`, `Catalog`, `Announcement`, dan `Identity`), client bisa mengirim header `Idempotency-Key` (UUID per aksi submit):
+```http
+Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000
+```
+Jika request yang sama terkirim ulang dalam masa TTL cache (default 30 menit), response lama langsung dikembalikan dari Hybrid Cache L1/L2 tanpa mengeksekusi database dua kali, disertai header penanda:
+```http
+X-Idempotent-Replayed: true
 ```
 
 ### B. Daftar Kode Status HTTP
@@ -53,11 +62,12 @@ X-Correlation-Id: 9a4f2c1b8e7d4a5b9c0d1e2f3a4b5c6d
 | :---: | :--- | :--- |
 | **`200 OK`** | Berhasil | Saat mengambil data (`GET`), mengubah data (`PUT`), atau menghapus data (`DELETE`) |
 | **`201 Created`** | Berhasil Dibuat | Saat berhasil menambah data baru (`POST`) |
-| **`400 Bad Request`** | Input Tidak Valid | Saat field wajib kosong, password lama salah, atau mencoba menghapus role/akun sistem (`superadmin`) |
+| **`400 Bad Request`** | Input Tidak Valid | Saat field wajib kosong, password lama salah, `Idempotency-Key` terlalu panjang/kosong (pada `RequireKey = true`), atau mencoba menghapus role/akun sistem (`superadmin`) |
 | **`401 Unauthorized`** | Belum Login / Token Invalid | Saat header `Authorization: Bearer <token>` kosong/expired, atau `X-Internal-Api-Key` salah pada endpoint internal |
 | **`403 Forbidden`** | Hak Akses Ditolak | Saat klaim JWT user tidak memiliki kode `permission` yang diminta oleh `[HasPermission("...")]` |
 | **`404 Not Found`** | Data Tidak Ditemukan | Saat `Guid id` tidak ditemukan atau sudah di-*soft-delete* |
-| **`409 Conflict`** | Duplikasi Data Unik | Saat `Username`, `Email`, `Role Name`, `Menu Code`, atau `Product SKU` sudah terdaftar |
+| **`409 Conflict`** | Konflik / Request Sedang Diproses | Saat data unik sudah terdaftar (`Username`, `Email`, `SKU`, dll.) **atau** request duplikat dengan `Idempotency-Key` yang sama masih sedang diproses |
+| **`422 Unprocessable Entity`** | Payload Tidak Cocok | Saat `Idempotency-Key` yang sama dipakai ulang untuk payload request yang berbeda |
 | **`429 Too Many Requests`** | Rate Limit Gateway | Saat 1 IP mengirim lebih dari 300 request dalam 1 menit ke `Gateway.Api` |
 | **`500 Internal Server Error`** | Kesalahan Teknis Server | Ditangkap otomatis oleh `GlobalExceptionHandler` beserta `X-Correlation-Id` |
 

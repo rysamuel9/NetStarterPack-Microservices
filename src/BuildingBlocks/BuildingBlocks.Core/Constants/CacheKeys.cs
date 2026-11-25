@@ -14,6 +14,7 @@ public static class CacheKeys
     public const string RolesPrefix = "roles:";
     public const string UsersPrefix = "users:";
     public const string DashboardPrefix = "dashboard:";
+    public const string IdempotencyPrefix = "idempotency:";
 
     public static string ProductList(string? search, string? category) =>
         $"{ProductsPrefix}list:s={search?.Trim().ToLowerInvariant() ?? "all"}:c={category?.Trim().ToLowerInvariant() ?? "all"}";
@@ -74,4 +75,7 @@ public static class CacheKeys
 
     public static string AuditLogs(int limit) =>
         $"{DashboardPrefix}auditlogs:{limit}";
+
+    public static string Idempotency(string serviceScope, string userScope, string method, string path, string idempotencyKey) =>
+        $"{IdempotencyPrefix}{serviceScope.Trim().ToLowerInvariant()}:{userScope.Trim().ToLowerInvariant()}:{method.Trim().ToUpperInvariant()}:{path.Trim().ToLowerInvariant()}:{idempotencyKey.Trim()}";
 }

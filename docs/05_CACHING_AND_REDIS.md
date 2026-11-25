@@ -124,3 +124,34 @@ Lihat alurnya di [`ProductService.cs`](../src/Services/Catalog/Catalog.Api/Appli
    ```powershell
    docker exec -it redis-micro redis-cli KEYS "NetStarterPackMicro_*"
    ```
+
+---
+
+## 6. Anti Double-Submit dengan `IdempotencyMiddleware` (Pakai Hybrid Cache L1/L2)
+
+Selain untuk mempercepat baca data (`GET`), Hybrid Cache L1/L2 yang sama juga dipakai oleh **`IdempotencyMiddleware`** ([`IdempotencyMiddleware.cs`](../src/BuildingBlocks/BuildingBlocks.Infrastructure/Middleware/IdempotencyMiddleware.cs)) buat mencegah **double-submit** (misalnya user klik tombol Submit/Approve 2x waktu koneksi lambat, atau request ke-retry otomatis setelah refresh token).
+
+### Cara Kerjanya Singkat
+1. Endpoint mutasi yang perlu proteksi cukup dikasih atribut **`[Idempotent]`** dari [`IdempotentAttribute.cs`](../src/BuildingBlocks/BuildingBlocks.Core/Attributes/IdempotentAttribute.cs).
+   - Default-nya `RequireKey = false`: kalau client lama/Swagger tidak kirim header, request tetap jalan biasa. Begitu header `Idempotency-Key` dikirim, middleware langsung aktif.
+   - Kalau mau wajibin header di endpoint tertentu, tinggal pakai `[Idempotent(RequireKey = true)]`.
+2. Saat request masuk dengan header `Idempotency-Key`, middleware bikin key cache terisolasi per service, user, HTTP method, dan path:
+   ```text
+   idempotency:{serviceScope}:{userId}:{METHOD}:{path}:{idempotencyKey}
+   ```
+3. Tiga skenario yang ditangani otomatis:
+   - **Request pertama masih berjalan, lalu klik ke-2 masuk bersamaan**: langsung ditahan pakai lock `InProgress` dan dibalas **`409 Conflict`**.
+   - **Request pertama sudah sukses (`2xx`), lalu request duplikat dengan key & payload sama masuk lagi**: controller tidak dijalankan ulang—middleware langsung replay response lama dari Hybrid Cache L1/L2 + tambah header **`X-Idempotent-Replayed: true`**.
+   - **Key yang sama dipakai lagi tapi body/payload-nya berbeda**: dicek lewat SHA-256 request hash dan ditolak dengan **`422 Unprocessable Entity`**.
+   - **Request pertama gagal (`4xx`/`5xx`/exception)**: lock `InProgress` otomatis dibersihkan supaya user bisa retry dengan aman.
+
+### Konfigurasi per Microservice (`appsettings.json`)
+```json
+"IdempotencySettings": {
+  "Enabled": true,
+  "DefaultExpirationMinutes": 30,
+  "InProgressLockSeconds": 60
+}
+```
+
+Kalau semua microservice sudah diarahkan ke Shared Redis (`"Provider": "Redis"`), proteksi anti double-submit ini otomatis ikut konsisten di seluruh replica/instance. Di sisi client (`frontend/src/services/api.ts` & `mobile/src/core/api/client.ts`), interceptor Axios sudah otomatis menyisipkan `Idempotency-Key` dengan jendela deduplikasi 5 detik untuk request `POST`/`PUT`/`PATCH` (dan mengecualikan endpoint auth, toggle like, dan upload `FormData`).

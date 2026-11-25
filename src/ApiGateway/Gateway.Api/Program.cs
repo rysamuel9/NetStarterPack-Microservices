@@ -2,9 +2,11 @@
 using System.Net.Sockets;
 using System.Text.Json.Nodes;
 using System.Threading.RateLimiting;
+using BuildingBlocks.Core.Attributes;
 using BuildingBlocks.Core.Common;
 using BuildingBlocks.Core.Contracts;
 using BuildingBlocks.Infrastructure.Middleware;
+using BuildingBlocks.Security;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -58,7 +60,11 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(allowedOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod()
-              .AllowCredentials();
+              .AllowCredentials()
+              .WithExposedHeaders(
+                  IdempotencyHeaders.Key,
+                  IdempotencyHeaders.Replayed,
+                  CurrentUserService.CorrelationHeaderName);
     });
 });
 
