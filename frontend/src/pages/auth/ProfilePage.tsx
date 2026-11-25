@@ -3,6 +3,7 @@ import { UserAvatar } from '../../components/UserAvatar';
 import { UserCheck, KeyRound, Save } from 'lucide-react';
 import { api, getErrorMessage } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { validateFileForUpload } from '../../utils/fileUpload';
 
 export const ProfilePage: React.FC = () => {
   const { user, refreshUserAndMenus } = useAuth();
@@ -22,20 +23,15 @@ export const ProfilePage: React.FC = () => {
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  const MAX_AVATAR_SIZE = 5 * 1024 * 1024;
-
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
     setMsg(null);
 
-    if (!['image/jpeg', 'image/png'].includes(file.type)) {
-      setMsg({ type: 'error', text: 'Format foto harus JPG atau PNG.' });
-      return;
-    }
-    if (file.size > MAX_AVATAR_SIZE) {
-      setMsg({ type: 'error', text: 'Ukuran foto maksimal 5 MB.' });
+    const validationError = await validateFileForUpload(file, 'avatar');
+    if (validationError) {
+      setMsg({ type: 'error', text: validationError });
       return;
     }
 
@@ -130,7 +126,7 @@ export const ProfilePage: React.FC = () => {
                 {uploading ? 'Memproses...' : 'Ganti Foto'}
                 <input
                   type="file"
-                  accept="image/png,image/jpeg"
+                  accept="image/png,image/jpeg,image/webp"
                   className="hidden"
                   onChange={handleAvatarChange}
                 />
@@ -145,7 +141,7 @@ export const ProfilePage: React.FC = () => {
                   Hapus foto
                 </button>
               )}
-              <span className="text-[10px] text-slate-400">JPG / PNG, maksimal 5 MB</span>
+              <span className="text-[10px] text-slate-400">JPG / PNG / WebP, maksimal 5 MB</span>
             </div>
           </div>
           <div>

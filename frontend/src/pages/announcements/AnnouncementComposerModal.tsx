@@ -14,6 +14,7 @@ import {
 import { api, getErrorMessage } from '../../services/api';
 import { EmojiPickerButton } from '../../components/EmojiPickerButton';
 import { ANNOUNCEMENT_TYPES } from '../../utils/announcementMeta';
+import { validateFileForUpload } from '../../utils/fileUpload';
 import { formatBytes } from '../../utils/formatters';
 import type {
   AnnouncementAttachmentItem,
@@ -76,13 +77,19 @@ export const AnnouncementComposerModal: React.FC<AnnouncementComposerModalProps>
     if (!files || files.length === 0) return;
     setUploading(true);
     try {
+      const preset = kind === 'File' ? 'attachment' : 'image';
       for (const file of Array.from(files)) {
+        const validationError = await validateFileForUpload(file, preset);
+        if (validationError) {
+          onError(validationError);
+          continue;
+        }
+
         const fd = new FormData();
         fd.append('file', file);
         const res = await api.post<ApiResult<AnnouncementAttachmentItem>>(
           `/announcements/upload?kind=${kind}`,
-          fd,
-          { headers: { 'Content-Type': 'multipart/form-data' } }
+          fd
         );
         if (res.data.succeeded && res.data.data) {
           const uploaded = res.data.data;

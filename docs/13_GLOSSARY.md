@@ -151,6 +151,9 @@ Pipeline ketahanan komunikasi HTTP antar-microservice di `BuildingBlocks.Infrast
 ### API Versioning (`Asp.Versioning.Mvc`)
 Mekanisme penomoran versi kontrak REST API di `BaseApiController` dan `BuildingBlocks.Infrastructure` yang mendukung path kanonis **`/api/v1/...`**, header `X-Api-Version`, dan query `?api-version=1.0`, sambil tetap mempertahankan alias `/api/...` (*backward-compatible* ke v1.0) serta melaporkan versi aktif via header `api-supported-versions`.
 
+### Unified File Storage (`IFileStorageService`) & Magic-Bytes Validation
+Abstraksi penyimpanan file bersama di `BuildingBlocks.Core` & `BuildingBlocks.Infrastructure/Storage/` yang dipakai untuk avatar (`Identity.Api`) maupun banner, gambar, dan lampiran dokumen (`Announcement.Api`). Cukup ganti `FileStorageSettings:Provider` di `appsettings.json` untuk beralih antara **`LocalDisk`** (default dev) dan **`S3` / MinIO / Cloudflare R2** (production multi-server). Setiap upload juga melewati **`FileSignatureValidator`** yang memeriksa *magic bytes* biner isi file aslinya (bukan hanya ekstensi nama file) sekaligus memblokir executable yang di-rename dan payload XSS pada `.svg`.
+
 ### Axios Interceptor & Antrean `failedQueue` (`frontend/src/services/api.ts`)
 Menempelkan JWT secara otomatis ke setiap request yang menuju API Gateway (`:5080`), serta menahan request paralel di `failedQueue` saat terjadi `401` untuk melakukan *Refresh Token Rotation* otomatis ke `/api/auth/refresh`.
 

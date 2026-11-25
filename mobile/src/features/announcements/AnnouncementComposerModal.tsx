@@ -18,6 +18,7 @@ import {
 import { ImagePlus, Send, Trash2, Upload, X } from 'lucide-react-native';
 import { apiClient, getErrorMessage } from '@/core/api/client';
 import { resolveMediaUrl } from '@/core/config/serverConfig';
+import { validatePickedMedia } from '@/shared/utils/fileUpload';
 import { useTheme } from '@/core/theme/themeStore';
 import { radius } from '@/core/theme/tokens';
 import type { AnnouncementAttachmentItem, ApiResult } from '@/core/types';
@@ -93,18 +94,17 @@ export const AnnouncementComposerModal: React.FC<AnnouncementComposerModalProps>
 
     if (res.canceled || !res.assets[0]) return;
     const asset = res.assets[0];
-    const mimeType =
-      asset.mimeType === 'image/png' || asset.uri.toLowerCase().endsWith('.png')
-        ? 'image/png'
-        : 'image/jpeg';
-    const fileName =
-      asset.fileName || `${kind.toLowerCase()}-${Date.now()}.${mimeType === 'image/png' ? 'png' : 'jpg'}`;
+    const check = validatePickedMedia(asset, 'image', kind.toLowerCase());
+    if (!check.valid) {
+      Alert.alert('Format Tidak Valid', check.message);
+      return;
+    }
 
     const fd = new FormData();
     fd.append('file', {
       uri: asset.uri,
-      name: fileName,
-      type: mimeType,
+      name: check.fileName,
+      type: check.mimeType,
     } as unknown as Blob);
 
     setUploading(true);

@@ -209,7 +209,8 @@ public static class AnnouncementStorageHelper
 public class AnnouncementDatabaseSeeder(
     AnnouncementDbContext dbContext,
     IHostEnvironment hostEnvironment,
-    ILogger<AnnouncementDatabaseSeeder> logger)
+    ILogger<AnnouncementDatabaseSeeder> logger,
+    IFileStorageService? fileStorage = null)
 {
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
@@ -565,11 +566,16 @@ public class AnnouncementDatabaseSeeder(
 
     private void EnsureSeededAssetFiles()
     {
+        EnsureSeededAssetFilesAsync(CancellationToken.None).GetAwaiter().GetResult();
+    }
+
+    private async Task EnsureSeededAssetFilesAsync(CancellationToken cancellationToken)
+    {
         try
         {
-            var dir = AnnouncementStorageHelper.GetUploadsDirectory(hostEnvironment);
-
-            WriteIfMissing(Path.Combine(dir, "seed-banner-hr-policy.svg"), """
+            var assets = new (string FileName, string ContentType, string Content)[]
+            {
+                ("seed-banner-hr-policy.svg", "image/svg+xml", """
                 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420">
                   <defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0f766e"/><stop offset="100%" stop-color="#0e7490"/></linearGradient></defs>
                   <rect width="1200" height="420" fill="url(#g1)"/>
@@ -579,9 +585,8 @@ public class AnnouncementDatabaseSeeder(
                   <text x="80" y="230" font-family="Segoe UI, sans-serif" font-size="52" font-weight="800" fill="#ffffff">Kebijakan Kerja &amp; SDM 2026</text>
                   <text x="80" y="285" font-family="Segoe UI, sans-serif" font-size="22" fill="#ccfbf1">Informasi resmi dari Human Resources &amp; People Operations</text>
                 </svg>
-                """);
-
-            WriteIfMissing(Path.Combine(dir, "seed-banner-urgent.svg"), """
+                """),
+                ("seed-banner-urgent.svg", "image/svg+xml", """
                 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420">
                   <defs><linearGradient id="g2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#9f1239"/><stop offset="100%" stop-color="#ea580c"/></linearGradient></defs>
                   <rect width="1200" height="420" fill="url(#g2)"/>
@@ -590,9 +595,8 @@ public class AnnouncementDatabaseSeeder(
                   <text x="80" y="230" font-family="Segoe UI, sans-serif" font-size="52" font-weight="800" fill="#ffffff">Pengumuman Penting Internal</text>
                   <text x="80" y="285" font-family="Segoe UI, sans-serif" font-size="22" fill="#ffedd5">Mohon segera ditindaklanjuti sebelum batas waktu yang ditentukan</text>
                 </svg>
-                """);
-
-            WriteIfMissing(Path.Combine(dir, "seed-banner-townhall.svg"), """
+                """),
+                ("seed-banner-townhall.svg", "image/svg+xml", """
                 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420">
                   <defs><linearGradient id="g3" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#1e1b4b"/><stop offset="100%" stop-color="#4f46e5"/></linearGradient></defs>
                   <rect width="1200" height="420" fill="url(#g3)"/>
@@ -601,9 +605,8 @@ public class AnnouncementDatabaseSeeder(
                   <text x="80" y="230" font-family="Segoe UI, sans-serif" font-size="52" font-weight="800" fill="#ffffff">All-Hands Townhall &amp; Workshop</text>
                   <text x="80" y="285" font-family="Segoe UI, sans-serif" font-size="22" fill="#e0e7ff">Kolaborasi lintas tim, demo inovasi, dan diskusi terbuka</text>
                 </svg>
-                """);
-
-            WriteIfMissing(Path.Combine(dir, "seed-banner-wellness.svg"), """
+                """),
+                ("seed-banner-wellness.svg", "image/svg+xml", """
                 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420">
                   <defs><linearGradient id="g4" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#065f46"/><stop offset="100%" stop-color="#10b981"/></linearGradient></defs>
                   <rect width="1200" height="420" fill="url(#g4)"/>
@@ -612,9 +615,8 @@ public class AnnouncementDatabaseSeeder(
                   <text x="80" y="230" font-family="Segoe UI, sans-serif" font-size="52" font-weight="800" fill="#ffffff">Program Kesehatan &amp; Komunitas</text>
                   <text x="80" y="285" font-family="Segoe UI, sans-serif" font-size="22" fill="#d1fae5">Mendukung keseimbangan kerja dan kesehatan seluruh karyawan</text>
                 </svg>
-                """);
-
-            WriteIfMissing(Path.Combine(dir, "seed-image-office-layout.svg"), """
+                """),
+                ("seed-image-office-layout.svg", "image/svg+xml", """
                 <svg xmlns="http://www.w3.org/2000/svg" width="900" height="500" viewBox="0 0 900 500">
                   <rect width="900" height="500" fill="#f8fafc"/>
                   <rect x="40" y="40" width="820" height="420" rx="20" fill="#ffffff" stroke="#cbd5e1" stroke-width="3"/>
@@ -625,20 +627,40 @@ public class AnnouncementDatabaseSeeder(
                   <rect x="80" y="280" width="740" height="130" rx="12" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
                   <text x="270" y="352" font-family="Segoe UI, sans-serif" font-size="22" font-weight="700" fill="#92400e">Auditorium Townhall &amp; Pantry Lantai 5</text>
                 </svg>
-                """);
-
-            WriteIfMissing(Path.Combine(dir, "seed-doc-hybrid-policy.txt"), """
+                """),
+                ("seed-doc-hybrid-policy.txt", "text/plain; charset=utf-8", """
                 PANDUAN RINGKAS KEBIJAKAN KERJA HYBRID 2026
                 ============================================
                 1. Jadwal WFO Wajib: Selasa, Rabu, Kamis (Jam inti 10.00 - 16.00 WIB).
                 2. Jadwal WFH Fleksibel: Senin & Jumat.
                 3. Tunjangan Internet: Rp 350.000/bulan.
                 4. Kontak HR Operations: hr-support@starterpack.local
-                """);
+                """),
+            };
+
+            if (fileStorage is not null)
+            {
+                foreach (var (fileName, contentType, content) in assets)
+                {
+                    var key = FileSignatureValidator.NormalizeObjectKey("announcements", fileName);
+                    if (!await fileStorage.ExistsAsync(key, cancellationToken))
+                    {
+                        await using var ms = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(content.Trim()));
+                        await fileStorage.UploadAsync("announcements", fileName, ms, contentType, cancellationToken);
+                    }
+                }
+                return;
+            }
+
+            var dir = AnnouncementStorageHelper.GetUploadsDirectory(hostEnvironment);
+            foreach (var (fileName, _, content) in assets)
+            {
+                WriteIfMissing(Path.Combine(dir, fileName), content);
+            }
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "[Announcement.Api] Gagal membuat file aset seed lokal.");
+            logger.LogWarning(ex, "[Announcement.Api] Gagal membuat file aset seed.");
         }
     }
 

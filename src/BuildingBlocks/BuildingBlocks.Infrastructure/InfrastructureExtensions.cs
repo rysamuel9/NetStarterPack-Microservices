@@ -7,6 +7,7 @@ using BuildingBlocks.Infrastructure.Caching;
 using BuildingBlocks.Infrastructure.Messaging;
 using BuildingBlocks.Infrastructure.Middleware;
 using BuildingBlocks.Infrastructure.Resilience;
+using BuildingBlocks.Infrastructure.Storage;
 using BuildingBlocks.Security;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -31,6 +32,7 @@ public static class InfrastructureExtensions
         services.Configure<ServiceEndpointsSettings>(configuration.GetSection(ServiceEndpointsSettings.SectionName));
         services.Configure<IdempotencySettings>(configuration.GetSection(IdempotencySettings.SectionName));
         services.Configure<HttpResilienceSettings>(configuration.GetSection(HttpResilienceSettings.SectionName));
+        services.Configure<FileStorageSettings>(configuration.GetSection(FileStorageSettings.SectionName));
 
         // 1. Setup Hybrid Caching (L1 Memory + L2 Redis / InMemory)
         services.AddMemoryCache();
@@ -48,6 +50,19 @@ public static class InfrastructureExtensions
             services.AddDistributedMemoryCache();
         }
         services.AddSingleton<ICacheService, DistributedCacheService>();
+
+        // 1b. Setup Unified File Storage (LocalDisk default dev <-> S3 / MinIO / Cloudflare R2 via config)
+        var storageSettings = configuration.GetSection(FileStorageSettings.SectionName).Get<FileStorageSettings>()
+                              ?? new FileStorageSettings();
+        if (storageSettings.Provider.Equals("S3", StringComparison.OrdinalIgnoreCase) ||
+            storageSettings.Provider.Equals("MinIO", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddSingleton<IFileStorageService, S3FileStorageService>();
+        }
+        else
+        {
+            services.AddSingleton<IFileStorageService, LocalDiskFileStorageService>();
+        }
 
         // 2. Setup HTTP EventBus dengan Polly v8 Resilience (Retry + Circuit Breaker + Timeout)
         services.AddHttpClient<IEventBus, HttpEventBus>()

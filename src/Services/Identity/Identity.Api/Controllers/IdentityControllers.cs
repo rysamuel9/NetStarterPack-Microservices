@@ -27,7 +27,7 @@ public class AuthController(IAuthService authService, IAvatarService avatarServi
         }
 
         await using var stream = file.OpenReadStream();
-        return ToActionResult(await avatarService.UploadAsync(stream, file.Length, cancellationToken));
+        return ToActionResult(await avatarService.UploadAsync(stream, file.Length, file.FileName, cancellationToken));
     }
 
     [Authorize]
@@ -38,14 +38,15 @@ public class AuthController(IAuthService authService, IAvatarService avatarServi
     // Anonymous supaya bisa dipakai langsung di <img src>. Isinya cuma foto profil, ID-nya GUID.
     [AllowAnonymous]
     [HttpGet("avatar/{userId:guid}")]
-    public IActionResult GetAvatar(Guid userId)
+    public async Task<IActionResult> GetAvatar(Guid userId, CancellationToken cancellationToken)
     {
-        var avatar = avatarService.GetAvatar(userId);
+        var avatar = await avatarService.GetAvatarAsync(userId, cancellationToken);
         if (avatar is null) return NotFound();
 
+        Response.RegisterForDisposeAsync(avatar);
         Response.Headers.CacheControl = "public,max-age=86400";
         Response.Headers["X-Content-Type-Options"] = "nosniff";
-        return PhysicalFile(avatar.FullPath, avatar.ContentType);
+        return File(avatar.Content, avatar.ContentType);
     }
 
     [AllowAnonymous]

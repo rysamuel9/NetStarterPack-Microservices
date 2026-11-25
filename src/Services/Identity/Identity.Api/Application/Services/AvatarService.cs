@@ -10,13 +10,19 @@ namespace Identity.Api.Application.Services;
 
 public class AvatarService(
     IIdentityUnitOfWork unitOfWork,
-    IAvatarStorage storage,
+    IFileStorageService fileStorage,
     ICurrentUserService currentUserService,
     ICacheService? cacheService = null) : IAvatarService
 {
     public const long MaxFileSizeBytes = 5 * 1024 * 1024; // 5 MB
+    private const string AvatarFolder = "avatars";
+    private static readonly string[] AvatarExtensions = [".jpg", ".png", ".webp"];
 
-    public async Task<Result<CurrentUserDto>> UploadAsync(Stream content, long length, CancellationToken cancellationToken = default)
+    public async Task<Result<CurrentUserDto>> UploadAsync(
+        Stream content,
+        long length,
+        string? fileName = null,
+        CancellationToken cancellationToken = default)
     {
         if (currentUserService.UserId is null)
         {
@@ -33,18 +39,14 @@ public class AvatarService(
             return Result<CurrentUserDto>.Failure("Ukuran foto maksimal 5 MB.", 400);
         }
 
-        // Baca isi file (sudah dibatasi 5 MB) lalu cek signature aslinya, jangan percaya ekstensi / content-type dari client.
         using var buffer = new MemoryStream();
         await content.CopyToAsync(buffer, cancellationToken);
-        if (buffer.Length > MaxFileSizeBytes)
-        {
-            return Result<CurrentUserDto>.Failure("Ukuran foto maksimal 5 MB.", 400);
-        }
 
-        var extension = DetectExtension(buffer.GetBuffer().AsSpan(0, (int)buffer.Length));
-        if (extension is null)
+        var bytes = buffer.GetBuffer().AsSpan(0, (int)buffer.Length);
+        var validation = FileSignatureValidator.Validate(bytes, fileName, FileValidationPolicy.AvatarImage);
+        if (!validation.Succeeded || validation.Data is null)
         {
-            return Result<CurrentUserDto>.Failure("Format foto harus JPG atau PNG.", 400);
+            return Result<CurrentUserDto>.Failure(validation.Message, 400);
         }
 
         var user = await unitOfWork.Users.GetWithRolesAndPermissionsByIdAsync(currentUserService.UserId.Value, cancellationToken);
@@ -53,11 +55,20 @@ public class AvatarService(
             return Result<CurrentUserDto>.Failure("Pengguna tidak ditemukan.", 404);
         }
 
-        buffer.Position = 0;
-        await storage.SaveAsync(user.Id, extension, buffer, cancellationToken);
+        // Hapus file avatar lama (ekstensi lain) agar tidak menyisakan orphan file di disk maupun S3/MinIO
+        await DeleteExistingAvatarFilesAsync(user.Id, cancellationToken);
 
-        user.AvatarUrl = $"/api/auth/avatar/{user.Id}?v={DateTime.UtcNow.Ticks}";
-        return await SaveAsync(user, "UPLOAD_AVATAR", "mengunggah foto profil", "Foto profil berhasil diperbarui.", cancellationToken);
+        buffer.Position = 0;
+        var storedName = $"{user.Id:N}{validation.Data.Extension}";
+        await fileStorage.UploadAsync(
+            AvatarFolder,
+            storedName,
+            buffer,
+            validation.Data.ContentType,
+            cancellationToken);
+
+        user.AvatarUrl = $"/api/v1/auth/avatar/{user.Id}?v={DateTime.UtcNow.Ticks}";
+        return await SaveAsync(user, "UPLOAD_AVATAR", $"mengunggah foto profil ({fileStorage.ProviderName})", "Foto profil berhasil diperbarui.", cancellationToken);
     }
 
     public async Task<Result<CurrentUserDto>> RemoveAsync(CancellationToken cancellationToken = default)
@@ -73,14 +84,41 @@ public class AvatarService(
             return Result<CurrentUserDto>.Failure("Pengguna tidak ditemukan.", 404);
         }
 
-        storage.Delete(user.Id);
+        await DeleteExistingAvatarFilesAsync(user.Id, cancellationToken);
         user.AvatarUrl = null;
         return await SaveAsync(user, "REMOVE_AVATAR", "menghapus foto profil", "Foto profil berhasil dihapus.", cancellationToken);
     }
 
-    public AvatarFile? GetAvatar(Guid userId) => storage.Find(userId);
+    public async Task<StoredFileStream?> GetAvatarAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        foreach (var ext in AvatarExtensions)
+        {
+            var objectKey = FileSignatureValidator.NormalizeObjectKey(AvatarFolder, $"{userId:N}{ext}");
+            var stored = await fileStorage.OpenReadAsync(objectKey, cancellationToken);
+            if (stored is not null)
+            {
+                return stored;
+            }
+        }
 
-    private async Task<Result<CurrentUserDto>> SaveAsync(User user, string action, string detail, string message, CancellationToken cancellationToken)
+        return null;
+    }
+
+    private async Task DeleteExistingAvatarFilesAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        foreach (var ext in AvatarExtensions)
+        {
+            var objectKey = FileSignatureValidator.NormalizeObjectKey(AvatarFolder, $"{userId:N}{ext}");
+            await fileStorage.DeleteAsync(objectKey, cancellationToken);
+        }
+    }
+
+    private async Task<Result<CurrentUserDto>> SaveAsync(
+        User user,
+        string action,
+        string detail,
+        string message,
+        CancellationToken cancellationToken)
     {
         user.UpdatedAt = DateTime.UtcNow;
         user.UpdatedBy = user.Username;
@@ -105,13 +143,5 @@ public class AvatarService(
         }
 
         return Result<CurrentUserDto>.Success(AuthService.BuildCurrentUserDto(user), message);
-    }
-
-    private static string? DetectExtension(ReadOnlySpan<byte> data)
-    {
-        ReadOnlySpan<byte> png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-        if (data.Length >= png.Length && data[..png.Length].SequenceEqual(png)) return ".png";
-        if (data.Length >= 3 && data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF) return ".jpg";
-        return null;
     }
 }
