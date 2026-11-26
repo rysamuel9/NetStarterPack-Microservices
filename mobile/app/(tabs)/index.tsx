@@ -101,6 +101,14 @@ const DEFAULT_CLUSTER_NODES: ServiceNodeHealth[] = [
     database: 'NetStarterPack_TrackingDb',
     latencyMs: 0,
   },
+  {
+    service: 'Notification.Api',
+    port: 5088,
+    url: '',
+    status: 'Unreachable',
+    database: 'NetStarterPack_NotificationDb',
+    latencyMs: 0,
+  },
 ];
 
 const SERVICE_NODE_META: Record<
@@ -148,6 +156,12 @@ const SERVICE_NODE_META: Record<
     route: '/(modules)/tracking' as Href,
     permission: 'Tracking.View',
     accent: '#0284C7',
+  },
+  'Notification.Api': {
+    subtitle: 'In-App SignalR • Email O365/Gmail • Expo Push',
+    route: '/(modules)/notifications' as Href,
+    permission: 'Notifications.View',
+    accent: '#7C3AED',
   },
 };
 

@@ -137,6 +137,26 @@ public class OrderService(
             IpAddress: currentUserService.IpAddress,
             SourceService: "Order.Api"), cancellationToken);
 
+        await eventBus.PublishNotificationAsync(new NotificationIntegrationEvent(
+            TemplateCode: NotificationTemplateCodes.OrderCreated,
+            Category: NotificationCategories.Order,
+            Title: $"Pesanan Baru: {order.OrderNumber}",
+            Message: $"{currentUserService.FullName ?? currentUserService.Username ?? "User"} membuat pesanan {order.OrderNumber} untuk {order.CustomerName} senilai Rp {order.TotalAmount:N0}.",
+            TargetRoles: [RoleNames.Manager, RoleNames.FinanceDirector, RoleNames.Admin],
+            ExcludeUserId: currentUserService.UserId,
+            Variables: new()
+            {
+                ["order_number"] = order.OrderNumber,
+                ["customer_name"] = order.CustomerName,
+                ["total_amount"] = $"Rp {order.TotalAmount:N0}",
+                ["status"] = order.Status.ToString(),
+                ["actor_name"] = currentUserService.FullName ?? currentUserService.Username ?? "System"
+            },
+            ActionUrl: "/orders",
+            EntityId: order.Id.ToString(),
+            Severity: "Info",
+            SourceService: "Order.Api"), cancellationToken);
+
         return Result<OrderDto>.Success(MapToDto(order), "Pesanan baru berhasil dibuat.", 201);
     }
 
@@ -157,6 +177,7 @@ public class OrderService(
             return Result<OrderDto>.Failure($"Pesanan lain dengan nomor '{orderNo}' sudah terdaftar.", 409);
         }
 
+        var previousStatus = order.Status;
         if (Enum.TryParse<OrderStatus>(request.Status, true, out var status))
         {
             order.Status = status;
@@ -189,6 +210,28 @@ public class OrderService(
             Details: $"[Order.Api] Memperbarui pesanan '{order.OrderNumber}' (Status: {order.Status}).",
             IpAddress: currentUserService.IpAddress,
             SourceService: "Order.Api"), cancellationToken);
+
+        if (previousStatus != order.Status)
+        {
+            await eventBus.PublishNotificationAsync(new NotificationIntegrationEvent(
+                TemplateCode: NotificationTemplateCodes.OrderStatusChanged,
+                Category: NotificationCategories.Order,
+                Title: $"Status Pesanan {order.OrderNumber}: {order.Status}",
+                Message: $"Pesanan {order.OrderNumber} ({order.CustomerName}) berubah status dari {previousStatus} menjadi {order.Status}.",
+                TargetRoles: [RoleNames.Manager, RoleNames.FinanceDirector, RoleNames.Admin],
+                ExcludeUserId: currentUserService.UserId,
+                Variables: new()
+                {
+                    ["order_number"] = order.OrderNumber,
+                    ["customer_name"] = order.CustomerName,
+                    ["status"] = order.Status.ToString(),
+                    ["actor_name"] = currentUserService.FullName ?? currentUserService.Username ?? "System"
+                },
+                ActionUrl: "/orders",
+                EntityId: order.Id.ToString(),
+                Severity: order.Status == OrderStatus.Cancelled ? "Warning" : "Success",
+                SourceService: "Order.Api"), cancellationToken);
+        }
 
         return Result<OrderDto>.Success(MapToDto(order), "Data pesanan berhasil diperbarui.");
     }

@@ -40,6 +40,7 @@ public class IdentityDatabaseSeeder(
             await EnsureExpandedCorporateEmployeesAsync(cancellationToken);
             await EnsureMasterDataPermissionsAndMenuAsync(cancellationToken);
             await EnsureTrackingPermissionsAndMenuAsync(cancellationToken);
+            await EnsureNotificationPermissionsAndMenusAsync(cancellationToken);
             return;
         }
 
@@ -511,7 +512,8 @@ public class IdentityDatabaseSeeder(
         await EnsureExpandedCorporateEmployeesAsync(cancellationToken);
         await EnsureMasterDataPermissionsAndMenuAsync(cancellationToken);
         await EnsureTrackingPermissionsAndMenuAsync(cancellationToken);
-        logger.LogInformation("Identity database seeded successfully with corporate workflow, HR announcements, master lookups, live tracking, & full organization master!");
+        await EnsureNotificationPermissionsAndMenusAsync(cancellationToken);
+        logger.LogInformation("Identity database seeded successfully with corporate workflow, HR announcements, master lookups, live tracking, notifications, & full organization master!");
     }
 
     private async Task EnsureOrderMicroserviceMenuAndPermissionsAsync(CancellationToken cancellationToken)
@@ -1782,6 +1784,135 @@ public class IdentityDatabaseSeeder(
         {
             await dbContext.SaveChangesAsync(cancellationToken);
             logger.LogInformation("[Identity.Api] Ensured Tracking.Api permissions (Tracking.View/Dispatch/Operate) & sidebar menu (/tracking).");
+        }
+    }
+
+    /// <summary>
+    /// Auto-upgrade aman untuk Notification.Api (Port 5088):
+    /// menambahkan permission Notifications.View (semua role) dan Notifications.Manage (SuperAdmin &amp; Admin),
+    /// serta menu sidebar Pusat Notifikasi (/notifications) dan Template &amp; Log Email (/notification-templates).
+    /// </summary>
+    private async Task EnsureNotificationPermissionsAndMenusAsync(CancellationToken cancellationToken)
+    {
+        var roles = await dbContext.Roles
+            .Include(r => r.RolePermissions)
+            .ToListAsync(cancellationToken);
+
+        var manageRoles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            RoleNames.SuperAdmin,
+            RoleNames.Admin
+        };
+
+        var changed = false;
+
+        foreach (var role in roles)
+        {
+            var toGrant = new List<string> { Permissions.Notifications.View };
+            if (manageRoles.Contains(role.Name))
+            {
+                toGrant.Add(Permissions.Notifications.Manage);
+            }
+
+            foreach (var code in toGrant)
+            {
+                if (!role.RolePermissions.Any(rp => rp.PermissionCode == code))
+                {
+                    await dbContext.RolePermissions.AddAsync(new RolePermission
+                    {
+                        RoleId = role.Id,
+                        PermissionCode = code,
+                        CreatedBy = "SystemSeeder"
+                    }, cancellationToken);
+                    changed = true;
+                }
+            }
+        }
+
+        var inboxMenu = await dbContext.MenuItems
+            .FirstOrDefaultAsync(m => m.Code == "notifications" || m.Path == "/notifications", cancellationToken);
+
+        if (inboxMenu is null)
+        {
+            inboxMenu = new MenuItem
+            {
+                Code = "notifications",
+                Title = "Pusat Notifikasi",
+                Path = "/notifications",
+                Icon = "Bell",
+                GroupName = "MAIN",
+                SortOrder = 2,
+                RequiredPermission = Permissions.Notifications.View,
+                IsVisible = true,
+                Description = "Inbox notifikasi terpusat (Workflow, Order, Tracking, Announcement) & preferensi channel In-App/Email/Push",
+                CreatedBy = "SystemSeeder"
+            };
+            await dbContext.MenuItems.AddAsync(inboxMenu, cancellationToken);
+            changed = true;
+        }
+
+        var templatesMenu = await dbContext.MenuItems
+            .FirstOrDefaultAsync(m => m.Code == "notification-templates" || m.Path == "/notification-templates", cancellationToken);
+
+        if (templatesMenu is null)
+        {
+            templatesMenu = new MenuItem
+            {
+                Code = "notification-templates",
+                Title = "Template & Log Email",
+                Path = "/notification-templates",
+                Icon = "Mail",
+                GroupName = "SYSTEM MESH",
+                SortOrder = 12,
+                RequiredPermission = Permissions.Notifications.Manage,
+                IsVisible = true,
+                Description = "Kelola template HTML email (Scriban), live preview, kirim test email Office 365/Gmail, & monitor delivery log",
+                CreatedBy = "SystemSeeder"
+            };
+            await dbContext.MenuItems.AddAsync(templatesMenu, cancellationToken);
+            changed = true;
+        }
+
+        var existingInboxRoleMenus = await dbContext.RoleMenus
+            .Where(rm => rm.MenuItemId == inboxMenu.Id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var role in roles)
+        {
+            if (!existingInboxRoleMenus.Any(rm => rm.RoleId == role.Id))
+            {
+                await dbContext.RoleMenus.AddAsync(new RoleMenu
+                {
+                    RoleId = role.Id,
+                    MenuItemId = inboxMenu.Id,
+                    CreatedBy = "SystemSeeder"
+                }, cancellationToken);
+                changed = true;
+            }
+        }
+
+        var existingTemplateRoleMenus = await dbContext.RoleMenus
+            .Where(rm => rm.MenuItemId == templatesMenu.Id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var role in roles.Where(r => manageRoles.Contains(r.Name)))
+        {
+            if (!existingTemplateRoleMenus.Any(rm => rm.RoleId == role.Id))
+            {
+                await dbContext.RoleMenus.AddAsync(new RoleMenu
+                {
+                    RoleId = role.Id,
+                    MenuItemId = templatesMenu.Id,
+                    CreatedBy = "SystemSeeder"
+                }, cancellationToken);
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            logger.LogInformation("[Identity.Api] Ensured Notification.Api permissions (Notifications.View/Manage) & sidebar menus (/notifications, /notification-templates).");
         }
     }
 }

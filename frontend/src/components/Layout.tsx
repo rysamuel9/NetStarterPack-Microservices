@@ -24,10 +24,16 @@ import {
   getAnnouncementHubConnection,
   stopAnnouncementHub,
 } from '../services/announcementHub';
+import {
+  ensureNotificationHubStarted,
+  getNotificationHubConnection,
+  stopNotificationHub,
+  type NotificationReceivedEvent,
+  type UnreadCountUpdatedEvent,
+} from '../services/notificationHub';
 import { DynamicIcon } from './DynamicIcon';
-import { announcementTypeStyle } from '../utils/announcementMeta';
 import { formatRelativeTime } from '../utils/formatters';
-import type { AnnouncementBellResponse, AnnouncementSummaryItem, ApiResult, MenuItem } from '../types';
+import type { ApiResult, MenuItem, NotificationBellResponse, NotificationItem } from '../types';
 
 export const Layout: React.FC = () => {
   const { user, menus, logout, hasPermission } = useAuth();
@@ -63,49 +69,73 @@ export const Layout: React.FC = () => {
     }
   };
 
-  // Bell Announcement Notifications state + Live SignalR Toast
+  // Unified Bell Notifications state + Live SignalR Toast (Notification.Api :5088)
   const [bellOpen, setBellOpen] = useState(false);
-  const [bellData, setBellData] = useState<AnnouncementBellResponse>({ unreadCount: 0, items: [] });
-  const [liveToast, setLiveToast] = useState<AnnouncementSummaryItem | null>(null);
+  const [bellData, setBellData] = useState<NotificationBellResponse>({ unreadCount: 0, items: [] });
+  const [liveToast, setLiveToast] = useState<NotificationItem | null>(null);
   const bellRef = useRef<HTMLDivElement | null>(null);
 
   const loadBell = async () => {
     try {
-      const res = await api.get<ApiResult<AnnouncementBellResponse>>('/announcements/bell');
+      const res = await api.get<ApiResult<NotificationBellResponse>>('/notifications/bell');
       if (res.data.succeeded && res.data.data) {
         setBellData(res.data.data);
       }
     } catch {
-      // Abaikan jika Announcement.Api sedang booting
+      // Abaikan jika Notification.Api sedang booting
     }
   };
 
   useEffect(() => {
     loadBell();
     const handler = () => loadBell();
+    window.addEventListener('notification-updated', handler);
     window.addEventListener('announcement-read-updated', handler);
-    return () => window.removeEventListener('announcement-read-updated', handler);
+    return () => {
+      window.removeEventListener('notification-updated', handler);
+      window.removeEventListener('announcement-read-updated', handler);
+    };
   }, [location.pathname]);
 
-  // Global SignalR listener: update angka Bell & tampilkan toast instan saat HR publish pengumuman baru
+  // Global SignalR listener: update angka Bell & tampilkan toast instan dari semua microservice
   useEffect(() => {
-    const conn = getAnnouncementHubConnection();
+    const notifConn = getNotificationHubConnection();
+    const annConn = getAnnouncementHubConnection();
     let toastTimer: number | undefined;
 
-    const onAnnouncementPublished = (summary: AnnouncementSummaryItem) => {
-      loadBell();
-      if (summary.authorUsername !== user?.username) {
-        setLiveToast(summary);
+    const onNotificationReceived = (payload: NotificationReceivedEvent) => {
+      if (payload?.notification) {
+        setBellData((prev) => ({
+          unreadCount: payload.unreadCount,
+          items: [payload.notification, ...prev.items.filter((i) => i.id !== payload.notification.id)].slice(0, 10),
+        }));
+        setLiveToast(payload.notification);
+        window.dispatchEvent(new Event('notification-updated'));
         window.clearTimeout(toastTimer);
         toastTimer = window.setTimeout(() => setLiveToast(null), 7000);
       }
     };
 
-    conn.on('AnnouncementPublished', onAnnouncementPublished);
+    const onUnreadUpdated = (payload: UnreadCountUpdatedEvent) => {
+      if (typeof payload?.unreadCount === 'number') {
+        setBellData((prev) => ({ ...prev, unreadCount: payload.unreadCount }));
+      }
+    };
+
+    const onAnnouncementPublished = () => {
+      loadBell();
+    };
+
+    notifConn.on('NotificationReceived', onNotificationReceived);
+    notifConn.on('UnreadCountUpdated', onUnreadUpdated);
+    annConn.on('AnnouncementPublished', onAnnouncementPublished);
+    ensureNotificationHubStarted();
     ensureAnnouncementHubStarted();
 
     return () => {
-      conn.off('AnnouncementPublished', onAnnouncementPublished);
+      notifConn.off('NotificationReceived', onNotificationReceived);
+      notifConn.off('UnreadCountUpdated', onUnreadUpdated);
+      annConn.off('AnnouncementPublished', onAnnouncementPublished);
       window.clearTimeout(toastTimer);
     };
   }, [user?.username]);
@@ -122,16 +152,31 @@ export const Layout: React.FC = () => {
 
   const handleMarkAllBellRead = async () => {
     try {
-      await api.post('/announcements/mark-all-read');
+      await api.post('/notifications/read-all');
       await loadBell();
+      window.dispatchEvent(new Event('notification-updated'));
     } catch {
       // ignore
     }
   };
 
+  const handleOpenBellItem = async (item: NotificationItem) => {
+    setBellOpen(false);
+    if (!item.isRead) {
+      try {
+        await api.post(`/notifications/${item.id}/read`);
+        window.dispatchEvent(new Event('notification-updated'));
+      } catch {
+        // ignore
+      }
+    }
+    navigate(item.actionUrl || '/notifications');
+  };
+
   const handleConfirmLogout = async (allDevices = false) => {
     setLoggingOut(true);
     try {
+      await stopNotificationHub();
       await stopAnnouncementHub();
       await logout(allDevices);
       setLogoutModalOpen(false);
@@ -280,7 +325,7 @@ export const Layout: React.FC = () => {
                 <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
                 Active Cluster Nodes
               </span>
-              <span className="text-teal-400 font-mono">7 Services</span>
+              <span className="text-teal-400 font-mono">8 Services</span>
             </div>
             <div className="grid grid-cols-2 gap-1 text-[10px] font-mono text-slate-300 pt-1">
               <a href="http://localhost:5080/swagger" target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 truncate">
@@ -306,6 +351,9 @@ export const Layout: React.FC = () => {
               </a>
               <a href="http://localhost:5087/swagger" target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-sky-950/70 hover:bg-sky-900/80 border border-sky-800/70 text-sky-300 truncate">
                 :5087 Tracking
+              </a>
+              <a href="http://localhost:5088/swagger" target="_blank" rel="noreferrer" className="col-span-2 px-2 py-1 rounded bg-violet-950/70 hover:bg-violet-900/80 border border-violet-800/70 text-violet-300 truncate">
+                :5088 Notification (Email/Push/SignalR)
               </a>
             </div>
           </div>
@@ -337,7 +385,7 @@ export const Layout: React.FC = () => {
                 <span className="font-medium">Gateway (:5080)</span>
                 <span className="text-teal-400">&rarr;</span>
                 <span className="font-mono text-[11px] text-teal-700">
-                  Identity (:5081) • Catalog (:5082) • Order (:5083) • Workflow (:5084) • Announce (:5085) • MasterData (:5086) • Tracking (:5087)
+                  Identity (:5081) • Catalog (:5082) • Order (:5083) • Workflow (:5084) • Announce (:5085) • MasterData (:5086) • Tracking (:5087) • Notify (:5088)
                 </span>
               </div>
             ) : (
@@ -401,12 +449,12 @@ export const Layout: React.FC = () => {
                     <div>
                       <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                         <Bell className="w-3.5 h-3.5 text-teal-600" />
-                        <span>Pengumuman Perusahaan</span>
+                        <span>Pusat Notifikasi</span>
                       </h3>
                       <p className="text-[11px] text-slate-500">
                         {bellData.unreadCount > 0
                           ? `${bellData.unreadCount} belum dibaca`
-                          : 'Semua sudah dibaca • 3 terbaru'}
+                          : 'Semua notifikasi sudah dibaca'}
                       </p>
                     </div>
                     {bellData.unreadCount > 0 && (
@@ -424,60 +472,42 @@ export const Layout: React.FC = () => {
                   <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
                     {bellData.items.length === 0 ? (
                       <div className="p-6 text-center text-xs text-slate-400">
-                        Belum ada pengumuman.
+                        Belum ada notifikasi baru.
                       </div>
                     ) : (
-                      bellData.items.map((ann) => {
-                        const style = announcementTypeStyle(ann.type);
-                        return (
-                          <button
-                            key={ann.id}
-                            type="button"
-                            onClick={() => {
-                              setBellOpen(false);
-                              navigate(`/announcements/${ann.id}`);
-                            }}
-                            className={`w-full text-left p-3.5 hover:bg-teal-50/50 transition-colors flex items-start gap-3 ${
-                              !ann.isReadByMe ? 'bg-teal-50/30' : ''
-                            }`}
-                          >
-                            {ann.bannerUrl ? (
-                              <img
-                                src={ann.bannerUrl}
-                                alt=""
-                                className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
-                              />
-                            ) : (
-                              <div className="w-12 h-12 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center shrink-0">
-                                <Bell className="w-5 h-5" />
-                              </div>
-                            )}
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center justify-between gap-1.5">
-                                <span
-                                  className={`px-1.5 py-0.2 rounded text-[10px] font-bold border ${style.badge}`}
-                                >
-                                  {style.label}
-                                </span>
-                                <span className="text-[10px] text-slate-400">
-                                  {formatRelativeTime(ann.publishedAt)}
-                                </span>
-                              </div>
-                              <p className="text-xs font-bold text-slate-900 line-clamp-2 mt-1">
-                                {ann.title}
-                              </p>
-                              <div className="flex items-center justify-between mt-1">
-                                <span className="text-[11px] text-slate-500 truncate">
-                                  {ann.authorFullName}
-                                </span>
-                                {!ann.isReadByMe && (
-                                  <span className="w-2 h-2 rounded-full bg-teal-500 shrink-0" />
-                                )}
-                              </div>
+                      bellData.items.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => handleOpenBellItem(item)}
+                          className={`w-full text-left p-3.5 hover:bg-teal-50/50 transition-colors flex items-start gap-3 ${
+                            !item.isRead ? 'bg-teal-50/35' : ''
+                          }`}
+                        >
+                          <div className="w-9 h-9 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center shrink-0">
+                            <Bell className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-1.5">
+                              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+                                {item.category}
+                              </span>
+                              <span className="text-[10px] text-slate-400">
+                                {formatRelativeTime(item.createdAt)}
+                              </span>
                             </div>
-                          </button>
-                        );
-                      })
+                            <p className="text-xs font-bold text-slate-900 line-clamp-1 mt-1">
+                              {item.title}
+                            </p>
+                            <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5">
+                              {item.message}
+                            </p>
+                          </div>
+                          {!item.isRead && (
+                            <span className="w-2 h-2 rounded-full bg-teal-500 shrink-0 mt-1.5" />
+                          )}
+                        </button>
+                      ))
                     )}
                   </div>
 
@@ -486,11 +516,11 @@ export const Layout: React.FC = () => {
                       type="button"
                       onClick={() => {
                         setBellOpen(false);
-                        navigate('/announcements');
+                        navigate('/notifications');
                       }}
                       className="w-full py-2 px-3 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold flex items-center justify-center gap-1.5"
                     >
-                      <span>View All Announcements</span>
+                      <span>Buka Pusat Notifikasi</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -522,7 +552,7 @@ export const Layout: React.FC = () => {
         </main>
       </div>
 
-      {/* Live Realtime Toast saat HR menerbitkan pengumuman baru */}
+      {/* Live Realtime Toast untuk semua notifikasi lintas microservice */}
       {liveToast && (
         <div className="fixed bottom-5 right-5 z-50 max-w-sm w-full bg-slate-950 text-white rounded-2xl border border-teal-500/40 shadow-2xl p-4 flex items-start gap-3">
           <div className="w-9 h-9 rounded-xl bg-teal-500/20 text-teal-300 flex items-center justify-center shrink-0">
@@ -530,20 +560,20 @@ export const Layout: React.FC = () => {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-bold uppercase tracking-wider text-teal-400">
-              Pengumuman Baru • Live
+              {liveToast.category} • Live
             </p>
             <p className="text-xs font-bold text-white line-clamp-2 mt-0.5">{liveToast.title}</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">Oleh {liveToast.authorFullName}</p>
+            <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">{liveToast.message}</p>
             <button
               type="button"
               onClick={() => {
-                const targetId = liveToast.id;
+                const targetUrl = liveToast.actionUrl || '/notifications';
                 setLiveToast(null);
-                navigate(`/announcements/${targetId}`);
+                navigate(targetUrl);
               }}
               className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-teal-300 hover:text-teal-200"
             >
-              <span>Baca Sekarang</span>
+              <span>Buka Sekarang</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>

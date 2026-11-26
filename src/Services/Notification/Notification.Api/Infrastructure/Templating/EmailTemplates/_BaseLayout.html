@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ subject }}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#F1F5F9; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#0F172A;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#F1F5F9; padding:28px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width:600px; width:100%; background-color:#FFFFFF; border-radius:12px; overflow:hidden; border:1px solid #E2E8F0; box-shadow:0 4px 12px rgba(15,23,42,0.06);">
+          <!-- Accent Strip -->
+          <tr>
+            <td style="height:5px; background-color:{{ accent_color }}; font-size:0; line-height:0;">&nbsp;</td>
+          </tr>
+
+          {{ if dev_redirect_notice && dev_redirect_notice != "" }}
+          <!-- Dev Mode Redirect Banner -->
+          <tr>
+            <td style="background-color:#FEF3C7; border-bottom:1px solid #FDE68A; padding:10px 24px; font-size:12px; color:#92400E;">
+              <strong>[DEV REDIRECT]</strong> {{ dev_redirect_notice }}
+            </td>
+          </tr>
+          {{ end }}
+
+          <!-- Header -->
+          <tr>
+            <td style="padding:22px 28px 16px 28px; border-bottom:1px solid #F1F5F9;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td style="font-size:18px; font-weight:700; color:#0F172A; letter-spacing:-0.2px;">
+                    {{ app_name }}
+                  </td>
+                  <td align="right" style="font-size:11px; font-weight:600; color:{{ accent_color }}; text-transform:uppercase; letter-spacing:0.6px;">
+                    {{ category }}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Main Body Slot (Pre-rendered & HTML-escaped body partial) -->
+          <tr>
+            <td style="padding:24px 28px; font-size:14px; line-height:1.65; color:#334155;">
+              {{ body_content }}
+
+              {{ if full_action_url && full_action_url != "" }}
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-top:24px;">
+                <tr>
+                  <td style="border-radius:8px; background-color:{{ accent_color }};">
+                    <a href="{{ full_action_url }}" target="_blank" style="display:inline-block; padding:11px 22px; font-size:14px; font-weight:600; color:#FFFFFF; text-decoration:none; border-radius:8px;">
+                      {{ action_label }} &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              {{ end }}
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color:#F8FAFC; border-top:1px solid #E2E8F0; padding:16px 28px; font-size:12px; color:#64748B; line-height:1.5;">
+              Email ini dikirim otomatis oleh <strong>{{ app_name }} Notification Service</strong> ({{ timestamp_wib }}).<br />
+              Kamu bisa mengatur jenis email yang ingin diterima kapan saja lewat menu <em>Pusat Notifikasi &rarr; Preferensi</em>.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

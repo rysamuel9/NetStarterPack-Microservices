@@ -126,6 +126,7 @@ if (app.Environment.IsDevelopment())
     var announcementPort = builder.Configuration.GetValue<int>("MicroservicesOrchestrator:AnnouncementPort", 5085);
     var masterDataPort = builder.Configuration.GetValue<int>("MicroservicesOrchestrator:MasterDataPort", 5086);
     var trackingPort = builder.Configuration.GetValue<int>("MicroservicesOrchestrator:TrackingPort", 5087);
+    var notificationPort = builder.Configuration.GetValue<int>("MicroservicesOrchestrator:NotificationPort", 5088);
     var spaPort = builder.Configuration.GetValue<int>("MicroservicesOrchestrator:SpaPort", 5173);
 
     var solutionRoot = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "..", "..", ".."));
@@ -178,6 +179,13 @@ if (app.Environment.IsDevelopment())
             serviceName: "Tracking.Api",
             port: trackingPort,
             projectDir: Path.Combine(solutionRoot, "src", "Services", "Tracking", "Tracking.Api"),
+            spawnedProcesses,
+            app.Logger);
+
+        TryStartDotnetMicroservice(
+            serviceName: "Notification.Api",
+            port: notificationPort,
+            projectDir: Path.Combine(solutionRoot, "src", "Services", "Notification", "Notification.Api"),
             spawnedProcesses,
             app.Logger);
     }
@@ -252,6 +260,7 @@ app.MapGet("/openapi/v1.json", async (IHttpClientFactory httpClientFactory) =>
     var announcementUrl = builder.Configuration["ServiceEndpoints:AnnouncementServiceUrl"] ?? "http://localhost:5085";
     var masterDataUrl = builder.Configuration["ServiceEndpoints:MasterDataServiceUrl"] ?? "http://localhost:5086";
     var trackingUrl = builder.Configuration["ServiceEndpoints:TrackingServiceUrl"] ?? "http://localhost:5087";
+    var notificationUrl = builder.Configuration["ServiceEndpoints:NotificationServiceUrl"] ?? "http://localhost:5088";
 
     var rootDoc = new JsonObject
     {
@@ -291,6 +300,7 @@ app.MapGet("/openapi/v1.json", async (IHttpClientFactory httpClientFactory) =>
     await MergeMicroserviceOpenApiAsync(client, $"{announcementUrl}/openapi/v1.json", mergedPaths, mergedSchemas);
     await MergeMicroserviceOpenApiAsync(client, $"{masterDataUrl}/openapi/v1.json", mergedPaths, mergedSchemas);
     await MergeMicroserviceOpenApiAsync(client, $"{trackingUrl}/openapi/v1.json", mergedPaths, mergedSchemas);
+    await MergeMicroserviceOpenApiAsync(client, $"{notificationUrl}/openapi/v1.json", mergedPaths, mergedSchemas);
 
     return Results.Content(rootDoc.ToJsonString(), "application/json");
 }).AllowAnonymous();
@@ -331,6 +341,7 @@ app.MapGet("/swagger", () => Results.Content("""
       <a href="http://localhost:5085/swagger" target="_blank">Announcement (:5085) &nearr;</a>
       <a href="http://localhost:5086/swagger" target="_blank">MasterData (:5086) &nearr;</a>
       <a href="http://localhost:5087/swagger" target="_blank">Tracking (:5087) &nearr;</a>
+      <a href="http://localhost:5088/swagger" target="_blank">Notification (:5088) &nearr;</a>
       <a href="/scalar/v1">Unified Scalar &rarr;</a>
       <a href="http://localhost:5173" target="_blank">Web React (:5173) &rarr;</a>
     </div>
@@ -367,6 +378,7 @@ async Task<IResult> BuildAggregatedHealthAsync(HttpContext httpContext, IHttpCli
     var announcementUrl = builder.Configuration["ServiceEndpoints:AnnouncementServiceUrl"] ?? "http://localhost:5085";
     var masterDataUrl = builder.Configuration["ServiceEndpoints:MasterDataServiceUrl"] ?? "http://localhost:5086";
     var trackingUrl = builder.Configuration["ServiceEndpoints:TrackingServiceUrl"] ?? "http://localhost:5087";
+    var notificationUrl = builder.Configuration["ServiceEndpoints:NotificationServiceUrl"] ?? "http://localhost:5088";
 
     var identityHealth = await ProbeServiceAsync(client, "Identity.Api", $"{identityUrl}/api/v1/health", "NetStarterPack_IdentityDb", 5081);
     var catalogHealth = await ProbeServiceAsync(client, "Catalog.Api", $"{catalogUrl}/api/v1/health", "NetStarterPack_CatalogDb", 5082);
@@ -375,6 +387,7 @@ async Task<IResult> BuildAggregatedHealthAsync(HttpContext httpContext, IHttpCli
     var announcementHealth = await ProbeServiceAsync(client, "Announcement.Api", $"{announcementUrl}/api/v1/health", "NetStarterPack_AnnouncementDb", 5085);
     var masterDataHealth = await ProbeServiceAsync(client, "MasterData.Api", $"{masterDataUrl}/api/v1/health", "NetStarterPack_MasterDataDb", 5086);
     var trackingHealth = await ProbeServiceAsync(client, "Tracking.Api", $"{trackingUrl}/api/v1/health", "NetStarterPack_TrackingDb", 5087);
+    var notificationHealth = await ProbeServiceAsync(client, "Notification.Api", $"{notificationUrl}/api/v1/health", "NetStarterPack_NotificationDb", 5088);
 
     var allHealthy = identityHealth.Status == "Healthy"
         && catalogHealth.Status == "Healthy"
@@ -382,7 +395,8 @@ async Task<IResult> BuildAggregatedHealthAsync(HttpContext httpContext, IHttpCli
         && workflowHealth.Status == "Healthy"
         && announcementHealth.Status == "Healthy"
         && masterDataHealth.Status == "Healthy"
-        && trackingHealth.Status == "Healthy";
+        && trackingHealth.Status == "Healthy"
+        && notificationHealth.Status == "Healthy";
 
     var hasBearerToken = httpContext.Request.Headers.Authorization.ToString()
         .StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase);
@@ -404,7 +418,7 @@ async Task<IResult> BuildAggregatedHealthAsync(HttpContext httpContext, IHttpCli
         apiVersion = ApiVersioningConstants.DefaultVersion,
         framework = ".NET 10.0 LTS",
         architecture = "Microservices + Compact Onion + YARP Gateway",
-        services = new[] { identityHealth, catalogHealth, orderHealth, workflowHealth, announcementHealth, masterDataHealth, trackingHealth },
+        services = new[] { identityHealth, catalogHealth, orderHealth, workflowHealth, announcementHealth, masterDataHealth, trackingHealth, notificationHealth },
         timestamp = DateTime.UtcNow
     });
 }

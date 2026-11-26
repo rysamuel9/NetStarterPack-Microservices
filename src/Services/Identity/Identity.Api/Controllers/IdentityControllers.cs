@@ -207,3 +207,21 @@ public class InternalEventsController(IDashboardService dashboardService) : Base
         CancellationToken cancellationToken) =>
         ToActionResult(await dashboardService.RecordIntegrationAuditLogAsync(integrationEvent, cancellationToken));
 }
+
+/// <summary>
+/// Endpoint internal Service-to-Service untuk me-resolve profil penerima notifikasi (Email, FullName, Role)
+/// berdasarkan UserIds dan/atau RoleNames. Diamankan dengan header X-Internal-Api-Key.
+/// </summary>
+[ApiController]
+[ApiVersionNeutral]
+[Route("api/internal/users")]
+public class InternalUsersController(IUserService userService) : BaseApiController
+{
+    [AllowAnonymous]
+    [RequireInternalApiKey]
+    [HttpPost("resolve-recipients")]
+    public async Task<IActionResult> ResolveRecipients(
+        [FromBody] ResolveRecipientsRequest request,
+        CancellationToken cancellationToken) =>
+        ToActionResult(await userService.ResolveRecipientsAsync(request, cancellationToken));
+}

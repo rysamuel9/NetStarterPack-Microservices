@@ -211,6 +211,27 @@ public class TrackingService(
             await realtimeNotifier.NotifyAssignmentCreatedAsync(summary, cancellationToken);
         }
 
+        if (entity.AssigneeUserId != Guid.Empty)
+        {
+            await eventBus.PublishNotificationAsync(new NotificationIntegrationEvent(
+                TemplateCode: NotificationTemplateCodes.TrackingAssigned,
+                Category: NotificationCategories.Tracking,
+                Title: $"Tugas Lapangan Baru: {entity.AssignmentCode}",
+                Message: $"{dispatcherFullName} menugaskan '{entity.Title}' menuju {entity.DestinationLabel}.",
+                TargetUserIds: [entity.AssigneeUserId],
+                Variables: new()
+                {
+                    ["assignment_code"] = entity.AssignmentCode,
+                    ["title"] = entity.Title,
+                    ["destination_name"] = entity.DestinationLabel,
+                    ["actor_name"] = dispatcherFullName
+                },
+                ActionUrl: "/tracking",
+                EntityId: entity.Id.ToString(),
+                Severity: "Info",
+                SourceService: "Tracking.Api"), cancellationToken);
+        }
+
         return Result<TrackingDetailDto>.Success(MapDetail(entity, null), $"Tugas {entity.AssignmentCode} berhasil dibuat.", 201);
     }
 
@@ -867,6 +888,29 @@ public class TrackingService(
         if (realtimeNotifier is not null)
         {
             await realtimeNotifier.NotifyStatusChangedAsync(summary, nextStatus.ToString().ToUpperInvariant(), reasonNote, cancellationToken);
+        }
+
+        if (requiresVerification)
+        {
+            await eventBus.PublishNotificationAsync(new NotificationIntegrationEvent(
+                TemplateCode: NotificationTemplateCodes.TrackingPodSubmitted,
+                Category: NotificationCategories.Tracking,
+                Title: $"Verifikasi POD Diperlukan: {entity.AssignmentCode}",
+                Message: $"{actorFullName} mengirim POD untuk '{entity.Title}' (Penerima: {entity.PodRecipientName}). {reasonNote}",
+                TargetUserIds: entity.DispatcherUserId != Guid.Empty ? [entity.DispatcherUserId] : null,
+                TargetRoles: [RoleNames.Manager, RoleNames.Admin],
+                ExcludeUserId: currentUserService.UserId,
+                Variables: new()
+                {
+                    ["assignment_code"] = entity.AssignmentCode,
+                    ["title"] = entity.Title,
+                    ["field_user_name"] = actorFullName,
+                    ["receiver_name"] = entity.PodRecipientName ?? "-"
+                },
+                ActionUrl: "/tracking",
+                EntityId: entity.Id.ToString(),
+                Severity: "Warning",
+                SourceService: "Tracking.Api"), cancellationToken);
         }
 
         return Result<TrackingDetailDto>.Success(

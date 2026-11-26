@@ -35,35 +35,42 @@ public class DistributedCacheService(
 
     public async Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
     {
+        var (found, value) = await TryGetAsync<T>(key, cancellationToken);
+        return found ? value : default;
+    }
+
+    private async Task<(bool Found, T? Value)> TryGetAsync<T>(string key, CancellationToken cancellationToken = default)
+    {
         try
         {
-            if (_l1Cache.TryGetValue(key, out T? l1Value) && l1Value is not null)
+            if (_l1Cache.TryGetValue(key, out T? l1Value))
             {
-                return l1Value;
+                return (true, l1Value);
             }
 
             if (!_isRedis)
             {
-                return default;
+                return (false, default);
             }
 
             var json = await distributedCache.GetStringAsync(key, cancellationToken);
             if (string.IsNullOrWhiteSpace(json))
             {
-                return default;
+                return (false, default);
             }
 
             var deserialized = JsonSerializer.Deserialize<T>(json);
             if (deserialized is not null)
             {
                 _l1Cache.Set(key, deserialized, TimeSpan.FromMinutes(2));
+                return (true, deserialized);
             }
-            return deserialized;
+            return (false, default);
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "[CACHE WARNING] Gagal membaca cache key '{CacheKey}'. Fallback ke Database.", key);
-            return default;
+            return (false, default);
         }
     }
 
@@ -102,8 +109,8 @@ public class DistributedCacheService(
         TimeSpan? expiration = null,
         CancellationToken cancellationToken = default)
     {
-        var cached = await GetAsync<T>(key, cancellationToken);
-        if (cached is not null)
+        var (found, cached) = await TryGetAsync<T>(key, cancellationToken);
+        if (found && cached is not null)
         {
             return cached;
         }

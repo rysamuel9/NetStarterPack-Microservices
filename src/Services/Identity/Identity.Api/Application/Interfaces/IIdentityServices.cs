@@ -23,6 +23,7 @@ public interface IUserService
     Task<Result<UserDto>> CreateUserAsync(CreateUserRequest request, CancellationToken cancellationToken = default);
     Task<Result<UserDto>> UpdateUserAsync(Guid id, UpdateUserRequest request, CancellationToken cancellationToken = default);
     Task<Result> DeleteUserAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<Result<IReadOnlyList<ResolvedRecipientDto>>> ResolveRecipientsAsync(ResolveRecipientsRequest request, CancellationToken cancellationToken = default);
 }
 
 public interface IRoleService

@@ -19,6 +19,7 @@ public class ServiceEndpointsSettings
     public string AnnouncementServiceUrl { get; set; } = "http://localhost:5085";
     public string MasterDataServiceUrl { get; set; } = "http://localhost:5086";
     public string TrackingServiceUrl { get; set; } = "http://localhost:5087";
+    public string NotificationServiceUrl { get; set; } = "http://localhost:5088";
 }
 
 /// <summary>
@@ -66,6 +67,38 @@ public class HttpEventBus(
                 "[EVENTBUS FALLBACK] Gagal mengirim AuditLogEvent ({Action} - {Module}) ke Identity.Api. Transaksi lokal tetap dilanjutkan.",
                 auditEvent.Action,
                 auditEvent.Module);
+        }
+    }
+
+    public async Task PublishNotificationAsync(NotificationIntegrationEvent notificationEvent, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var url = $"{_endpoints.NotificationServiceUrl.TrimEnd('/')}/api/internal/events/notification";
+            using var request = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = JsonContent.Create(notificationEvent)
+            };
+
+            request.Headers.Add("X-Internal-Api-Key", _jwtSettings.InternalApiKey);
+            request.Headers.Add(CurrentUserService.CorrelationHeaderName, currentUserService.CorrelationId);
+
+            var response = await httpClient.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                logger.LogWarning(
+                    "[EVENTBUS] Notification.Api merespons HTTP {StatusCode} saat menerima NotificationEvent ({TemplateCode}).",
+                    (int)response.StatusCode,
+                    notificationEvent.TemplateCode);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(
+                ex,
+                "[EVENTBUS FALLBACK] Gagal mengirim NotificationEvent ({TemplateCode} - {Category}) ke Notification.Api. Transaksi lokal tetap dilanjutkan.",
+                notificationEvent.TemplateCode,
+                notificationEvent.Category);
         }
     }
 }

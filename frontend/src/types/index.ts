@@ -592,3 +592,126 @@ export interface TrackingStats {
   completedAssignments: number;
   suspiciousFlags: number;
 }
+
+export interface NotificationItem {
+  id: string;
+  userId: string;
+  category: string;
+  templateCode: string;
+  title: string;
+  message: string;
+  severity: 'Info' | 'Success' | 'Warning' | 'Danger' | string;
+  actionUrl?: string | null;
+  entityId?: string | null;
+  sourceService: string;
+  isRead: boolean;
+  readAt?: string | null;
+  createdAt: string;
+}
+
+export interface NotificationListResponse {
+  items: NotificationItem[];
+  totalCount: number;
+  unreadCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface NotificationBellResponse {
+  unreadCount: number;
+  items: NotificationItem[];
+}
+
+export interface NotificationPreference {
+  category: string;
+  inAppEnabled: boolean;
+  emailEnabled: boolean;
+  pushEnabled: boolean;
+}
+
+export interface UserPushDevice {
+  id: string;
+  pushToken: string;
+  platform: string;
+  deviceName: string;
+  isActive: boolean;
+  lastSeenAt: string;
+}
+
+export interface NotificationTemplateItem {
+  id: string;
+  code: string;
+  name: string;
+  category: string;
+  description: string;
+  subjectTemplate: string;
+  bodyHtmlTemplate: string;
+  accentColor: string;
+  actionLabel: string;
+  defaultFileName: string;
+  sampleDataJson: string;
+  defaultSendInApp: boolean;
+  defaultSendEmail: boolean;
+  defaultSendPush: boolean;
+  isActive: boolean;
+  updatedAt: string;
+}
+
+export interface RenderedEmailResult {
+  subject: string;
+  htmlBody: string;
+  plainTextPreview: string;
+}
+
+export interface NotificationDeliveryLog {
+  id: string;
+  notificationItemId?: string | null;
+  userId?: string | null;
+  recipientName: string;
+  recipientEmail?: string | null;
+  effectiveRecipientEmail?: string | null;
+  recipientPushToken?: string | null;
+  templateCode: string;
+  category: string;
+  channel: string;
+  subject: string;
+  bodyPreview: string;
+  status: string;
+  providerName: string;
+  attemptCount: number;
+  maxAttempts: number;
+  nextRetryAt?: string | null;
+  lastError?: string | null;
+  sentAt?: string | null;
+  createdAt: string;
+}
+
+export interface EmailProviderProfileStatus {
+  name: string;
+  host: string;
+  port: number;
+  security: string;
+  fromEmail: string;
+  hasCredentials: boolean;
+  isActive: boolean;
+}
+
+export interface EmailProviderStatus {
+  activeProvider: string;
+  enableSending: boolean;
+  devOverrideRecipient?: string | null;
+  appBaseUrl: string;
+  pushEnabled: boolean;
+  profiles: EmailProviderProfileStatus[];
+}
+
+export interface NotificationStats {
+  totalNotifications: number;
+  unreadNotifications: number;
+  pendingDeliveries: number;
+  sentDeliveries: number;
+  failedDeliveries: number;
+  activeTemplates: number;
+  registeredDevices: number;
+}

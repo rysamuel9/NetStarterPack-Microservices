@@ -221,6 +221,30 @@ public class WorkflowService(
             IpAddress: currentUserService.IpAddress,
             SourceService: "Workflow.Api"), cancellationToken);
 
+        if (request.SubmitImmediately && !string.IsNullOrWhiteSpace(workflowReq.CurrentApproverRole))
+        {
+            var firstStepName = flowSteps.FirstOrDefault()?.StepName ?? "Tahap 1";
+            await eventBus.PublishNotificationAsync(new NotificationIntegrationEvent(
+                TemplateCode: NotificationTemplateCodes.WorkflowSubmitted,
+                Category: NotificationCategories.Workflow,
+                Title: $"Pengajuan Baru: {workflowReq.RequestNumber}",
+                Message: $"{requesterFullName} mengajukan '{workflowReq.Title}' ({template.Name}) yang menunggu persetujuan {workflowReq.CurrentApproverRole}.",
+                TargetRoles: [workflowReq.CurrentApproverRole],
+                ExcludeUserId: requesterId,
+                Variables: new()
+                {
+                    ["document_number"] = workflowReq.RequestNumber,
+                    ["form_name"] = template.Name,
+                    ["title"] = workflowReq.Title,
+                    ["requester_name"] = requesterFullName,
+                    ["step_name"] = firstStepName
+                },
+                ActionUrl: "/workflow-working-list",
+                EntityId: workflowReq.Id.ToString(),
+                Severity: "Info",
+                SourceService: "Workflow.Api"), cancellationToken);
+        }
+
         return Result<WorkflowRequestDto>.Success(
             MapRequest(workflowReq, fields),
             request.SubmitImmediately
@@ -319,6 +343,29 @@ public class WorkflowService(
             Details: $"[Workflow.Api] {actorUsername} mengirim ulang '{entity.RequestNumber}' ke approver ({entity.CurrentApproverRole}).",
             IpAddress: currentUserService.IpAddress,
             SourceService: "Workflow.Api"), cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(entity.CurrentApproverRole))
+        {
+            await eventBus.PublishNotificationAsync(new NotificationIntegrationEvent(
+                TemplateCode: NotificationTemplateCodes.WorkflowSubmitted,
+                Category: NotificationCategories.Workflow,
+                Title: $"Pengajuan Disubmit Ulang: {entity.RequestNumber}",
+                Message: $"{actorFullName} telah merevisi dan mengirim ulang '{entity.Title}' untuk persetujuan {entity.CurrentApproverRole}.",
+                TargetRoles: [entity.CurrentApproverRole],
+                ExcludeUserId: currentUserService.UserId,
+                Variables: new()
+                {
+                    ["document_number"] = entity.RequestNumber,
+                    ["form_name"] = entity.TemplateName,
+                    ["title"] = entity.Title,
+                    ["requester_name"] = actorFullName,
+                    ["step_name"] = targetStep?.StepName ?? $"Step {entity.CurrentStepOrder}"
+                },
+                ActionUrl: "/workflow-working-list",
+                EntityId: entity.Id.ToString(),
+                Severity: "Info",
+                SourceService: "Workflow.Api"), cancellationToken);
+        }
 
         return Result<WorkflowRequestDto>.Success(MapRequest(entity, fields), "Dokumen berhasil diperbarui dan disubmit ulang.");
     }
@@ -516,6 +563,51 @@ public class WorkflowService(
             IpAddress: currentUserService.IpAddress,
             SourceService: "Workflow.Api"), cancellationToken);
 
+        // 1. Kabari pemohon bahwa dokumennya disetujui (baik lanjut step maupun final approved)
+        await eventBus.PublishNotificationAsync(new NotificationIntegrationEvent(
+            TemplateCode: NotificationTemplateCodes.WorkflowApproved,
+            Category: NotificationCategories.Workflow,
+            Title: nextStep is null ? $"Dokumen Final Approved: {entity.RequestNumber}" : $"Step {activeStep.StepOrder} Disetujui: {entity.RequestNumber}",
+            Message: summaryMessage,
+            TargetUserIds: [entity.RequesterUserId],
+            Variables: new()
+            {
+                ["document_number"] = entity.RequestNumber,
+                ["form_name"] = entity.TemplateName,
+                ["actor_name"] = actorFullName,
+                ["step_name"] = activeStep.StepName,
+                ["status_label"] = nextStep is null ? "Final Approved" : $"Lanjut ke {nextStep.StepName} ({nextStep.ApproverRole})",
+                ["notes"] = activeStep.Comment ?? string.Empty
+            },
+            ActionUrl: "/workflow-tracking",
+            EntityId: entity.Id.ToString(),
+            Severity: "Success",
+            SourceService: "Workflow.Api"), cancellationToken);
+
+        // 2. Jika masih ada tahap berikutnya, kabari approver step selanjutnya
+        if (nextStep is not null)
+        {
+            await eventBus.PublishNotificationAsync(new NotificationIntegrationEvent(
+                TemplateCode: NotificationTemplateCodes.WorkflowSubmitted,
+                Category: NotificationCategories.Workflow,
+                Title: $"Menunggu Approval ({nextStep.StepName}): {entity.RequestNumber}",
+                Message: $"Pengajuan '{entity.Title}' dari {entity.RequesterFullName} telah disetujui {actorFullName} dan kini masuk antrean {nextStep.ApproverRole}.",
+                TargetRoles: [nextStep.ApproverRole],
+                ExcludeUserId: entity.RequesterUserId,
+                Variables: new()
+                {
+                    ["document_number"] = entity.RequestNumber,
+                    ["form_name"] = entity.TemplateName,
+                    ["title"] = entity.Title,
+                    ["requester_name"] = entity.RequesterFullName,
+                    ["step_name"] = nextStep.StepName
+                },
+                ActionUrl: "/workflow-working-list",
+                EntityId: entity.Id.ToString(),
+                Severity: "Info",
+                SourceService: "Workflow.Api"), cancellationToken);
+        }
+
         return Result<WorkflowRequestDto>.Success(
             MapRequest(entity, DeserializeFields(entity.FormTemplate.FieldsJson)),
             summaryMessage);
@@ -583,6 +675,25 @@ public class WorkflowService(
             EntityId: entity.Id.ToString(),
             Details: $"[Workflow.Api] {actorUsername} ({actorRole}) mengembalikan '{entity.RequestNumber}' untuk direvisi: {activeStep.Comment}",
             IpAddress: currentUserService.IpAddress,
+            SourceService: "Workflow.Api"), cancellationToken);
+
+        await eventBus.PublishNotificationAsync(new NotificationIntegrationEvent(
+            TemplateCode: NotificationTemplateCodes.WorkflowRevision,
+            Category: NotificationCategories.Workflow,
+            Title: $"Permintaan Revisi: {entity.RequestNumber}",
+            Message: $"{actorFullName} ({activeStep.StepName}) meminta revisi untuk '{entity.Title}': {activeStep.Comment}",
+            TargetUserIds: [entity.RequesterUserId],
+            Variables: new()
+            {
+                ["document_number"] = entity.RequestNumber,
+                ["form_name"] = entity.TemplateName,
+                ["actor_name"] = actorFullName,
+                ["step_name"] = activeStep.StepName,
+                ["notes"] = activeStep.Comment ?? string.Empty
+            },
+            ActionUrl: "/workflow-tracking",
+            EntityId: entity.Id.ToString(),
+            Severity: "Warning",
             SourceService: "Workflow.Api"), cancellationToken);
 
         return Result<WorkflowRequestDto>.Success(
@@ -653,6 +764,26 @@ public class WorkflowService(
             EntityId: entity.Id.ToString(),
             Details: $"[Workflow.Api] {actorUsername} ({actorRole}) menolak '{entity.RequestNumber}': {activeStep.Comment}",
             IpAddress: currentUserService.IpAddress,
+            SourceService: "Workflow.Api"), cancellationToken);
+
+        await eventBus.PublishNotificationAsync(new NotificationIntegrationEvent(
+            TemplateCode: NotificationTemplateCodes.WorkflowRejected,
+            Category: NotificationCategories.Workflow,
+            Title: $"Pengajuan Ditolak: {entity.RequestNumber}",
+            Message: $"{actorFullName} ({activeStep.StepName}) menolak '{entity.Title}': {activeStep.Comment}",
+            TargetUserIds: [entity.RequesterUserId],
+            Variables: new()
+            {
+                ["document_number"] = entity.RequestNumber,
+                ["form_name"] = entity.TemplateName,
+                ["title"] = entity.Title,
+                ["actor_name"] = actorFullName,
+                ["step_name"] = activeStep.StepName,
+                ["notes"] = activeStep.Comment ?? string.Empty
+            },
+            ActionUrl: "/workflow-tracking",
+            EntityId: entity.Id.ToString(),
+            Severity: "Danger",
             SourceService: "Workflow.Api"), cancellationToken);
 
         return Result<WorkflowRequestDto>.Success(

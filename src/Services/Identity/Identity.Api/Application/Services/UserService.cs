@@ -1,5 +1,6 @@
 ﻿using BuildingBlocks.Core.Common;
 using BuildingBlocks.Core.Constants;
+using BuildingBlocks.Core.Contracts;
 using BuildingBlocks.Core.Interfaces;
 using Identity.Api.Application.DTOs;
 using Identity.Api.Application.Interfaces;
@@ -370,6 +371,58 @@ public class UserService(
         await unitOfWork.SaveChangesAsync(cancellationToken);
         await InvalidateUserCachesAsync(cancellationToken);
         return Result.Success("Pengguna berhasil dihapus.");
+    }
+
+    public async Task<Result<IReadOnlyList<ResolvedRecipientDto>>> ResolveRecipientsAsync(
+        ResolveRecipientsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var allUsers = await unitOfWork.Users.GetAllWithRolesAsync(cancellationToken);
+        var activeUsers = allUsers.Where(u => u.Status == UserStatus.Active).ToList();
+
+        var targetUserIds = request.UserIds is { Count: > 0 }
+            ? request.UserIds.ToHashSet()
+            : [];
+
+        var targetRoles = request.RoleNames is { Count: > 0 }
+            ? request.RoleNames
+                .Where(r => !string.IsNullOrWhiteSpace(r))
+                .Select(r => r.Trim())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (targetUserIds.Count == 0 && targetRoles.Count == 0)
+        {
+            return Result<IReadOnlyList<ResolvedRecipientDto>>.Success([]);
+        }
+
+        var matched = activeUsers
+            .Where(u =>
+            {
+                if (request.ExcludeUserId.HasValue && u.Id == request.ExcludeUserId.Value)
+                {
+                    return false;
+                }
+
+                var byId = targetUserIds.Contains(u.Id);
+                var byRole = targetRoles.Count > 0 && u.UserRoles.Any(ur =>
+                    ur.Role is not null && !ur.Role.IsDeleted && targetRoles.Contains(ur.Role.Name));
+
+                return byId || byRole;
+            })
+            .Select(u => new ResolvedRecipientDto(
+                u.Id,
+                u.Username,
+                u.FullName,
+                u.Email,
+                u.UserRoles
+                    .Where(ur => ur.Role is not null && !ur.Role.IsDeleted)
+                    .Select(ur => ur.Role.Name)
+                    .Distinct()
+                    .ToList()))
+            .ToList();
+
+        return Result<IReadOnlyList<ResolvedRecipientDto>>.Success(matched);
     }
 
     private async Task InvalidateUserCachesAsync(CancellationToken cancellationToken)

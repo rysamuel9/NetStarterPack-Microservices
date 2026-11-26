@@ -39,7 +39,9 @@ Seluruh panduan teknis sudah disusun berurutan (dari konsep inti sampai deployme
 14. 🎓 **[Tutorial Pemula (Dari Nol Sampai Jalan): Bikin Fitur & Microservice Baru (`docs/14_BEGINNER_TUTORIAL_BUILD_FEATURE.md`)](docs/14_BEGINNER_TUTORIAL_BUILD_FEATURE.md)**
     *Panduan khusus pemula/mahasiswa dari nol sampai jadi dengan studi kasus lengkap (`Asset.Api :5087`): analogi arsitektur, peta file yang dibuat/diedit, Compact Onion step-by-step, `[Idempotent]`, API `/api/v1`, integrasi `useLookup` dari `MasterData.Api`, React UI, Unit Test xUnit, hingga daftar 8 error paling sering terjadi.*
 15. 👥 **[Panduan Role, Hak Akses (RBAC), & Tampilan UI per Peran (`docs/15_ROLES_AND_ACCESS_GUIDE.md`)](docs/15_ROLES_AND_ACCESS_GUIDE.md)**
-    *Daftar lengkap 10 role bawaan (`SuperAdmin`, `Admin`, `Manager`, `ITLead`, `HRManager`, `HRSupervisor`, `HRStaff`, `FinanceDirector`, `Staff`, `Viewer`), fungsi bisnis, akun demo, matriks permission lintas 7 microservice, serta penyesuaian tampilan UI Web & Mobile per role.*
+    *Daftar lengkap 10 role bawaan (`SuperAdmin`, `Admin`, `Manager`, `ITLead`, `HRManager`, `HRSupervisor`, `HRStaff`, `FinanceDirector`, `Staff`, `Viewer`), fungsi bisnis, akun demo, matriks permission lintas 8 microservice, serta penyesuaian tampilan UI Web & Mobile per role.*
+16. 🔔 **[Panduan Unified Notification Service — In-App SignalR, Email Office 365/Gmail, & Mobile Push (`docs/16_NOTIFICATION_SERVICE_GUIDE.md`)](docs/16_NOTIFICATION_SERVICE_GUIDE.md)**
+    *Arsitektur `Notification.Api (:5088)`, pola template HTML Scriban 2-tahap (`_BaseLayout.html` + body partial + DB override), setup `dotnet user-secrets` untuk Office 365 & Gmail, delivery retry worker, serta Mobile Push.*
 
 ---
 
@@ -55,6 +57,7 @@ Seluruh panduan teknis sudah disusun berurutan (dari konsep inti sampai deployme
 | **`Announcement.Api`** *(HR Newsroom)* | `5085` | `NetStarterPack_AnnouncementDb` | **Internal Announcement & Newsroom** (Compact Rich Text Editor, Banner & Image/File Uploads, Like, On/Off Comment oleh HR, Bell Unread Feed, & Pagination 10/halaman). |
 | **`MasterData.Api`** *(Unified Lookups)* | `5086` | `NetStarterPack_MasterDataDb` | **Unified Master Data & Lookup Service** (1 tabel referensi bersama untuk dropdown lintas service: `PRODUCT_CATEGORY`, `UNIT_OF_MEASURE`, `PAYMENT_METHOD`, `PRIORITY_LEVEL`, `DOCUMENT_TYPE`, cascading parent-child, Hybrid Cache L1/L2, & `[Idempotent]`). |
 | **`Tracking.Api`** *(Field Dispatch & GPS)* | `5087` | `NetStarterPack_TrackingDb` | **Field Dispatch & Live Location Tracking** (SignalR Live Map, Hot State Hybrid Cache vs Cold Trail Downsampling, Server-Side Haversine Geofencing, Anti Fake-GPS, Verifikasi POD, & Anti-IDOR). |
+| **`Notification.Api`** *(Unified Notification Hub)* | `5088` | `NetStarterPack_NotificationDb` | **Unified Notification Service** (In-App SignalR Bell & Live Toast, Email HTML Template Engine Scriban + MailKit Office 365/Gmail, Mobile Expo Push, Preferensi per User, & Outbox Retry Worker). |
 | **`Frontend`** *(React 19 + TS + Tailwind v4)* | `5173` | — | SPA Web Frontend yang cukup menembak ke **1 URL Gateway (`http://localhost:5080`)** tanpa perlu tahu di belakang ada berapa microservice. |
 | **`Mobile`** *(React Native + Expo SDK 58 + TS)* | `8081` *(Metro)* | — | Aplikasi Mobile Android/iOS (*Expo Go-ready*) yang juga menembak 1 pintu **`Gateway.Api (:5080)`** (LAN/HTTPS), lengkap dengan SecureStore, Biometric 2-in-1, Offline Cache, SignalR, & 14 modul RBAC. |
 

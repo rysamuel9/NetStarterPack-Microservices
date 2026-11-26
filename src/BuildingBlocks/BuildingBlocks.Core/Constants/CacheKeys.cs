@@ -11,6 +11,7 @@ public static class CacheKeys
     public const string AnnouncementsPrefix = "announcements:";
     public const string LookupsPrefix = "lookups:";
     public const string TrackingPrefix = "tracking:";
+    public const string NotificationsPrefix = "notifications:";
     public const string OrganizationPrefix = "org:";
     public const string MenusPrefix = "menus:";
     public const string RolesPrefix = "roles:";
@@ -66,6 +67,18 @@ public static class CacheKeys
 
     public static string TrackingLivePosition(Guid assignmentId) =>
         $"{TrackingPrefix}live:{assignmentId:N}";
+
+    public static string NotificationTemplates() =>
+        $"{NotificationsPrefix}templates:all";
+
+    public static string NotificationTemplateByCode(string code) =>
+        $"{NotificationsPrefix}templates:code:{code.Trim().ToUpperInvariant()}";
+
+    public static string NotificationUnreadCount(Guid userId) =>
+        $"{NotificationsPrefix}unread:{userId:N}";
+
+    public static string NotificationStats() =>
+        $"{NotificationsPrefix}stats";
 
     public static string OrganizationTree() =>
         $"{OrganizationPrefix}tree";

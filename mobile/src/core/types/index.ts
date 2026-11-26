@@ -497,3 +497,49 @@ export interface TrackingStats {
   completedAssignments: number;
   suspiciousFlags: number;
 }
+
+export interface NotificationItem {
+  id: string;
+  userId: string;
+  category: string;
+  templateCode: string;
+  title: string;
+  message: string;
+  severity: string;
+  actionUrl?: string | null;
+  entityId?: string | null;
+  sourceService: string;
+  isRead: boolean;
+  readAt?: string | null;
+  createdAt: string;
+}
+
+export interface NotificationListResponse {
+  items: NotificationItem[];
+  totalCount: number;
+  unreadCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface NotificationBellResponse {
+  unreadCount: number;
+  items: NotificationItem[];
+}
+
+export interface NotificationPreference {
+  category: string;
+  inAppEnabled: boolean;
+  emailEnabled: boolean;
+  pushEnabled: boolean;
+}
+
+export interface UserPushDevice {
+  id: string;
+  pushToken: string;
+  platform: string;
+  deviceName: string;
+  isActive: boolean;
+  lastSeenAt: string;
+}

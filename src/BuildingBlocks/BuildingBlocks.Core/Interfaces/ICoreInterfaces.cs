@@ -55,5 +55,6 @@ public interface ICurrentUserService
 public interface IEventBus
 {
     Task PublishAuditAsync(AuditLogIntegrationEvent auditEvent, CancellationToken cancellationToken = default);
+    Task PublishNotificationAsync(NotificationIntegrationEvent notificationEvent, CancellationToken cancellationToken = default);
 }
 

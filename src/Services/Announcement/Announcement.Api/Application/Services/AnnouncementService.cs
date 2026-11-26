@@ -227,6 +227,30 @@ public partial class AnnouncementService(
             await realtimeNotifier.NotifyAnnouncementPublishedAsync(MapSummary(entity, Guid.Empty), cancellationToken);
         }
 
+        // Kirim ke Unified Notification Center (email otomatis aktif untuk Urgent/HRPolicy agar inbox tidak spam)
+        var sendEmailForType = entity.Type is AnnouncementType.Urgent or AnnouncementType.HRPolicy;
+        await eventBus.PublishNotificationAsync(new NotificationIntegrationEvent(
+            TemplateCode: NotificationTemplateCodes.AnnouncementPublished,
+            Category: NotificationCategories.Announcement,
+            Title: $"Pengumuman ({entity.Type}): {entity.Title}",
+            Message: entity.Summary,
+            TargetRoles: [RoleNames.SuperAdmin, RoleNames.Admin, RoleNames.Manager, RoleNames.ITLead, RoleNames.HRManager, RoleNames.HRSupervisor, RoleNames.HRStaff, RoleNames.FinanceDirector, RoleNames.Staff, RoleNames.Viewer],
+            ExcludeUserId: authorId != Guid.Empty ? authorId : null,
+            Variables: new()
+            {
+                ["announcement_type"] = entity.Type.ToString(),
+                ["title"] = entity.Title,
+                ["summary"] = entity.Summary,
+                ["author_name"] = authorFullName
+            },
+            ActionUrl: $"/announcements/{entity.Id}",
+            EntityId: entity.Id.ToString(),
+            Severity: entity.Type == AnnouncementType.Urgent ? "Warning" : "Info",
+            SourceService: "Announcement.Api",
+            SendInApp: true,
+            SendEmail: sendEmailForType,
+            SendPush: true), cancellationToken);
+
         return Result<AnnouncementDetailDto>.Success(
             MapDetail(entity, authorId),
             "Pengumuman berhasil diterbitkan.",

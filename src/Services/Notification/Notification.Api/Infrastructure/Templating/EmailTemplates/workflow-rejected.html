@@ -1,0 +1,16 @@
+<p style="margin:0 0 12px 0;">Halo <strong>{{ recipient_name }}</strong>,</p>
+<p style="margin:0 0 16px 0;">Pengajuan dokumen kamu berstatus <strong style="color:#DC2626;">Ditolak</strong> pada tahap <strong>{{ step_name }}</strong>.</p>
+
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#FEF2F2; border:1px solid #FECACA; border-radius:8px; margin:16px 0;">
+  <tr><td style="padding:10px 14px; font-size:13px; color:#991B1B; width:38%;">No. Dokumen</td><td style="padding:10px 14px; font-size:13px; color:#7F1D1D;"><strong>{{ document_number }}</strong></td></tr>
+  <tr><td style="padding:10px 14px; font-size:13px; color:#991B1B; border-top:1px solid #FECACA;">Jenis Form</td><td style="padding:10px 14px; font-size:13px; color:#7F1D1D; border-top:1px solid #FECACA;">{{ form_name }}</td></tr>
+  <tr><td style="padding:10px 14px; font-size:13px; color:#991B1B; border-top:1px solid #FECACA;">Judul</td><td style="padding:10px 14px; font-size:13px; color:#7F1D1D; border-top:1px solid #FECACA;">{{ title }}</td></tr>
+  <tr><td style="padding:10px 14px; font-size:13px; color:#991B1B; border-top:1px solid #FECACA;">Diproses oleh</td><td style="padding:10px 14px; font-size:13px; color:#7F1D1D; border-top:1px solid #FECACA;">{{ actor_name }}</td></tr>
+</table>
+
+{{ if notes && notes != "" }}
+<div style="background:#FFF1F2; border-left:4px solid #DC2626; padding:12px 14px; margin:16px 0; border-radius:4px;">
+  <strong style="color:#991B1B;">Alasan Penolakan:</strong><br />
+  <span style="color:#7F1D1D;">{{ notes }}</span>
+</div>
+{{ end }}

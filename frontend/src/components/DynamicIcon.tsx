@@ -29,6 +29,7 @@ import {
   CheckSquare,
   MapPin,
   Navigation,
+  Mail,
 } from 'lucide-react';
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -61,6 +62,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   CheckSquare,
   MapPin,
   Navigation,
+  Mail,
 };
 
 export const AVAILABLE_ICON_NAMES = Object.keys(iconMap);

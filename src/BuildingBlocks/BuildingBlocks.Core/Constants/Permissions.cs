@@ -81,6 +81,12 @@ public static class Permissions
         public const string Operate = "Tracking.Operate";
     }
 
+    public static class Notifications
+    {
+        public const string View = "Notifications.View";
+        public const string Manage = "Notifications.Manage";
+    }
+
     public static class Reports
     {
         public const string View = "Reports.View";
@@ -134,6 +140,9 @@ public static class Permissions
         new(Tracking.View, "Lihat Live Tracking & Peta", "Tracking", "Melihat daftar tugas lapangan, peta Command Center realtime, dan riwayat rute (Tracking Microservice)"),
         new(Tracking.Dispatch, "Kelola Dispatch & Verifikasi", "Tracking", "Membuat tugas lapangan, menetapkan petugas & titik tujuan, membatalkan tugas, serta memverifikasi POD (Tracking Microservice)"),
         new(Tracking.Operate, "Eksekusi Tugas Lapangan (GPS)", "Tracking", "Memulai perjalanan, mengirim live GPS ping, melaporkan kendala, check-in, dan mengunggah foto bukti POD (Tracking Microservice)"),
+
+        new(Notifications.View, "Lihat Pusat Notifikasi", "Notifications", "Melihat inbox notifikasi terpusat, mengatur preferensi channel (In-App/Email/Push), dan mendaftarkan perangkat mobile (Notification Microservice)"),
+        new(Notifications.Manage, "Kelola Template & Log Notifikasi", "Notifications", "Mengelola template email HTML, preview, mengirim test email, serta memantau/retry delivery log email & push (Notification Microservice)"),
 
         new(Reports.View, "Lihat Laporan & Analitik", "Reports", "Mengakses halaman laporan manajemen"),
         new(Reports.Export, "Ekspor Laporan", "Reports", "Mengunduh/mengekspor data laporan"),

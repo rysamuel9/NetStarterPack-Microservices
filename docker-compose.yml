@@ -203,6 +203,29 @@ services:
       - ServiceEndpoints__GatewayUrl=http://gateway-api:5080
       - ServiceEndpoints__IdentityServiceUrl=http://identity-api:5081
       - ServiceEndpoints__TrackingServiceUrl=http://tracking-api:5087
+      - ServiceEndpoints__NotificationServiceUrl=http://notification-api:5088
+    depends_on:
+      - sqlserver
+      - redis
+    networks:
+      - nsp-mesh
+
+  notification-api:
+    build:
+      context: .
+      dockerfile: src/Services/Notification/Notification.Api/Dockerfile
+    container_name: nsp-ms-notification-api
+    ports:
+      - "5088:5088"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - DatabaseProvider=SqlServer
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=NetStarterPack_NotificationDb;User Id=sa;Password=YourStrong@Password123!;TrustServerCertificate=True;MultipleActiveResultSets=True
+      - CacheSettings__Provider=Redis
+      - CacheSettings__RedisConnectionString=redis:6379,abortConnect=false
+      - ServiceEndpoints__GatewayUrl=http://gateway-api:5080
+      - ServiceEndpoints__IdentityServiceUrl=http://identity-api:5081
+      - ServiceEndpoints__NotificationServiceUrl=http://notification-api:5088
     depends_on:
       - sqlserver
       - redis
@@ -228,6 +251,7 @@ services:
       - ServiceEndpoints__AnnouncementServiceUrl=http://announcement-api:5085
       - ServiceEndpoints__MasterDataServiceUrl=http://masterdata-api:5086
       - ServiceEndpoints__TrackingServiceUrl=http://tracking-api:5087
+      - ServiceEndpoints__NotificationServiceUrl=http://notification-api:5088
       - ReverseProxy__Clusters__identity-cluster__Destinations__destination1__Address=http://identity-api:5081
       - ReverseProxy__Clusters__catalog-cluster__Destinations__destination1__Address=http://catalog-api:5082
       - ReverseProxy__Clusters__order-cluster__Destinations__destination1__Address=http://order-api:5083
@@ -235,6 +259,7 @@ services:
       - ReverseProxy__Clusters__announcement-cluster__Destinations__destination1__Address=http://announcement-api:5085
       - ReverseProxy__Clusters__masterdata-cluster__Destinations__destination1__Address=http://masterdata-api:5086
       - ReverseProxy__Clusters__tracking-cluster__Destinations__destination1__Address=http://tracking-api:5087
+      - ReverseProxy__Clusters__notification-cluster__Destinations__destination1__Address=http://notification-api:5088
     depends_on:
       - identity-api
       - catalog-api
@@ -243,6 +268,7 @@ services:
       - announcement-api
       - masterdata-api
       - tracking-api
+      - notification-api
     networks:
       - nsp-mesh
 

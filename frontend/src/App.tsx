@@ -65,6 +65,14 @@ const LookupsPage = lazy(() =>
 const LiveTrackingPage = lazy(() =>
   import('./pages/tracking/LiveTrackingPage').then((m) => ({ default: m.LiveTrackingPage }))
 );
+const NotificationsPage = lazy(() =>
+  import('./pages/notifications/NotificationsPage').then((m) => ({ default: m.NotificationsPage }))
+);
+const NotificationTemplatesPage = lazy(() =>
+  import('./pages/notifications/NotificationTemplatesPage').then((m) => ({
+    default: m.NotificationTemplatesPage,
+  }))
+);
 const UnderDevelopmentPage = lazy(() =>
   import('./pages/common/UnderDevelopmentPage').then((m) => ({ default: m.UnderDevelopmentPage }))
 );
@@ -213,6 +221,22 @@ export const App: React.FC = () => {
                 element={
                   <ProtectedRoute permission="Tracking.View">
                     <LiveTrackingPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="notifications"
+                element={
+                  <ProtectedRoute permission="Notifications.View">
+                    <NotificationsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="notification-templates"
+                element={
+                  <ProtectedRoute permission="Notifications.Manage">
+                    <NotificationTemplatesPage />
                   </ProtectedRoute>
                 }
               />

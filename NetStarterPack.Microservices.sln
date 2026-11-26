@@ -37,6 +37,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MasterData.Api", "src\Servi
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tracking.Api", "src\Services\Tracking\Tracking.Api\Tracking.Api.csproj", "{A1000007-0007-0007-0007-000000000007}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Notification.Api", "src\Services\Notification\Notification.Api\Notification.Api.csproj", "{A1000008-0008-0008-0008-000000000008}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -191,6 +193,18 @@ Global
 		{A1000007-0007-0007-0007-000000000007}.Release|x64.Build.0 = Release|Any CPU
 		{A1000007-0007-0007-0007-000000000007}.Release|x86.ActiveCfg = Release|Any CPU
 		{A1000007-0007-0007-0007-000000000007}.Release|x86.Build.0 = Release|Any CPU
+		{A1000008-0008-0008-0008-000000000008}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1000008-0008-0008-0008-000000000008}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1000008-0008-0008-0008-000000000008}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A1000008-0008-0008-0008-000000000008}.Debug|x64.Build.0 = Debug|Any CPU
+		{A1000008-0008-0008-0008-000000000008}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A1000008-0008-0008-0008-000000000008}.Debug|x86.Build.0 = Debug|Any CPU
+		{A1000008-0008-0008-0008-000000000008}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1000008-0008-0008-0008-000000000008}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1000008-0008-0008-0008-000000000008}.Release|x64.ActiveCfg = Release|Any CPU
+		{A1000008-0008-0008-0008-000000000008}.Release|x64.Build.0 = Release|Any CPU
+		{A1000008-0008-0008-0008-000000000008}.Release|x86.ActiveCfg = Release|Any CPU
+		{A1000008-0008-0008-0008-000000000008}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -211,5 +225,6 @@ Global
 		{A34FC74F-8C4D-4B74-B2E2-0FD637144B8D} = {B2000003-0003-0003-0003-000000000003}
 		{A1000006-0006-0006-0006-000000000006} = {B2000003-0003-0003-0003-000000000003}
 		{A1000007-0007-0007-0007-000000000007} = {B2000003-0003-0003-0003-000000000003}
+		{A1000008-0008-0008-0008-000000000008} = {B2000003-0003-0003-0003-000000000003}
 	EndGlobalSection
 EndGlobal

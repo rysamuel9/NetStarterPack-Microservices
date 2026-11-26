@@ -106,6 +106,10 @@ export default function MenusTab() {
       router.push('/(modules)/tracking' as Href);
       return;
     }
+    if (normalizedPath === 'notifications' || normalizedPath === 'notification-templates') {
+      router.push('/(modules)/notifications' as Href);
+      return;
+    }
     if (normalizedPath === 'profile') {
       router.push('/(tabs)/profile');
       return;
