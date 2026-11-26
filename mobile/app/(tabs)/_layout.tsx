@@ -88,6 +88,7 @@ export default function TabsLayout() {
         name="approvals"
         options={{
           title: 'Approval',
+          href: canApprove ? undefined : null,
           tabBarBadge: pendingCount > 0 ? (pendingCount > 99 ? '99+' : pendingCount) : undefined,
           tabBarBadgeStyle: { backgroundColor: colors.warning, color: '#FFFFFF', fontSize: 10 },
           tabBarIcon: ({ color, size }) => <CheckSquare size={size - 2} color={color} />,

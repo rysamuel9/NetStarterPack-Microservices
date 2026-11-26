@@ -187,6 +187,28 @@ services:
     networks:
       - nsp-mesh
 
+  tracking-api:
+    build:
+      context: .
+      dockerfile: src/Services/Tracking/Tracking.Api/Dockerfile
+    container_name: nsp-ms-tracking-api
+    ports:
+      - "5087:5087"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - DatabaseProvider=SqlServer
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=NetStarterPack_TrackingDb;User Id=sa;Password=YourStrong@Password123!;TrustServerCertificate=True;MultipleActiveResultSets=True
+      - CacheSettings__Provider=Redis
+      - CacheSettings__RedisConnectionString=redis:6379,abortConnect=false
+      - ServiceEndpoints__GatewayUrl=http://gateway-api:5080
+      - ServiceEndpoints__IdentityServiceUrl=http://identity-api:5081
+      - ServiceEndpoints__TrackingServiceUrl=http://tracking-api:5087
+    depends_on:
+      - sqlserver
+      - redis
+    networks:
+      - nsp-mesh
+
   gateway-api:
     build:
       context: .
@@ -205,12 +227,14 @@ services:
       - ServiceEndpoints__WorkflowServiceUrl=http://workflow-api:5084
       - ServiceEndpoints__AnnouncementServiceUrl=http://announcement-api:5085
       - ServiceEndpoints__MasterDataServiceUrl=http://masterdata-api:5086
+      - ServiceEndpoints__TrackingServiceUrl=http://tracking-api:5087
       - ReverseProxy__Clusters__identity-cluster__Destinations__destination1__Address=http://identity-api:5081
       - ReverseProxy__Clusters__catalog-cluster__Destinations__destination1__Address=http://catalog-api:5082
       - ReverseProxy__Clusters__order-cluster__Destinations__destination1__Address=http://order-api:5083
       - ReverseProxy__Clusters__workflow-cluster__Destinations__destination1__Address=http://workflow-api:5084
       - ReverseProxy__Clusters__announcement-cluster__Destinations__destination1__Address=http://announcement-api:5085
       - ReverseProxy__Clusters__masterdata-cluster__Destinations__destination1__Address=http://masterdata-api:5086
+      - ReverseProxy__Clusters__tracking-cluster__Destinations__destination1__Address=http://tracking-api:5087
     depends_on:
       - identity-api
       - catalog-api
@@ -218,6 +242,7 @@ services:
       - workflow-api
       - announcement-api
       - masterdata-api
+      - tracking-api
     networks:
       - nsp-mesh
 

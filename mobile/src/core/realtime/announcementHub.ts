@@ -50,7 +50,8 @@ function createConnection(gatewayUrl: string): signalR.HubConnection {
       accessTokenFactory: async () => (await tokenStorage.getAccessToken()) || '',
     })
     .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
-    .configureLogging(signalR.LogLevel.Warning)
+    // Pakai LogLevel.None agar kegagalan negosiasi saat offline/ganti Wi-Fi tidak memicu RedBox di Expo Go
+    .configureLogging(signalR.LogLevel.None)
     .build();
 
   conn.onreconnected(async () => {

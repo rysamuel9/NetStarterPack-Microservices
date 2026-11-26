@@ -27,6 +27,8 @@ import {
   Calendar,
   Briefcase,
   CheckSquare,
+  MapPin,
+  Navigation,
 } from 'lucide-react';
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -57,6 +59,8 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Calendar,
   Briefcase,
   CheckSquare,
+  MapPin,
+  Navigation,
 };
 
 export const AVAILABLE_ICON_NAMES = Object.keys(iconMap);

@@ -21,6 +21,11 @@ import {
   Smartphone,
   Cpu,
   ArrowRight,
+  MapPin,
+  ClipboardCheck,
+  FilePlus2,
+  BarChart3,
+  Navigation,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -33,6 +38,8 @@ import type {
   MasterDataStats,
   OrderStats,
   ServiceNodeHealth,
+  TrackingStats,
+  TrackingSummaryItem,
   WorkflowStats,
 } from '../../types';
 
@@ -83,6 +90,14 @@ const DEFAULT_CLUSTER_NODES: ServiceNodeHealth[] = [
     url: 'http://localhost:5086/api/v1/health',
     status: 'Healthy',
     database: 'NetStarterPack_MasterDataDb',
+    latencyMs: 2,
+  },
+  {
+    service: 'Tracking.Api',
+    port: 5087,
+    url: 'http://localhost:5087/api/v1/health',
+    status: 'Healthy',
+    database: 'NetStarterPack_TrackingDb',
     latencyMs: 2,
   },
 ];
@@ -152,6 +167,15 @@ const SERVICE_META: Record<string, ServiceTopologyMeta> = {
     tags: ['1-Table Lookup', 'Cascading', 'Cache L1/L2'],
     icon: Layers,
   },
+  'Tracking.Api': {
+    label: 'Field Dispatch & Live GPS',
+    route: '/tracking',
+    accentBg: 'bg-sky-50',
+    accentText: 'text-sky-700',
+    accentBorder: 'border-sky-200',
+    tags: ['SignalR GPS', 'Haversine', 'Anti-Fraud'],
+    icon: MapPin,
+  },
 };
 
 const SHARED_KERNEL_PILLS = [
@@ -164,15 +188,36 @@ const SHARED_KERNEL_PILLS = [
 ];
 
 export const DashboardPage: React.FC = () => {
-  const { user, menus } = useAuth();
+  const { user, menus, hasPermission } = useAuth();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [orderStats, setOrderStats] = useState<OrderStats | null>(null);
   const [workflowStats, setWorkflowStats] = useState<WorkflowStats | null>(null);
   const [announcementStats, setAnnouncementStats] = useState<AnnouncementStats | null>(null);
   const [masterDataStats, setMasterDataStats] = useState<MasterDataStats | null>(null);
+  const [trackingStats, setTrackingStats] = useState<TrackingStats | null>(null);
+  const [myTrackings, setMyTrackings] = useState<TrackingSummaryItem[]>([]);
   const [health, setHealth] = useState<GatewayHealthResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshingHealth, setRefreshingHealth] = useState(false);
+
+  const isTechAdmin =
+    Boolean(
+      user?.roles.some((r) => ['superadmin', 'admin', 'itlead'].includes(r.toLowerCase()))
+    ) ||
+    hasPermission('AuditLogs.View') ||
+    hasPermission('Roles.View');
+
+  const canViewTracking = hasPermission('Tracking.View');
+  const canDispatchTracking = hasPermission('Tracking.Dispatch');
+  const canViewProducts = hasPermission('Products.View');
+  const canViewOrders = hasPermission('Orders.View');
+  const canCreateWorkflow = hasPermission('Workflows.Create');
+  const canApproveWorkflow = hasPermission('Workflows.Approve');
+  const canViewWorkflow = hasPermission('Workflows.View');
+  const canViewAnnouncements = hasPermission('Announcements.View');
+  const canViewReports = hasPermission('Reports.View');
+  const canViewOrg = hasPermission('Organization.View');
+  const canViewLookups = hasPermission('Lookups.View');
 
   const loadDashboard = useCallback(async (onlyHealth = false) => {
     if (onlyHealth) {
@@ -185,38 +230,46 @@ export const DashboardPage: React.FC = () => {
         return;
       }
 
-      const [sumRes, ordRes, wfRes, annRes, mdRes, healthRes] = await Promise.allSettled([
+      const [sumRes, ordRes, wfRes, annRes, mdRes, trkStatsRes, trkListRes, healthRes] = await Promise.allSettled([
         api.get<ApiResult<DashboardSummary>>('/dashboard/summary'),
-        api.get<ApiResult<OrderStats>>('/orders/stats'),
-        api.get<ApiResult<WorkflowStats>>('/workflows/stats'),
-        api.get<ApiResult<AnnouncementStats>>('/announcements/stats'),
-        api.get<ApiResult<MasterDataStats>>('/lookups/stats'),
-        api.get<GatewayHealthResponse>('/health'),
+        canViewOrders || isTechAdmin ? api.get<ApiResult<OrderStats>>('/orders/stats') : Promise.resolve(null),
+        canViewWorkflow || isTechAdmin ? api.get<ApiResult<WorkflowStats>>('/workflows/stats') : Promise.resolve(null),
+        canViewAnnouncements || isTechAdmin ? api.get<ApiResult<AnnouncementStats>>('/announcements/stats') : Promise.resolve(null),
+        canViewLookups || isTechAdmin ? api.get<ApiResult<MasterDataStats>>('/lookups/stats') : Promise.resolve(null),
+        canViewTracking || isTechAdmin ? api.get<ApiResult<TrackingStats>>('/tracking/stats') : Promise.resolve(null),
+        canViewTracking ? api.get<ApiResult<TrackingSummaryItem[]>>('/tracking') : Promise.resolve(null),
+        isTechAdmin ? api.get<GatewayHealthResponse>('/health') : Promise.resolve(null),
       ]);
 
-      if (sumRes.status === 'fulfilled' && sumRes.value.data.succeeded && sumRes.value.data.data) {
+      if (sumRes.status === 'fulfilled' && sumRes.value?.data.succeeded && sumRes.value.data.data) {
         setSummary(sumRes.value.data.data);
       }
-      if (ordRes.status === 'fulfilled' && ordRes.value.data.succeeded && ordRes.value.data.data) {
+      if (ordRes.status === 'fulfilled' && ordRes.value?.data.succeeded && ordRes.value.data.data) {
         setOrderStats(ordRes.value.data.data);
       }
-      if (wfRes.status === 'fulfilled' && wfRes.value.data.succeeded && wfRes.value.data.data) {
+      if (wfRes.status === 'fulfilled' && wfRes.value?.data.succeeded && wfRes.value.data.data) {
         setWorkflowStats(wfRes.value.data.data);
       }
-      if (annRes.status === 'fulfilled' && annRes.value.data.succeeded && annRes.value.data.data) {
+      if (annRes.status === 'fulfilled' && annRes.value?.data.succeeded && annRes.value.data.data) {
         setAnnouncementStats(annRes.value.data.data);
       }
-      if (mdRes.status === 'fulfilled' && mdRes.value.data.succeeded && mdRes.value.data.data) {
+      if (mdRes.status === 'fulfilled' && mdRes.value?.data.succeeded && mdRes.value.data.data) {
         setMasterDataStats(mdRes.value.data.data);
       }
-      if (healthRes.status === 'fulfilled' && healthRes.value.data) {
+      if (trkStatsRes.status === 'fulfilled' && trkStatsRes.value?.data.succeeded && trkStatsRes.value.data.data) {
+        setTrackingStats(trkStatsRes.value.data.data);
+      }
+      if (trkListRes.status === 'fulfilled' && trkListRes.value?.data.succeeded && trkListRes.value.data.data) {
+        setMyTrackings(trkListRes.value.data.data);
+      }
+      if (healthRes.status === 'fulfilled' && healthRes.value?.data) {
         setHealth(healthRes.value.data);
       }
     } finally {
       setLoading(false);
       setRefreshingHealth(false);
     }
-  }, []);
+  }, [canViewAnnouncements, canViewLookups, canViewOrders, canViewTracking, canViewWorkflow, isTechAdmin]);
 
   useEffect(() => {
     loadDashboard(false);
@@ -244,10 +297,203 @@ export const DashboardPage: React.FC = () => {
         return `${announcementStats?.publishedAnnouncements ?? 0} pengumuman • ${announcementStats?.totalComments ?? 0} komentar`;
       case 'MasterData.Api':
         return `${masterDataStats?.totalGroups ?? 0} grup • ${masterDataStats?.activeItems ?? 0} lookup aktif`;
+      case 'Tracking.Api':
+        return `${trackingStats?.totalAssignments ?? 0} tugas • ${trackingStats?.activeInTransit ?? 0} aktif`;
       default:
         return 'Compact Onion Service';
     }
   };
+
+  if (!isTechAdmin) {
+    const activeMyTrackings = myTrackings.filter((t) =>
+      ['Assigned', 'InTransit', 'Arrived', 'IssueReported'].includes(t.status)
+    );
+    const pendingVerifyTrackings = myTrackings.filter((t) => t.status === 'PendingVerification');
+
+    const quickActions = [
+      canViewTracking && {
+        to: '/tracking',
+        title: canDispatchTracking ? 'Command Center Tracking' : 'Tugas Lapangan Saya',
+        subtitle: canDispatchTracking
+          ? `${trackingStats?.activeInTransit ?? 0} aktif • ${trackingStats?.pendingVerification ?? 0} perlu verifikasi`
+          : `${activeMyTrackings.length} tugas aktif • ${pendingVerifyTrackings.length} menunggu verifikasi`,
+        icon: Navigation,
+        accent: 'bg-sky-50 text-sky-700 border-sky-200',
+      },
+      canApproveWorkflow && {
+        to: '/workflow-working-list',
+        title: 'Working List Approval',
+        subtitle: `${workflowStats?.inReviewRequests ?? 0} dokumen menunggu persetujuan`,
+        icon: ClipboardCheck,
+        accent: 'bg-amber-50 text-amber-700 border-amber-200',
+      },
+      canCreateWorkflow && {
+        to: '/workflow-create',
+        title: 'Buat Pengajuan Form',
+        subtitle: 'Pengadaan laptop, cuti, atau barang kantor',
+        icon: FilePlus2,
+        accent: 'bg-violet-50 text-violet-700 border-violet-200',
+      },
+      canViewWorkflow && {
+        to: '/workflow-tracking',
+        title: 'Tracking Pengajuan',
+        subtitle: `${workflowStats?.totalRequests ?? 0} total pengajuan terdaftar`,
+        icon: GitBranch,
+        accent: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+      },
+      canViewProducts && {
+        to: '/products',
+        title: 'Katalog Produk',
+        subtitle: `${summary?.totalProducts ?? 0} item di katalog`,
+        icon: Package,
+        accent: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      },
+      canViewOrders && {
+        to: '/orders',
+        title: 'Daftar Pesanan',
+        subtitle: `${orderStats?.totalOrders ?? 0} transaksi • ${orderStats?.pendingOrders ?? 0} diproses`,
+        icon: ShoppingCart,
+        accent: 'bg-teal-50 text-teal-700 border-teal-200',
+      },
+      canViewAnnouncements && {
+        to: '/announcements',
+        title: 'Pengumuman Perusahaan',
+        subtitle: `${announcementStats?.publishedAnnouncements ?? 0} berita & info HR terbaru`,
+        icon: Megaphone,
+        accent: 'bg-rose-50 text-rose-700 border-rose-200',
+      },
+      canViewReports && {
+        to: '/reports',
+        title: 'Laporan & Analitik',
+        subtitle: 'Ringkasan performa & ekspor data bisnis',
+        icon: BarChart3,
+        accent: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+      },
+      canViewOrg && {
+        to: '/organization',
+        title: 'Struktur Organisasi',
+        subtitle: 'Direktorat, divisi, departemen, & posisi',
+        icon: Network,
+        accent: 'bg-slate-100 text-slate-700 border-slate-200',
+      },
+    ].filter(Boolean) as Array<{
+      to: string;
+      title: string;
+      subtitle: string;
+      icon: React.ComponentType<{ className?: string }>;
+      accent: string;
+    }>;
+
+    return (
+      <div className="space-y-6">
+        {/* Clean Role-Tailored Operational Hero */}
+        <div className="bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 rounded-2xl p-6 text-white border border-teal-800/50 shadow-lg flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30 mb-2">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>WORKSPACE {user?.roles.join(' / ').toUpperCase()}</span>
+            </span>
+            <h1 className="text-2xl font-bold">Halo, {user?.fullName}!</h1>
+            <p className="text-slate-300 text-sm mt-1 max-w-2xl">
+              Kamu login sebagai <strong className="text-teal-300">{user?.roles.join(', ')}</strong> dengan{' '}
+              <strong>{menus.length} menu aktif</strong>. Semua pintasan dan ringkasan di bawah sudah disesuaikan dengan hak akses peran kamu.
+            </p>
+          </div>
+          {canViewTracking && (
+            <Link
+              to="/tracking"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 text-xs font-bold shrink-0 self-start lg:self-center transition"
+            >
+              <MapPin className="w-4 h-4" />
+              <span>{canDispatchTracking ? 'Buka Command Center Tracking' : 'Buka Tugas Lapangan Saya'}</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          )}
+        </div>
+
+        {/* Role-Specific Quick Action Cards */}
+        <div>
+          <h2 className="text-sm font-bold text-slate-800 mb-3">Akses Cepat Modul Kamu</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {quickActions.map((card) => {
+              const Icon = card.icon;
+              return (
+                <Link
+                  key={card.to}
+                  to={card.to}
+                  className="group bg-white rounded-2xl border border-slate-200 hover:border-teal-300 hover:shadow-md p-4 transition flex items-start gap-3.5"
+                >
+                  <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${card.accent}`}>
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-sm font-bold text-slate-900 group-hover:text-teal-700 truncate">
+                        {card.title}
+                      </h3>
+                      <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-teal-600 shrink-0" />
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">{card.subtitle}</p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Live Tracking Operational Summary Card (for Staff / Manager / Viewer with Tracking.View) */}
+        {canViewTracking && (
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center">
+                  <MapPin className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">
+                    {canDispatchTracking ? 'Ringkasan Tugas Lapangan (Tim)' : 'Daftar Tugas Lapangan Kamu'}
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    {activeMyTrackings.length} tugas aktif • {pendingVerifyTrackings.length} menunggu verifikasi •{' '}
+                    {myTrackings.filter((t) => t.status === 'Completed').length} selesai
+                  </p>
+                </div>
+              </div>
+              <Link to="/tracking" className="text-xs font-bold text-teal-700 hover:underline inline-flex items-center gap-1">
+                <span>Lihat Peta &amp; Detail</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            {myTrackings.length === 0 ? (
+              <p className="text-xs text-slate-400 py-4 text-center">Belum ada tugas lapangan yang terdaftar.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {myTrackings.slice(0, 4).map((t) => (
+                  <Link
+                    key={t.id}
+                    to="/tracking"
+                    className="p-3.5 rounded-xl bg-slate-50 hover:bg-teal-50/40 border border-slate-200 hover:border-teal-300 transition space-y-1"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-mono font-bold text-slate-700">{t.assignmentCode}</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white border border-slate-200 text-slate-700">
+                        {t.status}
+                      </span>
+                    </div>
+                    <p className="text-xs font-bold text-slate-900 line-clamp-1">{t.title}</p>
+                    <p className="text-[11px] text-slate-500 line-clamp-1">
+                      Tujuan: {t.destinationLabel} • @{t.assigneeUsername}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -557,8 +803,8 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 6 Kartu Metrik Lintas 6 Database Microservice */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      {/* 7 Kartu Metrik Lintas 7 Database Microservice */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3.5">
         <div className="bg-white p-4 rounded-2xl border border-slate-200 flex items-center gap-3.5">
           <div className="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center shrink-0">
             <Users className="w-5 h-5" />
@@ -646,6 +892,21 @@ export const DashboardPage: React.FC = () => {
             </p>
           </div>
         </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-sky-200 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
+            <MapPin className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-slate-500 truncate">Tracking (:5087)</p>
+            <p className="text-xl font-bold text-slate-900">
+              {loading ? '...' : trackingStats?.totalAssignments ?? 0}
+            </p>
+            <p className="text-[11px] text-sky-700 font-medium truncate">
+              {trackingStats?.activeInTransit ?? 0} aktif • {trackingStats?.pendingVerification ?? 0} verif
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -656,9 +917,9 @@ export const DashboardPage: React.FC = () => {
             <h2 className="font-bold text-slate-900">Zero-Trust JWT Claims</h2>
           </div>
           <p className="text-xs text-slate-500 mb-4">
-            Klaim permission ini dibawa di dalam token JWT dan divalidasi secara mandiri oleh seluruh 6 microservice (
+            Klaim permission ini dibawa di dalam token JWT dan divalidasi secara mandiri oleh seluruh 7 microservice (
             <code>Identity</code>, <code>Catalog</code>, <code>Order</code>, <code>Workflow</code>,{' '}
-            <code>Announcement</code>, &amp; <code>MasterData</code>):
+            <code>Announcement</code>, <code>MasterData</code>, &amp; <code>Tracking</code>):
           </p>
           <div className="flex flex-wrap gap-1.5">
             {user?.permissions.map((perm) => (

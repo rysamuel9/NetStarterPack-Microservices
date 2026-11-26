@@ -10,6 +10,7 @@ public static class CacheKeys
     public const string WorkflowsPrefix = "workflows:";
     public const string AnnouncementsPrefix = "announcements:";
     public const string LookupsPrefix = "lookups:";
+    public const string TrackingPrefix = "tracking:";
     public const string OrganizationPrefix = "org:";
     public const string MenusPrefix = "menus:";
     public const string RolesPrefix = "roles:";
@@ -59,6 +60,12 @@ public static class CacheKeys
 
     public static string LookupStats() =>
         $"{LookupsPrefix}stats";
+
+    public static string TrackingStats() =>
+        $"{TrackingPrefix}stats";
+
+    public static string TrackingLivePosition(Guid assignmentId) =>
+        $"{TrackingPrefix}live:{assignmentId:N}";
 
     public static string OrganizationTree() =>
         $"{OrganizationPrefix}tree";
