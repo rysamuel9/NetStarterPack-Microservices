@@ -274,6 +274,12 @@ export const Layout: React.FC = () => {
             <a href="http://localhost:5085/swagger" target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-teal-950/70 hover:bg-teal-900/80 border border-teal-800/70 text-teal-300 truncate">
               :5085 Announce
             </a>
+            <a href="http://localhost:5086/swagger" target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 truncate">
+              :5086 Lookups
+            </a>
+            <a href="http://localhost:5087/swagger" target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-sky-950/70 hover:bg-sky-900/80 border border-sky-800/70 text-sky-300 truncate">
+              :5087 Tracking
+            </a>
           </div>
         </div>
 
@@ -302,7 +308,7 @@ export const Layout: React.FC = () => {
               <span className="font-medium">Gateway (:5080)</span>
               <span className="text-teal-400">&rarr;</span>
               <span className="font-mono text-[11px] text-teal-700">
-                Identity (:5081) • Catalog (:5082) • Order (:5083) • Workflow (:5084) • Announce (:5085)
+                Identity (:5081) • Catalog (:5082) • Order (:5083) • Workflow (:5084) • Announce (:5085) • MasterData (:5086) • Tracking (:5087)
               </span>
             </div>
           </div>

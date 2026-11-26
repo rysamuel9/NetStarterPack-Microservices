@@ -97,6 +97,10 @@ export default function MenusTab() {
       router.push('/(modules)/lookups' as Href);
       return;
     }
+    if (normalizedPath === 'tracking' || normalizedPath === 'live-tracking') {
+      router.push('/(modules)/tracking' as Href);
+      return;
+    }
     if (normalizedPath === 'profile') {
       router.push('/(tabs)/profile');
       return;

@@ -39,6 +39,7 @@ public class IdentityDatabaseSeeder(
             await EnsureOrganizationSchemaAndSeedAsync(cancellationToken);
             await EnsureExpandedCorporateEmployeesAsync(cancellationToken);
             await EnsureMasterDataPermissionsAndMenuAsync(cancellationToken);
+            await EnsureTrackingPermissionsAndMenuAsync(cancellationToken);
             return;
         }
 
@@ -509,7 +510,8 @@ public class IdentityDatabaseSeeder(
         await EnsureOrganizationSchemaAndSeedAsync(cancellationToken);
         await EnsureExpandedCorporateEmployeesAsync(cancellationToken);
         await EnsureMasterDataPermissionsAndMenuAsync(cancellationToken);
-        logger.LogInformation("Identity database seeded successfully with corporate workflow, HR announcements, master lookups, & full organization master!");
+        await EnsureTrackingPermissionsAndMenuAsync(cancellationToken);
+        logger.LogInformation("Identity database seeded successfully with corporate workflow, HR announcements, master lookups, live tracking, & full organization master!");
     }
 
     private async Task EnsureOrderMicroserviceMenuAndPermissionsAsync(CancellationToken cancellationToken)
@@ -1675,6 +1677,111 @@ public class IdentityDatabaseSeeder(
         {
             await dbContext.SaveChangesAsync(cancellationToken);
             logger.LogInformation("[Identity.Api] Ensured MasterData.Api permissions (Lookups.View/Manage) & sidebar menu (/lookups).");
+        }
+    }
+
+    /// <summary>
+    /// Auto-upgrade aman untuk Tracking.Api (Port 5087):
+    /// menambahkan permission Tracking.View / Tracking.Dispatch / Tracking.Operate serta menu sidebar Live Tracking di /tracking.
+    /// </summary>
+    private async Task EnsureTrackingPermissionsAndMenuAsync(CancellationToken cancellationToken)
+    {
+        var roles = await dbContext.Roles
+            .Include(r => r.RolePermissions)
+            .ToListAsync(cancellationToken);
+
+        var dispatchRoles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            RoleNames.SuperAdmin,
+            RoleNames.Admin,
+            RoleNames.Manager
+        };
+
+        var operateRoles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            RoleNames.SuperAdmin,
+            RoleNames.Admin,
+            RoleNames.Manager,
+            RoleNames.Staff
+        };
+
+        var viewRoles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            RoleNames.SuperAdmin,
+            RoleNames.Admin,
+            RoleNames.Manager,
+            RoleNames.Staff,
+            RoleNames.Viewer
+        };
+
+        var changed = false;
+
+        foreach (var role in roles)
+        {
+            var toGrant = new List<string>();
+            if (viewRoles.Contains(role.Name)) toGrant.Add(Permissions.Tracking.View);
+            if (dispatchRoles.Contains(role.Name)) toGrant.Add(Permissions.Tracking.Dispatch);
+            if (operateRoles.Contains(role.Name)) toGrant.Add(Permissions.Tracking.Operate);
+
+            foreach (var code in toGrant)
+            {
+                if (!role.RolePermissions.Any(rp => rp.PermissionCode == code))
+                {
+                    await dbContext.RolePermissions.AddAsync(new RolePermission
+                    {
+                        RoleId = role.Id,
+                        PermissionCode = code,
+                        CreatedBy = "SystemSeeder"
+                    }, cancellationToken);
+                    changed = true;
+                }
+            }
+        }
+
+        var existingMenu = await dbContext.MenuItems
+            .FirstOrDefaultAsync(m => m.Code == "live-tracking" || m.Path == "/tracking", cancellationToken);
+
+        if (existingMenu is null)
+        {
+            existingMenu = new MenuItem
+            {
+                Code = "live-tracking",
+                Title = "Live Tracking",
+                Path = "/tracking",
+                Icon = "MapPin",
+                GroupName = "OPERASIONAL BISNIS",
+                SortOrder = 6,
+                RequiredPermission = Permissions.Tracking.View,
+                IsVisible = true,
+                Description = "Field Dispatch & Live Location Tracking (Peta Command Center Realtime, Geofence, & Proof of Delivery)",
+                CreatedBy = "SystemSeeder"
+            };
+            await dbContext.MenuItems.AddAsync(existingMenu, cancellationToken);
+            changed = true;
+        }
+
+        var existingRoleMenus = await dbContext.RoleMenus
+            .Where(rm => rm.MenuItemId == existingMenu.Id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var role in roles.Where(r => viewRoles.Contains(r.Name)))
+        {
+            if (!existingRoleMenus.Any(rm => rm.RoleId == role.Id))
+            {
+                await dbContext.RoleMenus.AddAsync(new RoleMenu
+                {
+                    RoleId = role.Id,
+                    MenuItemId = existingMenu.Id,
+                    CreatedBy = "SystemSeeder"
+                }, cancellationToken);
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            logger.LogInformation("[Identity.Api] Ensured Tracking.Api permissions (Tracking.View/Dispatch/Operate) & sidebar menu (/tracking).");
         }
     }
 }

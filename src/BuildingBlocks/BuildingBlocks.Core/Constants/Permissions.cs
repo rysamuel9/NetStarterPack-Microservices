@@ -74,6 +74,13 @@ public static class Permissions
         public const string Manage = "Lookups.Manage";
     }
 
+    public static class Tracking
+    {
+        public const string View = "Tracking.View";
+        public const string Dispatch = "Tracking.Dispatch";
+        public const string Operate = "Tracking.Operate";
+    }
+
     public static class Reports
     {
         public const string View = "Reports.View";
@@ -123,6 +130,10 @@ public static class Permissions
 
         new(Lookups.View, "Lihat Master Data / Lookups", "MasterData", "Melihat daftar grup dan item referensi lookup (MasterData Microservice)"),
         new(Lookups.Manage, "Kelola Master Data / Lookups", "MasterData", "Menambah, mengubah, mengaktifkan/nonaktifkan, dan menghapus item Master Data (MasterData Microservice)"),
+
+        new(Tracking.View, "Lihat Live Tracking & Peta", "Tracking", "Melihat daftar tugas lapangan, peta Command Center realtime, dan riwayat rute (Tracking Microservice)"),
+        new(Tracking.Dispatch, "Kelola Dispatch & Verifikasi", "Tracking", "Membuat tugas lapangan, menetapkan petugas & titik tujuan, membatalkan tugas, serta memverifikasi POD (Tracking Microservice)"),
+        new(Tracking.Operate, "Eksekusi Tugas Lapangan (GPS)", "Tracking", "Memulai perjalanan, mengirim live GPS ping, melaporkan kendala, check-in, dan mengunggah foto bukti POD (Tracking Microservice)"),
 
         new(Reports.View, "Lihat Laporan & Analitik", "Reports", "Mengakses halaman laporan manajemen"),
         new(Reports.Export, "Ekspor Laporan", "Reports", "Mengunduh/mengekspor data laporan"),

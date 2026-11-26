@@ -412,3 +412,88 @@ export interface AnnouncementStats {
   totalLikes: number;
   totalComments: number;
 }
+
+export interface TrackingBreadcrumbItem {
+  id: string;
+  latitude: number;
+  longitude: number;
+  accuracyMeters: number;
+  speedKmh: number;
+  distanceToDestinationMeters: number;
+  isMocked: boolean;
+  isSuspicious: boolean;
+  eventTag: string;
+  recordedAt: string;
+}
+
+export interface TrackingStatusLogItem {
+  id: string;
+  fromStatus: string;
+  toStatus: string;
+  actorUsername: string;
+  actorFullName: string;
+  notes?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  timestamp: string;
+}
+
+export interface TrackingSummaryItem {
+  id: string;
+  assignmentCode: string;
+  title: string;
+  taskType: string;
+  referenceCode?: string | null;
+  notes?: string | null;
+  dispatcherUserId: string;
+  dispatcherUsername: string;
+  dispatcherFullName: string;
+  assigneeUserId: string;
+  assigneeUsername: string;
+  assigneeFullName: string;
+  originLabel: string;
+  originLatitude: number;
+  originLongitude: number;
+  destinationLabel: string;
+  destinationAddress: string;
+  destinationLatitude: number;
+  destinationLongitude: number;
+  geofenceRadiusMeters: number;
+  status: string;
+  lastLatitude?: number | null;
+  lastLongitude?: number | null;
+  lastAccuracyMeters?: number | null;
+  lastSpeedKmh?: number | null;
+  lastDistanceToDestinationMeters?: number | null;
+  lastPingAt?: string | null;
+  totalDistanceMeters: number;
+  isInsideGeofence: boolean;
+  isSuspicious: boolean;
+  suspiciousReason?: string | null;
+  issueNote?: string | null;
+  podPhotoUrl?: string | null;
+  createdAt: string;
+  startedAt?: string | null;
+  arrivedAt?: string | null;
+  completedAt?: string | null;
+  breadcrumbCount: number;
+}
+
+export interface TrackingDetailItem {
+  summary: TrackingSummaryItem;
+  podRecipientName?: string | null;
+  podNotes?: string | null;
+  verificationNotes?: string | null;
+  verifiedByUsername?: string | null;
+  verifiedAt?: string | null;
+  breadcrumbs: TrackingBreadcrumbItem[];
+  statusLogs: TrackingStatusLogItem[];
+}
+
+export interface TrackingStats {
+  totalAssignments: number;
+  activeInTransit: number;
+  pendingVerification: number;
+  completedAssignments: number;
+  suspiciousFlags: number;
+}

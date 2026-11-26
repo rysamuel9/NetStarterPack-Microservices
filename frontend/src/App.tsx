@@ -62,6 +62,9 @@ const MenusPage = lazy(() =>
 const LookupsPage = lazy(() =>
   import('./pages/masterdata/LookupsPage').then((m) => ({ default: m.LookupsPage }))
 );
+const LiveTrackingPage = lazy(() =>
+  import('./pages/tracking/LiveTrackingPage').then((m) => ({ default: m.LiveTrackingPage }))
+);
 const UnderDevelopmentPage = lazy(() =>
   import('./pages/common/UnderDevelopmentPage').then((m) => ({ default: m.UnderDevelopmentPage }))
 );
@@ -202,6 +205,14 @@ export const App: React.FC = () => {
                 element={
                   <ProtectedRoute permission="Lookups.View">
                     <LookupsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="tracking"
+                element={
+                  <ProtectedRoute permission="Tracking.View">
+                    <LiveTrackingPage />
                   </ProtectedRoute>
                 }
               />

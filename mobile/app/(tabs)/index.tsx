@@ -87,6 +87,14 @@ const DEFAULT_CLUSTER_NODES: ServiceNodeHealth[] = [
     database: 'NetStarterPack_MasterDataDb',
     latencyMs: 0,
   },
+  {
+    service: 'Tracking.Api',
+    port: 5087,
+    url: '',
+    status: 'Unreachable',
+    database: 'NetStarterPack_TrackingDb',
+    latencyMs: 0,
+  },
 ];
 
 const SERVICE_NODE_META: Record<
@@ -128,6 +136,12 @@ const SERVICE_NODE_META: Record<
     route: '/(modules)/lookups' as Href,
     permission: 'Lookups.View',
     accent: '#14B8A6',
+  },
+  'Tracking.Api': {
+    subtitle: 'Field Dispatch • Live GPS • Haversine Geofence',
+    route: '/(modules)/tracking' as Href,
+    permission: 'Tracking.View',
+    accent: '#0284C7',
   },
 };
 

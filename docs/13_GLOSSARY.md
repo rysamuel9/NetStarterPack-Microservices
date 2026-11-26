@@ -126,6 +126,11 @@ Kumpulan kontrol keamanan aktif yang dipasang lintas Gateway, Identity, Business
 - **Anti-IDOR (`WorkflowService` & `AuthService`)**: Membatasi tracking/detail workflow hanya bagi pemilik dokumen, approver terkait, atau Admin/SuperAdmin, serta memastikan logout hanya mencabut token milik sendiri.
 - **Dual-Layer HTML Sanitization (`HtmlSanitizer` + `DOMPurify`)**: Membersihkan HTML pengumuman berbasis parser DOM allowlist di backend dan frontend + validasi URL aset internal.
 - **Auth Rate Limiter, `SecurityHeadersMiddleware`, `UseForwardedHeaders`, & Constant-Time `X-Internal-Api-Key`**: Rate limit ketat 15 req/menit khusus endpoint auth, header keamanan standar (`nosniff`, `X-Frame-Options: DENY`, `CSP`, `HSTS`), perlindungan IP spoofing, serta `[RequireAuthenticatedOrInternalApiKey]` pada seluruh endpoint `/stats`.
+
+### Field Dispatch & Live Location Tracking (`Tracking.Api :5087`)
+Microservice bisnis ke-7 (`NetStarterPack_TrackingDb`) untuk penugasan lapangan, pelacakan GPS realtime, geofencing, dan bukti serah terima (POD):
+- **Hot State vs Cold Trail**: Posisi GPS terbaru selalu diperbarui di Hybrid Cache L1/L2 (`ICacheService`) & langsung disiarkan via SignalR (`/hubs/tracking`), sementara `TrackingBreadcrumbs` di SQL Server hanya disimpan secara selektif (berpindah $\ge 30$ meter atau $\ge 60$ detik) agar database tidak terbebani.
+- **Server-Side Haversine Geofencing (`GeoDistanceCalculator`) & Anti Fake-GPS**: Jarak ke tujuan dihitung di backend, lengkap dengan deteksi `isMocked` dan *Impossible Travel* ($> 300$ km/jam). Penyelesaian di luar radius geofence atau berbendera anomali otomatis dialihkan ke `PendingVerification` untuk ditinjau Manager/Dispatcher.
 - **Di project ini digunakan pada**: `src/BuildingBlocks/BuildingBlocks.Security/PermissionAuthorization.cs`.
 
 ### Service-to-Service Auth (`X-Internal-Api-Key`)

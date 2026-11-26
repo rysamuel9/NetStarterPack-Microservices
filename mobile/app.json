@@ -34,6 +34,12 @@
         {
           "faceIDPermission": "Izinkan NetStarterPack menggunakan Face ID untuk membuka sesi akun."
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Izinkan NetStarterPack mengakses lokasi GPS saat Anda menjalankan tugas lapangan (Live Tracking)."
+        }
       ]
     ],
     "experiments": {

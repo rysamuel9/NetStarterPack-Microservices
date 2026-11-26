@@ -46,6 +46,14 @@ public record AnnouncementStatsDto(
     int TotalComments
 );
 
+public record TrackingStatsDto(
+    int TotalAssignments,
+    int ActiveInTransit,
+    int PendingVerification,
+    int CompletedAssignments,
+    int SuspiciousFlags
+);
+
 public record ServiceHealthNode(
     string Service,
     int Port,

@@ -21,6 +21,7 @@ import {
   Smartphone,
   Cpu,
   ArrowRight,
+  MapPin,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -83,6 +84,14 @@ const DEFAULT_CLUSTER_NODES: ServiceNodeHealth[] = [
     url: 'http://localhost:5086/api/v1/health',
     status: 'Healthy',
     database: 'NetStarterPack_MasterDataDb',
+    latencyMs: 2,
+  },
+  {
+    service: 'Tracking.Api',
+    port: 5087,
+    url: 'http://localhost:5087/api/v1/health',
+    status: 'Healthy',
+    database: 'NetStarterPack_TrackingDb',
     latencyMs: 2,
   },
 ];
@@ -151,6 +160,15 @@ const SERVICE_META: Record<string, ServiceTopologyMeta> = {
     accentBorder: 'border-teal-200',
     tags: ['1-Table Lookup', 'Cascading', 'Cache L1/L2'],
     icon: Layers,
+  },
+  'Tracking.Api': {
+    label: 'Field Dispatch & Live GPS',
+    route: '/tracking',
+    accentBg: 'bg-sky-50',
+    accentText: 'text-sky-700',
+    accentBorder: 'border-sky-200',
+    tags: ['SignalR GPS', 'Haversine', 'Anti-Fraud'],
+    icon: MapPin,
   },
 };
 

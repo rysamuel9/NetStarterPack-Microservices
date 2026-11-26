@@ -17,6 +17,7 @@
     <ProjectReference Include="..\..\src\Services\Workflow\Workflow.Api\Workflow.Api.csproj" />
     <ProjectReference Include="..\..\src\Services\Announcement\Announcement.Api\Announcement.Api.csproj" />
     <ProjectReference Include="..\..\src\Services\MasterData\MasterData.Api\MasterData.Api.csproj" />
+    <ProjectReference Include="..\..\src\Services\Tracking\Tracking.Api\Tracking.Api.csproj" />
   </ItemGroup>
 
   <ItemGroup>

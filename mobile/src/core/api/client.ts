@@ -1,5 +1,5 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { getApiBaseUrl } from '@/core/config/serverConfig';
+import { getApiBaseUrl, getGatewayUrl } from '@/core/config/serverConfig';
 import { tokenStorage } from '@/core/storage/secureStorage';
 import type { ApiResult, AuthResponse, CurrentUser } from '@/core/types';
 
@@ -88,6 +88,8 @@ export const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',
+    'bypass-tunnel-reminder': 'true',
+    'ngrok-skip-browser-warning': 'true',
   },
 });
 
@@ -210,7 +212,7 @@ export function getErrorMessage(
 ): string {
   if (axios.isAxiosError(error)) {
     if (!error.response) {
-      return 'Tidak dapat terhubung ke API Gateway. Cek koneksi Wi-Fi & alamat server di pengaturan.';
+      return `Tidak dapat terhubung ke API Gateway (${getGatewayUrl()}). Cek koneksi Wi-Fi & alamat server di pengaturan.`;
     }
     const data = error.response.data as ApiResult | undefined;
     if (data?.message) return data.message;

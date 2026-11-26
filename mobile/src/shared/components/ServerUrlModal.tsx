@@ -43,7 +43,13 @@ export const ServerUrlModal: React.FC<ServerUrlModalProps> = ({ visible, onClose
     setTestResult(null);
 
     try {
-      const res = await axios.get(`${normalized}/api/health`, { timeout: 6000 });
+      const res = await axios.get(`${normalized}/api/health`, {
+        timeout: 6000,
+        headers: {
+          'bypass-tunnel-reminder': 'true',
+          'ngrok-skip-browser-warning': 'true',
+        },
+      });
       if (res.status >= 200 && res.status < 300) {
         setTestResult({ ok: true, text: `Terhubung ke Gateway (${normalized})` });
       } else {
