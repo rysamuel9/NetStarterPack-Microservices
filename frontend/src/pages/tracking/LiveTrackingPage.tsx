@@ -15,6 +15,8 @@ import {
   Truck,
   X,
   XCircle,
+  ZoomIn,
+  ExternalLink,
 } from 'lucide-react';
 import { api, getErrorMessage } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -62,6 +64,8 @@ export const LiveTrackingPage: React.FC = () => {
   const { user, hasPermission } = useAuth();
   const canDispatch = hasPermission('Tracking.Dispatch');
   const canOperate = hasPermission('Tracking.Operate');
+  const isFieldStaff = canOperate && !canDispatch;
+  const isAuditorOnly = !canOperate && !canDispatch;
 
   const [assignments, setAssignments] = useState<TrackingSummaryItem[]>([]);
   const [stats, setStats] = useState<TrackingStats | null>(null);
@@ -97,10 +101,11 @@ export const LiveTrackingPage: React.FC = () => {
   const [podPhotoUrl, setPodPhotoUrl] = useState<string | null>(null);
   const [uploadingPod, setUploadingPod] = useState(false);
 
-  // Verify Modal state
+  // Verify Modal & Photo Lightbox state
   const [verifyNotes, setVerifyNotes] = useState('');
   const [issueNote, setIssueNote] = useState('');
   const [issueOpen, setIssueOpen] = useState(false);
+  const [photoLightbox, setPhotoLightbox] = useState<{ url: string; caption: string } | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -324,18 +329,21 @@ export const LiveTrackingPage: React.FC = () => {
     setSimulatingId(null);
   };
 
-  const startRouteSimulation = (item: TrackingSummaryItem) => {
+  const startRouteSimulation = (item: TrackingSummaryItem, mode: 'normal' | 'outside' = 'normal') => {
     stopSimulation();
     setSimulatingId(item.id);
     const startLat = item.lastLatitude ?? item.originLatitude;
     const startLng = item.lastLongitude ?? item.originLongitude;
-    const totalSteps = 10;
+    // Mode 'outside' mendarat ~350m di luar titik tujuan untuk uji alur PendingVerification
+    const targetLat = mode === 'outside' ? item.destinationLatitude + 0.0032 : item.destinationLatitude;
+    const targetLng = mode === 'outside' ? item.destinationLongitude + 0.0005 : item.destinationLongitude;
+    const totalSteps = 8;
     let step = 1;
 
     simTimerRef.current = window.setInterval(async () => {
       const progress = Math.min(1, step / totalSteps);
-      const lat = startLat + (item.destinationLatitude - startLat) * progress;
-      const lng = startLng + (item.destinationLongitude - startLng) * progress;
+      const lat = startLat + (targetLat - startLat) * progress;
+      const lng = startLng + (targetLng - startLng) * progress;
       try {
         await api.post(`/tracking/${item.id}/ping`, {
           latitude: Number(lat.toFixed(6)),
@@ -351,11 +359,33 @@ export const LiveTrackingPage: React.FC = () => {
 
       if (step >= totalSteps) {
         stopSimulation();
-        setFeedback({ type: 'success', text: 'Simulasi rute sampai di titik tujuan (dalam radius geofence)!' });
+        setFeedback({
+          type: 'success',
+          text:
+            mode === 'outside'
+              ? 'Simulasi berhenti ~350m di luar radius geofence. Submit POD sekarang akan masuk antrean verifikasi Manager.'
+              : 'Simulasi rute sampai di titik tujuan (dalam radius geofence)!',
+        });
         if (selectedId === item.id) loadDetail(item.id);
       }
       step += 1;
-    }, 1400);
+    }, 1200);
+  };
+
+  const triggerMockGpsSimulation = async (item: TrackingSummaryItem) => {
+    await runAction(
+      () =>
+        api
+          .post(`/tracking/${item.id}/ping`, {
+            latitude: item.destinationLatitude,
+            longitude: item.destinationLongitude,
+            accuracyMeters: 5,
+            speedMps: 0,
+            isMocked: true,
+          })
+          .then(() => undefined),
+      'Simulasi Fake GPS dikirim! Server langsung menandai anomali GPS & mewajibkan verifikasi Manager.'
+    );
   };
 
   const handlePodUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -412,8 +442,29 @@ export const LiveTrackingPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-bold text-slate-900">Field Dispatch &amp; Live Tracking</h1>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-2xl font-bold text-slate-900">
+              {isFieldStaff
+                ? 'Tugas Lapangan Saya'
+                : isAuditorOnly
+                  ? 'Monitoring Live Tracking'
+                  : 'Field Dispatch & Live Tracking'}
+            </h1>
+            <span
+              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                isFieldStaff
+                  ? 'bg-teal-50 text-teal-700 border-teal-200'
+                  : isAuditorOnly
+                    ? 'bg-slate-100 text-slate-700 border-slate-200'
+                    : 'bg-amber-50 text-amber-800 border-amber-200'
+              }`}
+            >
+              {isFieldStaff
+                ? 'MODE PETUGAS LAPANGAN'
+                : isAuditorOnly
+                  ? 'MODE AUDITOR (READ-ONLY)'
+                  : 'MODE DISPATCHER / MANAGER'}
+            </span>
             <span
               className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
                 realtimeConnected
@@ -426,7 +477,11 @@ export const LiveTrackingPage: React.FC = () => {
             </span>
           </div>
           <p className="text-sm text-slate-500 mt-1">
-            Command Center realtime untuk pengiriman &amp; tugas lapangan (Tracking.Api :5087 • Haversine Geofence • Anti Fake-GPS).
+            {isFieldStaff
+              ? 'Daftar tugas yang ditugaskan khusus ke kamu. Jalankan perjalanan, kirim GPS / simulasi rute, dan unggah bukti serah terima (POD).'
+              : isAuditorOnly
+                ? 'Pemantauan read-only seluruh rute petugas lapangan, status geofence, dan bukti serah terima (POD).'
+                : 'Command Center realtime untuk dispatch tugas, pantau posisi petugas, verifikasi geofence & POD, dan deteksi anomali GPS.'}
           </p>
         </div>
 
@@ -467,29 +522,56 @@ export const LiveTrackingPage: React.FC = () => {
         </div>
       )}
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
-        <div className="bg-white rounded-2xl border border-slate-200 p-4">
-          <p className="text-xs font-semibold text-slate-500">Total Tugas</p>
-          <p className="text-2xl font-bold text-slate-900 mt-1">{stats?.totalAssignments ?? assignments.length}</p>
+      {/* Stats Cards (adaptif: Staff lihat angka pribadinya, Dispatcher/Auditor lihat angka global) */}
+      {isFieldStaff ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <div className="bg-white rounded-2xl border border-slate-200 p-4">
+            <p className="text-xs font-semibold text-slate-500">Tugas Saya</p>
+            <p className="text-2xl font-bold text-slate-900 mt-1">{assignments.length}</p>
+          </div>
+          <div className="bg-white rounded-2xl border border-sky-200 p-4">
+            <p className="text-xs font-semibold text-sky-600">Aktif / Sedang Jalan</p>
+            <p className="text-2xl font-bold text-sky-700 mt-1">
+              {assignments.filter((a) => ['Assigned', 'InTransit', 'Arrived', 'IssueReported'].includes(a.status)).length}
+            </p>
+          </div>
+          <div className="bg-white rounded-2xl border border-orange-200 p-4">
+            <p className="text-xs font-semibold text-orange-600">Menunggu Verifikasi</p>
+            <p className="text-2xl font-bold text-orange-700 mt-1">
+              {assignments.filter((a) => a.status === 'PendingVerification').length}
+            </p>
+          </div>
+          <div className="bg-white rounded-2xl border border-emerald-200 p-4">
+            <p className="text-xs font-semibold text-emerald-600">Selesai</p>
+            <p className="text-2xl font-bold text-emerald-700 mt-1">
+              {assignments.filter((a) => a.status === 'Completed').length}
+            </p>
+          </div>
         </div>
-        <div className="bg-white rounded-2xl border border-sky-200 p-4">
-          <p className="text-xs font-semibold text-sky-600">Aktif di Lapangan</p>
-          <p className="text-2xl font-bold text-sky-700 mt-1">{stats?.activeInTransit ?? 0}</p>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
+          <div className="bg-white rounded-2xl border border-slate-200 p-4">
+            <p className="text-xs font-semibold text-slate-500">Total Tugas</p>
+            <p className="text-2xl font-bold text-slate-900 mt-1">{stats?.totalAssignments ?? assignments.length}</p>
+          </div>
+          <div className="bg-white rounded-2xl border border-sky-200 p-4">
+            <p className="text-xs font-semibold text-sky-600">Aktif di Lapangan</p>
+            <p className="text-2xl font-bold text-sky-700 mt-1">{stats?.activeInTransit ?? 0}</p>
+          </div>
+          <div className="bg-white rounded-2xl border border-orange-200 p-4">
+            <p className="text-xs font-semibold text-orange-600">Perlu Verifikasi</p>
+            <p className="text-2xl font-bold text-orange-700 mt-1">{stats?.pendingVerification ?? 0}</p>
+          </div>
+          <div className="bg-white rounded-2xl border border-emerald-200 p-4">
+            <p className="text-xs font-semibold text-emerald-600">Selesai</p>
+            <p className="text-2xl font-bold text-emerald-700 mt-1">{stats?.completedAssignments ?? 0}</p>
+          </div>
+          <div className="bg-white rounded-2xl border border-rose-200 p-4">
+            <p className="text-xs font-semibold text-rose-600">Flag Anomali GPS</p>
+            <p className="text-2xl font-bold text-rose-700 mt-1">{stats?.suspiciousFlags ?? 0}</p>
+          </div>
         </div>
-        <div className="bg-white rounded-2xl border border-orange-200 p-4">
-          <p className="text-xs font-semibold text-orange-600">Perlu Verifikasi</p>
-          <p className="text-2xl font-bold text-orange-700 mt-1">{stats?.pendingVerification ?? 0}</p>
-        </div>
-        <div className="bg-white rounded-2xl border border-emerald-200 p-4">
-          <p className="text-xs font-semibold text-emerald-600">Selesai</p>
-          <p className="text-2xl font-bold text-emerald-700 mt-1">{stats?.completedAssignments ?? 0}</p>
-        </div>
-        <div className="bg-white rounded-2xl border border-rose-200 p-4">
-          <p className="text-xs font-semibold text-rose-600">Flag Anomali GPS</p>
-          <p className="text-2xl font-bold text-rose-700 mt-1">{stats?.suspiciousFlags ?? 0}</p>
-        </div>
-      </div>
+      )}
 
       {/* Main Split Command Center */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
@@ -613,7 +695,7 @@ export const LiveTrackingPage: React.FC = () => {
                       onClick={() =>
                         simulatingId === activeSummary.id
                           ? stopSimulation()
-                          : startRouteSimulation(activeSummary)
+                          : startRouteSimulation(activeSummary, 'normal')
                       }
                       className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border ${
                         simulatingId === activeSummary.id
@@ -622,8 +704,32 @@ export const LiveTrackingPage: React.FC = () => {
                       }`}
                     >
                       <Truck className="w-4 h-4" />
-                      {simulatingId === activeSummary.id ? 'Hentikan Simulasi' : 'Simulasi Jalan (Demo)'}
+                      {simulatingId === activeSummary.id ? 'Hentikan Simulasi' : 'Simulasi Normal (Masuk Geofence)'}
                     </button>
+
+                    {simulatingId !== activeSummary.id && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => startRouteSimulation(activeSummary, 'outside')}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-orange-50 text-orange-800 border-orange-200 hover:bg-orange-100"
+                          title="Simulasikan berhenti ~350m di luar geofence untuk tes verifikasi Manager"
+                        >
+                          <MapPin className="w-3.5 h-3.5" />
+                          Simulasi Luar Geofence
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busyAction}
+                          onClick={() => triggerMockGpsSimulation(activeSummary)}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
+                          title="Kirim ping isMocked=true untuk tes deteksi Anti Fake-GPS"
+                        >
+                          <ShieldAlert className="w-3.5 h-3.5" />
+                          Test Fake GPS
+                        </button>
+                      </>
+                    )}
 
                     {activeSummary.status === 'InTransit' && (
                       <button
@@ -763,24 +869,79 @@ export const LiveTrackingPage: React.FC = () => {
                 </div>
               )}
 
+              {/* Info Banner untuk Staff saat menunggu verifikasi Manager */}
+              {!canDispatch && activeSummary.status === 'PendingVerification' && (
+                <div className="p-3.5 rounded-2xl bg-orange-50 border border-orange-200 text-orange-900 text-xs">
+                  <p className="font-bold">Menunggu Verifikasi Manager / Dispatcher</p>
+                  <p className="mt-0.5 text-orange-800">
+                    Bukti POD kamu sudah diterima sistem dan sedang menunggu persetujuan Manager karena lokasi submit berada di luar radius geofence atau terdapat flag GPS.
+                  </p>
+                </div>
+              )}
+
               {/* POD & Timeline */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
                 <div className="space-y-2">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Bukti Penyelesaian (POD)</h3>
-                  {selectedDetail?.podRecipientName || activeSummary.podPhotoUrl ? (
-                    <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
-                      <p><b>Penerima:</b> {selectedDetail?.podRecipientName || '-'}</p>
-                      {selectedDetail?.podNotes && <p className="text-slate-600">{selectedDetail.podNotes}</p>}
+                  {selectedDetail?.podRecipientName || selectedDetail?.podNotes || activeSummary.podPhotoUrl || selectedDetail?.verificationNotes ? (
+                    <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5 text-xs">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase text-slate-400">Nama Penerima / PIC</p>
+                          <p className="font-bold text-slate-900 mt-0.5">{selectedDetail?.podRecipientName || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase text-slate-400">Waktu Selesai / Submit</p>
+                          <p className="font-semibold text-slate-700 mt-0.5">
+                            {activeSummary.completedAt
+                              ? new Date(activeSummary.completedAt).toLocaleString('id-ID')
+                              : activeSummary.arrivedAt
+                                ? new Date(activeSummary.arrivedAt).toLocaleString('id-ID')
+                                : '-'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase text-slate-400">Catatan Serah Terima</p>
+                        <p className="text-slate-700 mt-0.5">{selectedDetail?.podNotes || 'Tidak ada catatan tambahan.'}</p>
+                      </div>
+
+                      {(selectedDetail?.verifiedByUsername || selectedDetail?.verificationNotes) && (
+                        <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-0.5">
+                          <p className="text-[10px] font-bold uppercase text-teal-700">
+                            Verifikasi oleh @{selectedDetail?.verifiedByUsername || '-'}
+                            {selectedDetail?.verifiedAt ? ` • ${new Date(selectedDetail.verifiedAt).toLocaleString('id-ID')}` : ''}
+                          </p>
+                          <p className="text-slate-700">{selectedDetail?.verificationNotes}</p>
+                        </div>
+                      )}
+
                       {activeSummary.podPhotoUrl && (
-                        <img
-                          src={activeSummary.podPhotoUrl}
-                          alt="Bukti POD"
-                          className="w-full h-40 object-cover rounded-xl border border-slate-200"
-                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPhotoLightbox({
+                              url: activeSummary.podPhotoUrl!,
+                              caption: `${activeSummary.assignmentCode} — Penerima: ${selectedDetail?.podRecipientName || '-'}`,
+                            })
+                          }
+                          className="group relative block w-full overflow-hidden rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                        >
+                          <img
+                            src={activeSummary.podPhotoUrl}
+                            alt="Bukti POD"
+                            className="w-full h-44 object-cover group-hover:scale-[1.02] transition-transform"
+                          />
+                          <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-950/75 text-white text-[11px] font-semibold backdrop-blur-xs">
+                            <ZoomIn className="w-3.5 h-3.5" />
+                            Klik untuk perbesar
+                          </span>
+                        </button>
                       )}
                     </div>
                   ) : (
-                    <p className="text-xs text-slate-400">Belum ada foto bukti POD yang diunggah.</p>
+                    <p className="text-xs text-slate-400">Belum ada bukti POD yang disubmit.</p>
                   )}
                 </div>
 
@@ -1135,6 +1296,45 @@ export const LiveTrackingPage: React.FC = () => {
                 Kirim Laporan
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Fullscreen POD Photo Lightbox Modal */}
+      {photoLightbox && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-xs flex flex-col items-center justify-center p-4"
+          onClick={() => setPhotoLightbox(null)}
+        >
+          <div
+            className="w-full max-w-4xl flex flex-col items-center gap-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-full flex items-center justify-between text-white">
+              <p className="text-sm font-semibold truncate">{photoLightbox.caption}</p>
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={photoLightbox.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-xs font-semibold"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Buka Tab Baru
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPhotoLightbox(null)}
+                  className="p-2 rounded-xl bg-white/15 hover:bg-white/25"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <img
+              src={photoLightbox.url}
+              alt="Foto Bukti POD Fullscreen"
+              className="max-h-[80vh] w-auto max-w-full object-contain rounded-2xl border border-white/15 shadow-2xl"
+            />
           </div>
         </div>
       )}

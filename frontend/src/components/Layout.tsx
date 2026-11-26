@@ -30,12 +30,38 @@ import { formatRelativeTime } from '../utils/formatters';
 import type { AnnouncementBellResponse, AnnouncementSummaryItem, ApiResult, MenuItem } from '../types';
 
 export const Layout: React.FC = () => {
-  const { user, menus, logout } = useAuth();
+  const { user, menus, logout, hasPermission } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logoutModalOpen, setLogoutModalOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  const isTechAdmin =
+    Boolean(
+      user?.roles.some((r) => ['superadmin', 'admin', 'itlead'].includes(r.toLowerCase()))
+    ) ||
+    hasPermission('AuditLogs.View') ||
+    hasPermission('Roles.View');
+
+  const getWorkspaceLabel = (role: string) => {
+    switch (role.toLowerCase()) {
+      case 'manager':
+        return 'Workspace Manager & Approver';
+      case 'hrmanager':
+      case 'hrsupervisor':
+      case 'hrstaff':
+        return 'Workspace HR & People Ops';
+      case 'financedirector':
+        return 'Workspace Finance & Budget';
+      case 'staff':
+        return 'Workspace Staff & Petugas Lapangan';
+      case 'viewer':
+        return 'Mode Audit (Read-Only)';
+      default:
+        return 'Workspace Operasional';
+    }
+  };
 
   // Bell Announcement Notifications state + Live SignalR Toast
   const [bellOpen, setBellOpen] = useState(false);
@@ -247,41 +273,43 @@ export const Layout: React.FC = () => {
           ))}
         </nav>
 
-        <div className="mx-3 mb-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-[11px] space-y-1.5">
-          <div className="flex items-center justify-between text-slate-400 font-semibold">
-            <span className="flex items-center gap-1.5">
-              <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-              Active Cluster Nodes
-            </span>
-            <span className="text-teal-400 font-mono">6 Services</span>
+        {isTechAdmin && (
+          <div className="mx-3 mb-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-[11px] space-y-1.5">
+            <div className="flex items-center justify-between text-slate-400 font-semibold">
+              <span className="flex items-center gap-1.5">
+                <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                Active Cluster Nodes
+              </span>
+              <span className="text-teal-400 font-mono">7 Services</span>
+            </div>
+            <div className="grid grid-cols-2 gap-1 text-[10px] font-mono text-slate-300 pt-1">
+              <a href="http://localhost:5080/swagger" target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 truncate">
+                :5080 Gateway
+              </a>
+              <a href="http://localhost:5081/swagger" target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 truncate">
+                :5081 Identity
+              </a>
+              <a href="http://localhost:5082/swagger" target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 truncate">
+                :5082 Catalog
+              </a>
+              <a href="http://localhost:5083/swagger" target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 truncate">
+                :5083 Order
+              </a>
+              <a href="http://localhost:5084/swagger" target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 truncate">
+                :5084 Workflow
+              </a>
+              <a href="http://localhost:5085/swagger" target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-teal-950/70 hover:bg-teal-900/80 border border-teal-800/70 text-teal-300 truncate">
+                :5085 Announce
+              </a>
+              <a href="http://localhost:5086/swagger" target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 truncate">
+                :5086 Lookups
+              </a>
+              <a href="http://localhost:5087/swagger" target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-sky-950/70 hover:bg-sky-900/80 border border-sky-800/70 text-sky-300 truncate">
+                :5087 Tracking
+              </a>
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-1 text-[10px] font-mono text-slate-300 pt-1">
-            <a href="http://localhost:5080/swagger" target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 truncate">
-              :5080 Gateway
-            </a>
-            <a href="http://localhost:5081/swagger" target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 truncate">
-              :5081 Identity
-            </a>
-            <a href="http://localhost:5082/swagger" target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 truncate">
-              :5082 Catalog
-            </a>
-            <a href="http://localhost:5083/swagger" target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 truncate">
-              :5083 Order
-            </a>
-            <a href="http://localhost:5084/swagger" target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 truncate">
-              :5084 Workflow
-            </a>
-            <a href="http://localhost:5085/swagger" target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-teal-950/70 hover:bg-teal-900/80 border border-teal-800/70 text-teal-300 truncate">
-              :5085 Announce
-            </a>
-            <a href="http://localhost:5086/swagger" target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-slate-950 hover:bg-slate-800 border border-slate-800 truncate">
-              :5086 Lookups
-            </a>
-            <a href="http://localhost:5087/swagger" target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-sky-950/70 hover:bg-sky-900/80 border border-sky-800/70 text-sky-300 truncate">
-              :5087 Tracking
-            </a>
-          </div>
-        </div>
+        )}
 
         <div className="p-3 border-t border-slate-800/80">
           <button
@@ -303,37 +331,50 @@ export const Layout: React.FC = () => {
             >
               <MenuIcon className="w-5 h-5" />
             </button>
-            <div className="hidden xl:flex items-center gap-2 text-xs text-teal-900 bg-teal-50 border border-teal-200/80 px-3 py-1.5 rounded-lg">
-              <Network className="w-3.5 h-3.5 text-teal-600" />
-              <span className="font-medium">Gateway (:5080)</span>
-              <span className="text-teal-400">&rarr;</span>
-              <span className="font-mono text-[11px] text-teal-700">
-                Identity (:5081) • Catalog (:5082) • Order (:5083) • Workflow (:5084) • Announce (:5085) • MasterData (:5086) • Tracking (:5087)
-              </span>
-            </div>
+            {isTechAdmin ? (
+              <div className="hidden xl:flex items-center gap-2 text-xs text-teal-900 bg-teal-50 border border-teal-200/80 px-3 py-1.5 rounded-lg">
+                <Network className="w-3.5 h-3.5 text-teal-600" />
+                <span className="font-medium">Gateway (:5080)</span>
+                <span className="text-teal-400">&rarr;</span>
+                <span className="font-mono text-[11px] text-teal-700">
+                  Identity (:5081) • Catalog (:5082) • Order (:5083) • Workflow (:5084) • Announce (:5085) • MasterData (:5086) • Tracking (:5087)
+                </span>
+              </div>
+            ) : (
+              <div className="hidden sm:flex items-center gap-2 text-xs text-slate-700 bg-slate-100/90 border border-slate-200 px-3 py-1.5 rounded-lg">
+                <Shield className="w-3.5 h-3.5 text-teal-600" />
+                <span className="font-semibold text-slate-800">{getWorkspaceLabel(primaryRole)}</span>
+                <span className="text-slate-400">•</span>
+                <span className="text-slate-500">{user?.roles.join(', ')}</span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
-            <a
-              href="http://localhost:5080/swagger"
-              target="_blank"
-              rel="noreferrer"
-              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200/70 transition-colors"
-              title="Buka Unified Gateway Swagger UI (:5080)"
-            >
-              <span>Unified Swagger</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
-            <a
-              href="http://localhost:5080/scalar/v1"
-              target="_blank"
-              rel="noreferrer"
-              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-slate-600 bg-slate-100 hover:bg-teal-50 hover:text-teal-700 transition-colors"
-              title="Buka Unified Scalar API Docs (:5080)"
-            >
-              <span>Scalar Docs</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
+            {isTechAdmin && (
+              <>
+                <a
+                  href="http://localhost:5080/swagger"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200/70 transition-colors"
+                  title="Buka Unified Gateway Swagger UI (:5080)"
+                >
+                  <span>Unified Swagger</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+                <a
+                  href="http://localhost:5080/scalar/v1"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-slate-600 bg-slate-100 hover:bg-teal-50 hover:text-teal-700 transition-colors"
+                  title="Buka Unified Scalar API Docs (:5080)"
+                >
+                  <span>Scalar Docs</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </>
+            )}
 
             {/* Bell Notification Dropdown dekat Profile */}
             <div ref={bellRef} className="relative">

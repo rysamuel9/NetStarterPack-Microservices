@@ -42,8 +42,9 @@ public class TrackingService(
         var all = await unitOfWork.Assignments.GetAllWithSummaryAsync(cancellationToken);
         IEnumerable<TrackingAssignment> query = all;
 
-        // Anti-IDOR: non-dispatcher hanya boleh melihat tugas yang ditugaskan ke dirinya sendiri
-        if (mineOnly || !IsDispatcherOrAdmin())
+        // Anti-IDOR: petugas (Staff) hanya boleh melihat tugas miliknya sendiri;
+        // Dispatcher/Manager/Admin dan Auditor (Viewer read-only) boleh melihat semua tugas
+        if (mineOnly || !CanViewAllAssignments())
         {
             query = query.Where(IsCurrentUserAssignee);
         }
@@ -93,7 +94,7 @@ public class TrackingService(
             return Result<TrackingDetailDto>.Failure("Tugas tracking tidak ditemukan.", 404);
         }
 
-        if (!IsDispatcherOrAdmin() && !IsCurrentUserAssignee(entity))
+        if (!CanViewAllAssignments() && !IsCurrentUserAssignee(entity))
         {
             return Result<TrackingDetailDto>.Failure("Akses ditolak. Anda hanya dapat melihat detail tugas lapangan milik Anda sendiri.", 403);
         }
@@ -1074,6 +1075,12 @@ public class TrackingService(
             r.Equals(RoleNames.Admin, StringComparison.OrdinalIgnoreCase) ||
             r.Equals(RoleNames.Manager, StringComparison.OrdinalIgnoreCase)) ||
         currentUserService.Permissions.Contains(Permissions.Tracking.Dispatch, StringComparer.OrdinalIgnoreCase);
+
+    private bool IsAuditorViewer() =>
+        currentUserService.Roles.Any(r => r.Equals(RoleNames.Viewer, StringComparison.OrdinalIgnoreCase)) &&
+        !currentUserService.Permissions.Contains(Permissions.Tracking.Operate, StringComparer.OrdinalIgnoreCase);
+
+    private bool CanViewAllAssignments() => IsDispatcherOrAdmin() || IsAuditorViewer();
 
     private bool IsCurrentUserAssignee(TrackingAssignment a) =>
         (currentUserService.UserId is not null && a.AssigneeUserId == currentUserService.UserId.Value) ||

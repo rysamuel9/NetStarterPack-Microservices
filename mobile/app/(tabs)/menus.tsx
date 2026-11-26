@@ -11,10 +11,15 @@ import { DynamicLucideIcon } from '@/shared/components/LucideIcon';
 export default function MenusTab() {
   const router = useRouter();
   const { colors } = useTheme();
+  const user = useAuthStore((s) => s.user);
   const menus = useAuthStore((s) => s.menus);
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const refreshUserAndMenus = useAuthStore((s) => s.refreshUserAndMenus);
   const [refreshing, setRefreshing] = useState(false);
+
+  const isTechAdmin =
+    Boolean(user?.roles.some((r) => ['superadmin', 'admin', 'itlead'].includes(r.toLowerCase()))) ||
+    hasPermission('AuditLogs.View');
 
   const groupedMenus = useMemo(() => {
     const visible = menus
@@ -126,7 +131,9 @@ export default function MenusTab() {
       >
         <Text style={[styles.pageTitle, { color: colors.text }]}>Semua Menu</Text>
         <Text style={[styles.pageSubtitle, { color: colors.textSecondary }]}>
-          Dirender dinamis dari Identity.Api (/api/menus/my-menus) sesuai hak akses role kamu.
+          {isTechAdmin
+            ? `Dirender dinamis dari Identity.Api untuk role ${user?.roles.join(', ') || '-'}.`
+            : `Menu operasional yang tersedia untuk peran ${user?.roles.join(', ') || 'kamu'}. Tarik ke bawah untuk menyegarkan.`}
         </Text>
 
         {groupedMenus.length === 0 ? (

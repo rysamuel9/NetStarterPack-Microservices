@@ -187,5 +187,17 @@ public class TrackingServiceTests
         var approved = await managerService.VerifyAssignmentAsync(activeTrip.Id, new VerifyAssignmentRequest(true, "Diverifikasi manual setelah konfirmasi telepon."));
         Assert.True(approved.Succeeded);
         Assert.Equal("Completed", approved.Data!.Summary.Status);
+
+        // 5. Seeder idempotent (dipanggil ulang tidak duplikat) & Viewer (Auditor) bisa lihat semua tugas secara read-only
+        await seeder.SeedAsync();
+        var viewer = FakeCurrentUserService.AsUser("viewer", "Rizky Ramadhan", [RoleNames.Viewer], [Permissions.Tracking.View]);
+        var viewerService = new TrackingService(uow, viewer, cache, eventBus);
+        var viewerList = await viewerService.GetAssignmentsAsync();
+        Assert.True(viewerList.Succeeded);
+        Assert.Equal(10, viewerList.Data!.Count);
+
+        var viewerCannotCancel = await viewerService.CancelAssignmentAsync(activeTrip.Id, new CancelAssignmentRequest("Test"));
+        Assert.False(viewerCannotCancel.Succeeded);
+        Assert.Equal(403, viewerCannotCancel.StatusCode);
     }
 }

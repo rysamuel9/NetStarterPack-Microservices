@@ -7,11 +7,15 @@ import {
   Activity,
   CheckCircle2,
   ChevronRight,
+  ClipboardCheck,
   Cpu,
   Database,
+  FilePlus2,
   GitBranch,
   Layers,
+  MapPin,
   Megaphone,
+  Navigation,
   Network,
   Package,
   Radio,
@@ -34,6 +38,8 @@ import type {
   MasterDataStats,
   OrderStats,
   ServiceNodeHealth,
+  TrackingStats,
+  TrackingSummaryItem,
   WorkflowStats,
 } from '@/core/types';
 import { formatCurrency, formatDateTime } from '@/shared/utils/formatters';
@@ -164,6 +170,17 @@ export default function DashboardTab() {
   const canViewProducts = hasPermission('Products.View');
   const canViewOrders = hasPermission('Orders.View');
   const canViewLookups = hasPermission('Lookups.View');
+  const canViewTracking = hasPermission('Tracking.View');
+  const canDispatchTracking = hasPermission('Tracking.Dispatch');
+  const canApproveWorkflow = hasPermission('Workflows.Approve');
+  const canCreateWorkflow = hasPermission('Workflows.Create');
+  const canViewWorkflow = hasPermission('Workflows.View');
+  const canViewAnnouncements = hasPermission('Announcements.View');
+
+  const isTechAdmin =
+    Boolean(user?.roles.some((r) => ['superadmin', 'admin', 'itlead'].includes(r.toLowerCase()))) ||
+    hasPermission('AuditLogs.View') ||
+    hasPermission('Roles.View');
 
   const summaryQuery = useQuery({
     queryKey: ['dashboard', 'summary'],
@@ -179,6 +196,7 @@ export default function DashboardTab() {
 
   const healthQuery = useQuery({
     queryKey: ['gateway', 'health'],
+    enabled: isTechAdmin,
     refetchInterval: 30000, // Auto-pantau cluster setiap 30 detik saat layar aktif
     queryFn: async () => {
       const res = await apiClient.get<GatewayHealthResponse>('/health');
@@ -188,7 +206,7 @@ export default function DashboardTab() {
 
   const orderStatsQuery = useQuery({
     queryKey: ['orders', 'stats'],
-    enabled: canViewDashboard || canViewOrders,
+    enabled: isTechAdmin || canViewOrders,
     queryFn: async () => {
       const res = await apiClient.get<ApiResult<OrderStats>>('/orders/stats');
       return res.data.succeeded ? res.data.data ?? null : null;
@@ -197,7 +215,7 @@ export default function DashboardTab() {
 
   const workflowStatsQuery = useQuery({
     queryKey: ['workflows', 'stats'],
-    enabled: canViewDashboard,
+    enabled: isTechAdmin || canViewWorkflow,
     queryFn: async () => {
       const res = await apiClient.get<ApiResult<WorkflowStats>>('/workflows/stats');
       return res.data.succeeded ? res.data.data ?? null : null;
@@ -206,7 +224,7 @@ export default function DashboardTab() {
 
   const announcementStatsQuery = useQuery({
     queryKey: ['announcements', 'stats'],
-    enabled: canViewDashboard,
+    enabled: isTechAdmin || canViewAnnouncements,
     queryFn: async () => {
       const res = await apiClient.get<ApiResult<AnnouncementStats>>('/announcements/stats');
       return res.data.succeeded ? res.data.data ?? null : null;
@@ -215,10 +233,28 @@ export default function DashboardTab() {
 
   const masterDataStatsQuery = useQuery({
     queryKey: ['lookups', 'stats'],
-    enabled: canViewDashboard || canViewLookups,
+    enabled: isTechAdmin || canViewLookups,
     queryFn: async () => {
       const res = await apiClient.get<ApiResult<MasterDataStats>>('/lookups/stats');
       return res.data.succeeded ? res.data.data ?? null : null;
+    },
+  });
+
+  const trackingStatsQuery = useQuery({
+    queryKey: ['tracking', 'stats'],
+    enabled: isTechAdmin || canViewTracking,
+    queryFn: async () => {
+      const res = await apiClient.get<ApiResult<TrackingStats>>('/tracking/stats');
+      return res.data.succeeded ? res.data.data ?? null : null;
+    },
+  });
+
+  const myTrackingsQuery = useQuery({
+    queryKey: ['tracking', 'list-preview'],
+    enabled: canViewTracking,
+    queryFn: async () => {
+      const res = await apiClient.get<ApiResult<TrackingSummaryItem[]>>('/tracking');
+      return res.data.succeeded && res.data.data ? res.data.data : [];
     },
   });
 
@@ -228,16 +264,20 @@ export default function DashboardTab() {
     orderStatsQuery.isRefetching ||
     workflowStatsQuery.isRefetching ||
     announcementStatsQuery.isRefetching ||
-    masterDataStatsQuery.isRefetching;
+    masterDataStatsQuery.isRefetching ||
+    trackingStatsQuery.isRefetching ||
+    myTrackingsQuery.isRefetching;
 
   const handleRefreshAll = () => {
     void Promise.all([
       summaryQuery.refetch(),
-      healthQuery.refetch(),
+      isTechAdmin ? healthQuery.refetch() : Promise.resolve(),
       orderStatsQuery.refetch(),
       workflowStatsQuery.refetch(),
       announcementStatsQuery.refetch(),
       masterDataStatsQuery.refetch(),
+      trackingStatsQuery.refetch(),
+      myTrackingsQuery.refetch(),
     ]);
   };
 
@@ -268,11 +308,15 @@ export default function DashboardTab() {
           />
         }
       >
-        {/* Hero Mesh Control Center */}
+        {/* Hero Card (adaptif: Mesh Control untuk Admin/Tech, Workspace Operasional untuk Staff/Role Bisnis) */}
         <View style={styles.heroCard}>
           <View style={styles.heroBadge}>
-            <Radio size={12} color="#34D399" />
-            <Text style={styles.heroBadgeText}>YARP GATEWAY (:5080) • API V1 • MESH CONTROL</Text>
+            {isTechAdmin ? <Radio size={12} color="#34D399" /> : <Shield size={12} color="#34D399" />}
+            <Text style={styles.heroBadgeText}>
+              {isTechAdmin
+                ? 'YARP GATEWAY (:5080) • API V1 • MESH CONTROL'
+                : `WORKSPACE ${(user?.roles[0] || 'USER').toUpperCase()}`}
+            </Text>
           </View>
 
           <Text style={styles.heroGreeting}>Halo, {user?.fullName || user?.username}!</Text>
@@ -281,30 +325,85 @@ export default function DashboardTab() {
             {menus.length} menu tersedia
           </Text>
 
-          {/* Architecture Pill Strip */}
-          <View style={styles.topologyPillRow}>
-            <View style={styles.topologyPill}>
-              <Server size={12} color="#5EEAD4" />
-              <Text style={styles.topologyPillText}>1 Gateway</Text>
+          {isTechAdmin ? (
+            <View style={styles.topologyPillRow}>
+              <View style={styles.topologyPill}>
+                <Server size={12} color="#5EEAD4" />
+                <Text style={styles.topologyPillText}>1 Gateway</Text>
+              </View>
+              <View style={styles.topologyPill}>
+                <Network size={12} color="#38BDF8" />
+                <Text style={styles.topologyPillText}>{totalServices} Services</Text>
+              </View>
+              <View style={styles.topologyPill}>
+                <Database size={12} color="#C084FC" />
+                <Text style={styles.topologyPillText}>{totalServices} Isolated DB</Text>
+              </View>
             </View>
-            <View style={styles.topologyPill}>
-              <Network size={12} color="#38BDF8" />
-              <Text style={styles.topologyPillText}>{totalServices} Services</Text>
-            </View>
-            <View style={styles.topologyPill}>
-              <Database size={12} color="#C084FC" />
-              <Text style={styles.topologyPillText}>{totalServices} Isolated DB</Text>
-            </View>
-          </View>
+          ) : null}
         </View>
 
-        {/* Quick Operational Shortcuts */}
-        {canViewProducts || canViewOrders || canViewLookups ? (
+        {/* Quick Operational Shortcuts (sesuai permission masing-masing role) */}
+        {canViewTracking || canApproveWorkflow || canCreateWorkflow || canViewProducts || canViewOrders || canViewLookups ? (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.shortcutScroll}
           >
+            {canViewTracking ? (
+              <Pressable
+                onPress={() => router.push('/(modules)/tracking' as Href)}
+                style={[styles.shortcutBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              >
+                <View style={[styles.shortcutIcon, { backgroundColor: '#E0F2FE' }]}>
+                  <Navigation size={17} color="#0284C7" />
+                </View>
+                <View>
+                  <Text style={[styles.shortcutTitle, { color: colors.text }]}>
+                    {canDispatchTracking ? 'Live Tracking' : 'Tugas Saya'}
+                  </Text>
+                  <Text style={[styles.shortcutSub, { color: colors.textMuted }]}>
+                    {(myTrackingsQuery.data ?? []).filter((t) =>
+                      ['Assigned', 'InTransit', 'Arrived', 'IssueReported'].includes(t.status)
+                    ).length}{' '}
+                    aktif
+                  </Text>
+                </View>
+              </Pressable>
+            ) : null}
+
+            {canApproveWorkflow ? (
+              <Pressable
+                onPress={() => router.push('/(tabs)/approvals')}
+                style={[styles.shortcutBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              >
+                <View style={[styles.shortcutIcon, { backgroundColor: colors.warningLight }]}>
+                  <ClipboardCheck size={17} color={colors.warning} />
+                </View>
+                <View>
+                  <Text style={[styles.shortcutTitle, { color: colors.text }]}>Approval</Text>
+                  <Text style={[styles.shortcutSub, { color: colors.textMuted }]}>
+                    {workflowStatsQuery.data?.inReviewRequests ?? 0} review
+                  </Text>
+                </View>
+              </Pressable>
+            ) : null}
+
+            {canCreateWorkflow ? (
+              <Pressable
+                onPress={() => router.push('/(modules)/workflow-create')}
+                style={[styles.shortcutBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              >
+                <View style={[styles.shortcutIcon, { backgroundColor: '#EDE9FE' }]}>
+                  <FilePlus2 size={17} color="#7C3AED" />
+                </View>
+                <View>
+                  <Text style={[styles.shortcutTitle, { color: colors.text }]}>Pengajuan</Text>
+                  <Text style={[styles.shortcutSub, { color: colors.textMuted }]}>Buat form</Text>
+                </View>
+              </Pressable>
+            ) : null}
+
             {canViewProducts ? (
               <Pressable
                 onPress={() => router.push('/(modules)/products')}
@@ -358,7 +457,62 @@ export default function DashboardTab() {
           </ScrollView>
         ) : null}
 
-        {/* Visual 3-Tier Live Cluster Topology & Database-per-Service */}
+        {/* Ringkasan Tugas Lapangan untuk Role Operasional (Staff / Manager / Viewer) */}
+        {!isTechAdmin && canViewTracking ? (
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={styles.clusterHeader}>
+              <View style={styles.clusterTitleRow}>
+                <View style={[styles.topologyHeaderIcon, { backgroundColor: '#E0F2FE' }]}>
+                  <MapPin size={16} color="#0284C7" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>
+                    {canDispatchTracking ? 'Tugas Lapangan Tim' : 'Tugas Lapangan Saya'}
+                  </Text>
+                  <Text style={[styles.clusterSubtitle, { color: colors.textMuted }]}>
+                    {(myTrackingsQuery.data ?? []).filter((t) =>
+                      ['Assigned', 'InTransit', 'Arrived', 'IssueReported'].includes(t.status)
+                    ).length}{' '}
+                    aktif •{' '}
+                    {(myTrackingsQuery.data ?? []).filter((t) => t.status === 'PendingVerification').length}{' '}
+                    verifikasi • {(myTrackingsQuery.data ?? []).filter((t) => t.status === 'Completed').length}{' '}
+                    selesai
+                  </Text>
+                </View>
+              </View>
+              <Pressable onPress={() => router.push('/(modules)/tracking' as Href)}>
+                <Text style={{ color: colors.primary, fontSize: 12, fontWeight: '700' }}>Buka Semua</Text>
+              </Pressable>
+            </View>
+
+            {(myTrackingsQuery.data ?? []).length === 0 ? (
+              <Text style={[styles.mutedText, { color: colors.textMuted }]}>
+                Belum ada tugas lapangan aktif saat ini.
+              </Text>
+            ) : (
+              (myTrackingsQuery.data ?? []).slice(0, 3).map((t) => (
+                <Pressable
+                  key={t.id}
+                  onPress={() => router.push('/(modules)/tracking' as Href)}
+                  style={[styles.activityItem, { borderTopColor: colors.border }]}
+                >
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={[styles.activityTitle, { color: colors.text }]} numberOfLines={1}>
+                      {t.assignmentCode} • {t.title}
+                    </Text>
+                    <Text numberOfLines={1} style={[styles.activityDetail, { color: colors.textSecondary }]}>
+                      Tujuan: {t.destinationLabel} ({t.status})
+                    </Text>
+                  </View>
+                  <ChevronRight size={16} color={colors.textMuted} />
+                </Pressable>
+              ))
+            )}
+          </View>
+        ) : null}
+
+        {/* Visual 3-Tier Live Cluster Topology (Khusus SuperAdmin / Admin / ITLead) */}
+        {isTechAdmin ? (
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.clusterHeader}>
             <View style={styles.clusterTitleRow}>
@@ -524,8 +678,9 @@ export default function DashboardTab() {
             </Text>
           ) : null}
         </View>
+        ) : null}
 
-        {/* Cross-Service Operational Metrics (6 Microservices) */}
+        {/* Cross-Service Operational Metrics (terfilter sesuai hak akses role) */}
         {!canViewDashboard ? (
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.cardTitle, { color: colors.text }]}>Ringkasan Terbatas</Text>
@@ -544,93 +699,123 @@ export default function DashboardTab() {
         ) : (
           <>
             <View style={styles.kpiGrid}>
-              <View style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <View style={[styles.kpiIcon, { backgroundColor: colors.primaryLight }]}>
-                  <Package size={16} color={colors.primary} />
+              {(isTechAdmin || canViewProducts) ? (
+                <View style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <View style={[styles.kpiIcon, { backgroundColor: colors.primaryLight }]}>
+                    <Package size={16} color={colors.primary} />
+                  </View>
+                  <Text style={[styles.kpiLabel, { color: colors.textSecondary }]}>
+                    {isTechAdmin ? 'Aset Katalog (:5082)' : 'Katalog Produk'}
+                  </Text>
+                  <Text numberOfLines={1} style={[styles.kpiValueMoney, { color: colors.text }]}>
+                    {summaryQuery.isLoading
+                      ? '...'
+                      : formatCurrency(summaryQuery.data?.totalInventoryValue)}
+                  </Text>
                 </View>
-                <Text style={[styles.kpiLabel, { color: colors.textSecondary }]}>
-                  Aset Katalog (:5082)
-                </Text>
-                <Text numberOfLines={1} style={[styles.kpiValueMoney, { color: colors.text }]}>
-                  {summaryQuery.isLoading
-                    ? '...'
-                    : formatCurrency(summaryQuery.data?.totalInventoryValue)}
-                </Text>
-              </View>
+              ) : null}
 
-              <View style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <View style={[styles.kpiIcon, { backgroundColor: colors.infoLight }]}>
-                  <ShoppingCart size={16} color={colors.info} />
+              {(isTechAdmin || canViewOrders) ? (
+                <View style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <View style={[styles.kpiIcon, { backgroundColor: colors.infoLight }]}>
+                    <ShoppingCart size={16} color={colors.info} />
+                  </View>
+                  <Text style={[styles.kpiLabel, { color: colors.textSecondary }]}>
+                    {isTechAdmin ? 'Nilai Pesanan (:5083)' : 'Total Pesanan'}
+                  </Text>
+                  <Text numberOfLines={1} style={[styles.kpiValueMoney, { color: colors.text }]}>
+                    {orderStatsQuery.isLoading
+                      ? '...'
+                      : formatCurrency(orderStatsQuery.data?.totalRevenue)}
+                  </Text>
                 </View>
-                <Text style={[styles.kpiLabel, { color: colors.textSecondary }]}>
-                  Nilai Pesanan (:5083)
-                </Text>
-                <Text numberOfLines={1} style={[styles.kpiValueMoney, { color: colors.text }]}>
-                  {orderStatsQuery.isLoading
-                    ? '...'
-                    : formatCurrency(orderStatsQuery.data?.totalRevenue)}
-                </Text>
-              </View>
+              ) : null}
 
-              <View style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <View style={[styles.kpiIcon, { backgroundColor: colors.warningLight }]}>
-                  <GitBranch size={16} color={colors.warning} />
+              {(isTechAdmin || canViewWorkflow) ? (
+                <View style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <View style={[styles.kpiIcon, { backgroundColor: colors.warningLight }]}>
+                    <GitBranch size={16} color={colors.warning} />
+                  </View>
+                  <Text style={[styles.kpiLabel, { color: colors.textSecondary }]}>
+                    {isTechAdmin ? 'Workflow Review (:5084)' : 'Pengajuan Aktif'}
+                  </Text>
+                  <Text style={[styles.kpiValue, { color: colors.text }]}>
+                    {workflowStatsQuery.isLoading
+                      ? '...'
+                      : `${workflowStatsQuery.data?.inReviewRequests ?? 0} / ${workflowStatsQuery.data?.totalRequests ?? 0}`}
+                  </Text>
                 </View>
-                <Text style={[styles.kpiLabel, { color: colors.textSecondary }]}>
-                  Workflow Review (:5084)
-                </Text>
-                <Text style={[styles.kpiValue, { color: colors.text }]}>
-                  {workflowStatsQuery.isLoading
-                    ? '...'
-                    : `${workflowStatsQuery.data?.inReviewRequests ?? 0} / ${workflowStatsQuery.data?.totalRequests ?? 0}`}
-                </Text>
-              </View>
+              ) : null}
 
-              <View style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <View style={[styles.kpiIcon, { backgroundColor: colors.successLight }]}>
-                  <Users size={16} color={colors.success} />
+              {isTechAdmin ? (
+                <View style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <View style={[styles.kpiIcon, { backgroundColor: colors.successLight }]}>
+                    <Users size={16} color={colors.success} />
+                  </View>
+                  <Text style={[styles.kpiLabel, { color: colors.textSecondary }]}>
+                    Users &amp; Roles (:5081)
+                  </Text>
+                  <Text style={[styles.kpiValue, { color: colors.text }]}>
+                    {summaryQuery.isLoading
+                      ? '...'
+                      : `${summaryQuery.data?.activeUsers ?? 0} / ${summaryQuery.data?.totalRoles ?? 0}R`}
+                  </Text>
                 </View>
-                <Text style={[styles.kpiLabel, { color: colors.textSecondary }]}>
-                  Users &amp; Roles (:5081)
-                </Text>
-                <Text style={[styles.kpiValue, { color: colors.text }]}>
-                  {summaryQuery.isLoading
-                    ? '...'
-                    : `${summaryQuery.data?.activeUsers ?? 0} / ${summaryQuery.data?.totalRoles ?? 0}R`}
-                </Text>
-              </View>
+              ) : null}
 
-              <View style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <View style={[styles.kpiIcon, { backgroundColor: colors.dangerLight }]}>
-                  <Megaphone size={16} color={colors.danger} />
+              {(isTechAdmin || canViewAnnouncements) ? (
+                <View style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <View style={[styles.kpiIcon, { backgroundColor: colors.dangerLight }]}>
+                    <Megaphone size={16} color={colors.danger} />
+                  </View>
+                  <Text style={[styles.kpiLabel, { color: colors.textSecondary }]}>
+                    {isTechAdmin ? 'Newsroom (:5085)' : 'Pengumuman HR'}
+                  </Text>
+                  <Text style={[styles.kpiValue, { color: colors.text }]}>
+                    {announcementStatsQuery.isLoading
+                      ? '...'
+                      : `${announcementStatsQuery.data?.publishedAnnouncements ?? 0} Berita`}
+                  </Text>
                 </View>
-                <Text style={[styles.kpiLabel, { color: colors.textSecondary }]}>
-                  Newsroom (:5085)
-                </Text>
-                <Text style={[styles.kpiValue, { color: colors.text }]}>
-                  {announcementStatsQuery.isLoading
-                    ? '...'
-                    : `${announcementStatsQuery.data?.publishedAnnouncements ?? 0} Berita`}
-                </Text>
-              </View>
+              ) : null}
 
-              <View style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <View style={[styles.kpiIcon, { backgroundColor: colors.primaryLight }]}>
-                  <Layers size={16} color={colors.primary} />
+              {(isTechAdmin || canViewLookups) ? (
+                <View style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <View style={[styles.kpiIcon, { backgroundColor: colors.primaryLight }]}>
+                    <Layers size={16} color={colors.primary} />
+                  </View>
+                  <Text style={[styles.kpiLabel, { color: colors.textSecondary }]}>
+                    {isTechAdmin ? 'Master Lookups (:5086)' : 'Master Lookups'}
+                  </Text>
+                  <Text style={[styles.kpiValue, { color: colors.text }]}>
+                    {masterDataStatsQuery.isLoading
+                      ? '...'
+                      : `${masterDataStatsQuery.data?.totalGroups ?? 0}G / ${masterDataStatsQuery.data?.activeItems ?? 0}`}
+                  </Text>
                 </View>
-                <Text style={[styles.kpiLabel, { color: colors.textSecondary }]}>
-                  Master Lookups (:5086)
-                </Text>
-                <Text style={[styles.kpiValue, { color: colors.text }]}>
-                  {masterDataStatsQuery.isLoading
-                    ? '...'
-                    : `${masterDataStatsQuery.data?.totalGroups ?? 0}G / ${masterDataStatsQuery.data?.activeItems ?? 0}`}
-                </Text>
-              </View>
+              ) : null}
+
+              {(isTechAdmin || canViewTracking) ? (
+                <View style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <View style={[styles.kpiIcon, { backgroundColor: '#E0F2FE' }]}>
+                    <MapPin size={16} color="#0284C7" />
+                  </View>
+                  <Text style={[styles.kpiLabel, { color: colors.textSecondary }]}>
+                    {isTechAdmin ? 'Live Tracking (:5087)' : 'Live Tracking'}
+                  </Text>
+                  <Text style={[styles.kpiValue, { color: colors.text }]}>
+                    {trackingStatsQuery.isLoading
+                      ? '...'
+                      : canDispatchTracking || isTechAdmin
+                        ? `${trackingStatsQuery.data?.activeInTransit ?? 0} Aktif / ${trackingStatsQuery.data?.totalAssignments ?? 0}`
+                        : `${(myTrackingsQuery.data ?? []).length} Tugas`}
+                  </Text>
+                </View>
+              ) : null}
             </View>
 
-            {/* Role Distribution */}
-            {summaryQuery.data?.roleDistribution?.length ? (
+            {/* Role Distribution (khusus Admin / Tech) */}
+            {isTechAdmin && summaryQuery.data?.roleDistribution?.length ? (
               <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <View style={styles.sectionHeaderRow}>
                   <Shield size={16} color={colors.primary} />
@@ -659,7 +844,8 @@ export default function DashboardTab() {
               </View>
             ) : null}
 
-            {/* Recent Activities */}
+            {/* Recent Activities (khusus Admin / Tech) */}
+            {isTechAdmin ? (
             <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={styles.sectionHeaderRow}>
                 <Activity size={16} color={colors.primary} />
@@ -693,6 +879,7 @@ export default function DashboardTab() {
                 </Text>
               )}
             </View>
+            ) : null}
           </>
         )}
       </ScrollView>

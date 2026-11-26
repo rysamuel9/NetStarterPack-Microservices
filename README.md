@@ -38,6 +38,8 @@ Seluruh panduan teknis sudah disusun berurutan (dari konsep inti sampai deployme
     *Penjelasan bahasa santai untuk seluruh istilah dan komponen yang benar-benar dipakai di kodingan project ini (YARP, Compact Onion, BuildingBlocks, Database-per-Service, Docker, Polyglot Persistence, Zero-Trust JWT, Integration Event, Graceful Degradation, Correlation ID, Hybrid Cache, Idempotency, Polly v8, hingga API Versioning).*
 14. 🎓 **[Tutorial Pemula (Dari Nol Sampai Jalan): Bikin Fitur & Microservice Baru (`docs/14_BEGINNER_TUTORIAL_BUILD_FEATURE.md`)](docs/14_BEGINNER_TUTORIAL_BUILD_FEATURE.md)**
     *Panduan khusus pemula/mahasiswa dari nol sampai jadi dengan studi kasus lengkap (`Asset.Api :5087`): analogi arsitektur, peta file yang dibuat/diedit, Compact Onion step-by-step, `[Idempotent]`, API `/api/v1`, integrasi `useLookup` dari `MasterData.Api`, React UI, Unit Test xUnit, hingga daftar 8 error paling sering terjadi.*
+15. 👥 **[Panduan Role, Hak Akses (RBAC), & Tampilan UI per Peran (`docs/15_ROLES_AND_ACCESS_GUIDE.md`)](docs/15_ROLES_AND_ACCESS_GUIDE.md)**
+    *Daftar lengkap 10 role bawaan (`SuperAdmin`, `Admin`, `Manager`, `ITLead`, `HRManager`, `HRSupervisor`, `HRStaff`, `FinanceDirector`, `Staff`, `Viewer`), fungsi bisnis, akun demo, matriks permission lintas 7 microservice, serta penyesuaian tampilan UI Web & Mobile per role.*
 
 ---
 
@@ -52,6 +54,7 @@ Seluruh panduan teknis sudah disusun berurutan (dari konsep inti sampai deployme
 | **`Workflow.Api`** *(Example 3 Advanced)* | `5084` | `NetStarterPack_WorkflowDb` | **Dynamic Form Builder & Multi-Level Approval Engine** (Hybrid Relational + JSON Schema, State Machine, Working List, Tracking Stepper, & 7-Layer Security). |
 | **`Announcement.Api`** *(HR Newsroom)* | `5085` | `NetStarterPack_AnnouncementDb` | **Internal Announcement & Newsroom** (Compact Rich Text Editor, Banner & Image/File Uploads, Like, On/Off Comment oleh HR, Bell Unread Feed, & Pagination 10/halaman). |
 | **`MasterData.Api`** *(Unified Lookups)* | `5086` | `NetStarterPack_MasterDataDb` | **Unified Master Data & Lookup Service** (1 tabel referensi bersama untuk dropdown lintas service: `PRODUCT_CATEGORY`, `UNIT_OF_MEASURE`, `PAYMENT_METHOD`, `PRIORITY_LEVEL`, `DOCUMENT_TYPE`, cascading parent-child, Hybrid Cache L1/L2, & `[Idempotent]`). |
+| **`Tracking.Api`** *(Field Dispatch & GPS)* | `5087` | `NetStarterPack_TrackingDb` | **Field Dispatch & Live Location Tracking** (SignalR Live Map, Hot State Hybrid Cache vs Cold Trail Downsampling, Server-Side Haversine Geofencing, Anti Fake-GPS, Verifikasi POD, & Anti-IDOR). |
 | **`Frontend`** *(React 19 + TS + Tailwind v4)* | `5173` | — | SPA Web Frontend yang cukup menembak ke **1 URL Gateway (`http://localhost:5080`)** tanpa perlu tahu di belakang ada berapa microservice. |
 | **`Mobile`** *(React Native + Expo SDK 58 + TS)* | `8081` *(Metro)* | — | Aplikasi Mobile Android/iOS (*Expo Go-ready*) yang juga menembak 1 pintu **`Gateway.Api (:5080)`** (LAN/HTTPS), lengkap dengan SecureStore, Biometric 2-in-1, Offline Cache, SignalR, & 14 modul RBAC. |
 

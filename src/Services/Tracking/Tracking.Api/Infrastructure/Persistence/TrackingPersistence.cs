@@ -125,14 +125,22 @@ public class TrackingDatabaseSeeder(
             await dbContext.Database.EnsureCreatedAsync(cancellationToken);
         }
 
-        if (await dbContext.Assignments.AnyAsync(cancellationToken))
-        {
-            return;
-        }
-
-        logger.LogInformation("Seeding initial Field Dispatch & Live Tracking assignments into NetStarterPack_TrackingDb...");
+        var existingCodes = (await dbContext.Assignments
+            .Select(a => a.AssignmentCode)
+            .ToListAsync(cancellationToken))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var now = DateTime.UtcNow;
+        var toAdd = new List<TrackingAssignment>();
+
+        void QueueIfMissing(TrackingAssignment assignment)
+        {
+            if (!existingCodes.Contains(assignment.AssignmentCode))
+            {
+                toAdd.Add(assignment);
+                existingCodes.Add(assignment.AssignmentCode);
+            }
+        }
 
         // 1. Tugas InTransit (aktif di peta Command Center) — Staff sedang kirim laptop dari Monas ke Menara Sudirman
         var activeTrip = new TrackingAssignment
@@ -217,6 +225,7 @@ public class TrackingDatabaseSeeder(
             Timestamp = now.AddMinutes(-18),
             CreatedBy = "staff"
         });
+        QueueIfMissing(activeTrip);
 
         // 2. Tugas Assigned (siap diklik Start Trip oleh staff di Mobile / Simulasi)
         var assignedTrip = new TrackingAssignment
@@ -258,6 +267,7 @@ public class TrackingDatabaseSeeder(
             Timestamp = now.AddMinutes(-40),
             CreatedBy = "manager"
         });
+        QueueIfMissing(assignedTrip);
 
         // 3. Tugas PendingVerification (contoh workflow approval Manager karena submit di luar radius geofence)
         var pendingVerify = new TrackingAssignment
@@ -269,7 +279,7 @@ public class TrackingDatabaseSeeder(
             Notes = "Presentasi kontrak tahunan & penandatanganan SLA.",
             DispatcherUserId = Guid.Empty,
             DispatcherUsername = "admin",
-            DispatcherFullName = "Administrator",
+            DispatcherFullName = "Siti Rahmawati (Admin)",
             AssigneeUserId = Guid.Empty,
             AssigneeUsername = "staff",
             AssigneeFullName = "Dewi Lestari (Staff)",
@@ -333,6 +343,7 @@ public class TrackingDatabaseSeeder(
             Timestamp = now.AddHours(-2).AddMinutes(-10),
             CreatedBy = "staff"
         });
+        QueueIfMissing(pendingVerify);
 
         // 4. Tugas Completed (Route History Playback)
         var completedTrip = new TrackingAssignment
@@ -341,6 +352,7 @@ public class TrackingDatabaseSeeder(
             Title = "Pengiriman Dokumen Legal & Kontrak Vendor",
             TaskType = TrackingTaskType.Delivery,
             ReferenceCode = "ORD-2026-002",
+            Notes = "Serahkan amplop segel ke tim Legal di Lantai 28.",
             DispatcherUserId = Guid.Empty,
             DispatcherUsername = "manager",
             DispatcherFullName = "Andi Pratama (Manager)",
@@ -367,7 +379,7 @@ public class TrackingDatabaseSeeder(
             LastPingAt = now.AddDays(-1).AddHours(-1).AddMinutes(-35),
             TotalDistanceMeters = 2480,
             PodRecipientName = "Ibu Rina (Legal Admin)",
-            PodNotes = "Dokumen diterima lengkap dan ditandatangani.",
+            PodNotes = "Dokumen diterima lengkap, segel utuh, dan berita acara sudah ditandatangani.",
             CreatedAt = now.AddDays(-1).AddHours(-3),
             CreatedBy = "manager"
         };
@@ -420,8 +432,474 @@ public class TrackingDatabaseSeeder(
             Timestamp = now.AddDays(-1).AddHours(-1).AddMinutes(-35),
             CreatedBy = "staff"
         });
+        QueueIfMissing(completedTrip);
 
-        await dbContext.Assignments.AddRangeAsync([activeTrip, assignedTrip, pendingVerify, completedTrip], cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        // 5. Tugas Assigned (Staff) — siap untuk tes Start + Simulasi Normal / Luar Geofence / Fake GPS
+        var assignedBca = new TrackingAssignment
+        {
+            AssignmentCode = "TRK-2026-005",
+            Title = "Pengiriman Router Firewall & Switch Core ke Cabang Thamrin",
+            TaskType = TrackingTaskType.Delivery,
+            ReferenceCode = "ORD-2026-019",
+            Notes = "Cocokkan serial number unit dengan surat jalan sebelum serah terima ke tim Network.",
+            DispatcherUserId = Guid.Empty,
+            DispatcherUsername = "manager",
+            DispatcherFullName = "Andi Pratama (Manager)",
+            AssigneeUserId = Guid.Empty,
+            AssigneeUsername = "staff",
+            AssigneeFullName = "Dewi Lestari (Staff)",
+            OriginLabel = "HQ Jakarta (Monas)",
+            OriginLatitude = -6.175392,
+            OriginLongitude = 106.827153,
+            DestinationLabel = "Menara BCA Thamrin",
+            DestinationAddress = "Jl. M.H. Thamrin No. 1, Menteng, Jakarta Pusat",
+            DestinationLatitude = -6.195940,
+            DestinationLongitude = 106.822970,
+            GeofenceRadiusMeters = 150,
+            Status = TrackingStatus.Assigned,
+            LastDistanceToDestinationMeters = GeoDistanceCalculator.CalculateHaversineMeters(-6.175392, 106.827153, -6.195940, 106.822970),
+            CreatedAt = now.AddMinutes(-25),
+            CreatedBy = "manager"
+        };
+        assignedBca.StatusLogs.Add(new TrackingStatusLog
+        {
+            TrackingAssignmentId = assignedBca.Id,
+            FromStatus = "None",
+            ToStatus = "Assigned",
+            ActorUsername = "manager",
+            ActorFullName = "Andi Pratama (Manager)",
+            Notes = "Ditugaskan ke Dewi Lestari. Cocok untuk latihan simulasi rute penuh (Normal / Luar Geofence / Anti Fake-GPS).",
+            Latitude = assignedBca.OriginLatitude,
+            Longitude = assignedBca.OriginLongitude,
+            Timestamp = now.AddMinutes(-25),
+            CreatedBy = "manager"
+        });
+        QueueIfMissing(assignedBca);
+
+        // 6. Tugas Arrived (Staff) — sudah tiba di dalam geofence, siap langsung tes Upload POD & Selesai!
+        var arrivedSenayan = new TrackingAssignment
+        {
+            AssignmentCode = "TRK-2026-006",
+            Title = "Instalasi Access Point Wi-Fi 6E & Uji Sinyal Lantai 14",
+            TaskType = TrackingTaskType.Maintenance,
+            ReferenceCode = "MTN-2026-021",
+            Notes = "Foto posisi pemasangan AP dan catat nama PIC GA Gedung di form POD.",
+            DispatcherUserId = Guid.Empty,
+            DispatcherUsername = "admin",
+            DispatcherFullName = "Siti Rahmawati (Admin)",
+            AssigneeUserId = Guid.Empty,
+            AssigneeUsername = "staff",
+            AssigneeFullName = "Dewi Lestari (Staff)",
+            OriginLabel = "HQ Jakarta (Monas)",
+            OriginLatitude = -6.175392,
+            OriginLongitude = 106.827153,
+            DestinationLabel = "Senayan City Office Tower",
+            DestinationAddress = "Jl. Asia Afrika Lot. 19, Gelora, Jakarta Pusat",
+            DestinationLatitude = -6.227190,
+            DestinationLongitude = 106.797390,
+            GeofenceRadiusMeters = 180,
+            Status = TrackingStatus.Arrived,
+            StartedAt = now.AddMinutes(-55),
+            ArrivedAt = now.AddMinutes(-12),
+            LastLatitude = -6.227110,
+            LastLongitude = 106.797450,
+            LastAccuracyMeters = 8,
+            LastSpeedKmh = 0,
+            LastDistanceToDestinationMeters = GeoDistanceCalculator.CalculateHaversineMeters(-6.227110, 106.797450, -6.227190, 106.797390),
+            LastPingAt = now.AddMinutes(-12),
+            TotalDistanceMeters = 6840,
+            CreatedAt = now.AddHours(-2),
+            CreatedBy = "admin"
+        };
+        arrivedSenayan.Breadcrumbs.Add(new TrackingBreadcrumb
+        {
+            TrackingAssignmentId = arrivedSenayan.Id,
+            Latitude = -6.175392,
+            Longitude = 106.827153,
+            AccuracyMeters = 12,
+            SpeedKmh = 0,
+            DistanceToDestinationMeters = 6630,
+            EventTag = "START",
+            RecordedAt = now.AddMinutes(-55),
+            CreatedBy = "staff"
+        });
+        arrivedSenayan.Breadcrumbs.Add(new TrackingBreadcrumb
+        {
+            TrackingAssignmentId = arrivedSenayan.Id,
+            Latitude = -6.205400,
+            Longitude = 106.812200,
+            AccuracyMeters = 11,
+            SpeedKmh = 31,
+            DistanceToDestinationMeters = 2920,
+            EventTag = "PING",
+            RecordedAt = now.AddMinutes(-34),
+            CreatedBy = "staff"
+        });
+        arrivedSenayan.Breadcrumbs.Add(new TrackingBreadcrumb
+        {
+            TrackingAssignmentId = arrivedSenayan.Id,
+            Latitude = -6.227110,
+            Longitude = 106.797450,
+            AccuracyMeters = 8,
+            SpeedKmh = 0,
+            DistanceToDestinationMeters = 11,
+            EventTag = "ARRIVED",
+            RecordedAt = now.AddMinutes(-12),
+            CreatedBy = "staff"
+        });
+        arrivedSenayan.StatusLogs.Add(new TrackingStatusLog
+        {
+            TrackingAssignmentId = arrivedSenayan.Id,
+            FromStatus = "Assigned",
+            ToStatus = "InTransit",
+            ActorUsername = "staff",
+            ActorFullName = "Dewi Lestari (Staff)",
+            Notes = "Berangkat menuju Senayan City Office Tower.",
+            Latitude = -6.175392,
+            Longitude = 106.827153,
+            Timestamp = now.AddMinutes(-55),
+            CreatedBy = "staff"
+        });
+        arrivedSenayan.StatusLogs.Add(new TrackingStatusLog
+        {
+            TrackingAssignmentId = arrivedSenayan.Id,
+            FromStatus = "InTransit",
+            ToStatus = "Arrived",
+            ActorUsername = "staff",
+            ActorFullName = "Dewi Lestari (Staff)",
+            Notes = "Petugas tiba di dalam radius geofence (11m <= 180m). Siap unggah POD.",
+            Latitude = -6.227110,
+            Longitude = 106.797450,
+            Timestamp = now.AddMinutes(-12),
+            CreatedBy = "staff"
+        });
+        QueueIfMissing(arrivedSenayan);
+
+        // 7. Tugas IssueReported (Staff) — contoh kendala lapangan, siap tes "Lanjutkan Perjalanan"
+        var issueTrip = new TrackingAssignment
+        {
+            AssignmentCode = "TRK-2026-007",
+            Title = "Survey Lokasi & Cek Jaringan Fiber Cabang Pondok Indah",
+            TaskType = TrackingTaskType.FieldVisit,
+            ReferenceCode = "VST-2026-022",
+            Notes = "Koordinasi dengan pengelola gedung untuk akses ruang shaft telekomunikasi.",
+            DispatcherUserId = Guid.Empty,
+            DispatcherUsername = "manager",
+            DispatcherFullName = "Andi Pratama (Manager)",
+            AssigneeUserId = Guid.Empty,
+            AssigneeUsername = "staff",
+            AssigneeFullName = "Dewi Lestari (Staff)",
+            OriginLabel = "HQ Jakarta (Monas)",
+            OriginLatitude = -6.175392,
+            OriginLongitude = 106.827153,
+            DestinationLabel = "Pondok Indah Office Tower 3",
+            DestinationAddress = "Jl. Sultan Iskandar Muda Kav. V-TA, Pondok Indah, Jakarta Selatan",
+            DestinationLatitude = -6.265410,
+            DestinationLongitude = 106.783490,
+            GeofenceRadiusMeters = 200,
+            Status = TrackingStatus.IssueReported,
+            IssueNote = "Rekayasa lalu lintas & antrean panjang di arteri Pondok Indah, estimasi mundur 20 menit.",
+            StartedAt = now.AddMinutes(-48),
+            LastLatitude = -6.241200,
+            LastLongitude = 106.791800,
+            LastAccuracyMeters = 14,
+            LastSpeedKmh = 4.2,
+            LastDistanceToDestinationMeters = GeoDistanceCalculator.CalculateHaversineMeters(-6.241200, 106.791800, -6.265410, 106.783490),
+            LastPingAt = now.AddMinutes(-8),
+            TotalDistanceMeters = 8350,
+            CreatedAt = now.AddHours(-2),
+            CreatedBy = "manager"
+        };
+        issueTrip.Breadcrumbs.Add(new TrackingBreadcrumb
+        {
+            TrackingAssignmentId = issueTrip.Id,
+            Latitude = -6.175392,
+            Longitude = 106.827153,
+            AccuracyMeters = 12,
+            SpeedKmh = 0,
+            DistanceToDestinationMeters = 11100,
+            EventTag = "START",
+            RecordedAt = now.AddMinutes(-48),
+            CreatedBy = "staff"
+        });
+        issueTrip.Breadcrumbs.Add(new TrackingBreadcrumb
+        {
+            TrackingAssignmentId = issueTrip.Id,
+            Latitude = -6.241200,
+            Longitude = 106.791800,
+            AccuracyMeters = 14,
+            SpeedKmh = 4.2,
+            DistanceToDestinationMeters = 2840,
+            EventTag = "PING",
+            RecordedAt = now.AddMinutes(-8),
+            CreatedBy = "staff"
+        });
+        issueTrip.StatusLogs.Add(new TrackingStatusLog
+        {
+            TrackingAssignmentId = issueTrip.Id,
+            FromStatus = "InTransit",
+            ToStatus = "IssueReported",
+            ActorUsername = "staff",
+            ActorFullName = "Dewi Lestari (Staff)",
+            Notes = "Kendala dilaporkan: Rekayasa lalu lintas & antrean panjang di arteri Pondok Indah, estimasi mundur 20 menit.",
+            Latitude = -6.241200,
+            Longitude = 106.791800,
+            Timestamp = now.AddMinutes(-8),
+            CreatedBy = "staff"
+        });
+        QueueIfMissing(issueTrip);
+
+        // 8. Multi-petugas di peta Command Center (yoga.proc) — InTransit di area Menteng / Cikini
+        var yogaTrip = new TrackingAssignment
+        {
+            AssignmentCode = "TRK-2026-008",
+            Title = "Pengiriman Monitor 27\" & Docking Station (6 Unit)",
+            TaskType = TrackingTaskType.Delivery,
+            ReferenceCode = "ORD-2026-024",
+            Notes = "Pengiriman ke gudang distribusi Cikini, hubungi kepala gudang 15 menit sebelum tiba.",
+            DispatcherUserId = Guid.Empty,
+            DispatcherUsername = "manager",
+            DispatcherFullName = "Andi Pratama (Manager)",
+            AssigneeUserId = Guid.Empty,
+            AssigneeUsername = "yoga.proc",
+            AssigneeFullName = "Yoga Saputra (Procurement Staff)",
+            OriginLabel = "HQ Jakarta (Monas)",
+            OriginLatitude = -6.175392,
+            OriginLongitude = 106.827153,
+            DestinationLabel = "Hub Logistik Cikini Menteng",
+            DestinationAddress = "Jl. Cikini Raya No. 73, Menteng, Jakarta Pusat",
+            DestinationLatitude = -6.191250,
+            DestinationLongitude = 106.840420,
+            GeofenceRadiusMeters = 150,
+            Status = TrackingStatus.InTransit,
+            StartedAt = now.AddMinutes(-14),
+            LastLatitude = -6.183920,
+            LastLongitude = 106.835110,
+            LastAccuracyMeters = 10,
+            LastSpeedKmh = 27.8,
+            LastDistanceToDestinationMeters = GeoDistanceCalculator.CalculateHaversineMeters(-6.183920, 106.835110, -6.191250, 106.840420),
+            LastPingAt = now.AddMinutes(-2),
+            TotalDistanceMeters = 1420,
+            CreatedAt = now.AddMinutes(-50),
+            CreatedBy = "manager"
+        };
+        yogaTrip.Breadcrumbs.Add(new TrackingBreadcrumb
+        {
+            TrackingAssignmentId = yogaTrip.Id,
+            Latitude = -6.175392,
+            Longitude = 106.827153,
+            AccuracyMeters = 10,
+            SpeedKmh = 0,
+            DistanceToDestinationMeters = 2290,
+            EventTag = "START",
+            RecordedAt = now.AddMinutes(-14),
+            CreatedBy = "yoga.proc"
+        });
+        yogaTrip.Breadcrumbs.Add(new TrackingBreadcrumb
+        {
+            TrackingAssignmentId = yogaTrip.Id,
+            Latitude = -6.183920,
+            Longitude = 106.835110,
+            AccuracyMeters = 10,
+            SpeedKmh = 27.8,
+            DistanceToDestinationMeters = 1004,
+            EventTag = "PING",
+            RecordedAt = now.AddMinutes(-2),
+            CreatedBy = "yoga.proc"
+        });
+        yogaTrip.StatusLogs.Add(new TrackingStatusLog
+        {
+            TrackingAssignmentId = yogaTrip.Id,
+            FromStatus = "Assigned",
+            ToStatus = "InTransit",
+            ActorUsername = "yoga.proc",
+            ActorFullName = "Yoga Saputra (Procurement Staff)",
+            Notes = "Unit sudah dimuat di kendaraan operasional, menuju Cikini.",
+            Latitude = -6.175392,
+            Longitude = 106.827153,
+            Timestamp = now.AddMinutes(-14),
+            CreatedBy = "yoga.proc"
+        });
+        QueueIfMissing(yogaTrip);
+
+        // 9. Contoh Flag Anomali GPS (putri.ops) — PendingVerification karena Mock GPS untuk latihan audit/verifikasi Manager
+        var suspiciousTrip = new TrackingAssignment
+        {
+            AssignmentCode = "TRK-2026-009",
+            Title = "Pengiriman Sparepart RAID Controller Data Center Mega Kuningan",
+            TaskType = TrackingTaskType.Delivery,
+            ReferenceCode = "ORD-2026-028",
+            Notes = "Wajib serah terima di ruang staging DC dengan tanda tangan petugas shift.",
+            DispatcherUserId = Guid.Empty,
+            DispatcherUsername = "admin",
+            DispatcherFullName = "Siti Rahmawati (Admin)",
+            AssigneeUserId = Guid.Empty,
+            AssigneeUsername = "putri.ops",
+            AssigneeFullName = "Putri Wulandari (Warehouse Staff)",
+            OriginLabel = "HQ Jakarta (Monas)",
+            OriginLatitude = -6.175392,
+            OriginLongitude = 106.827153,
+            DestinationLabel = "Menara Dea Mega Kuningan",
+            DestinationAddress = "Jl. Mega Kuningan Barat Kav. E4.3, Jakarta Selatan",
+            DestinationLatitude = -6.228620,
+            DestinationLongitude = 106.826650,
+            GeofenceRadiusMeters = 150,
+            Status = TrackingStatus.PendingVerification,
+            IsSuspicious = true,
+            SuspiciousReason = "Mock GPS / Fake GPS terdeteksi pada perangkat saat submit POD.",
+            StartedAt = now.AddHours(-2),
+            ArrivedAt = now.AddHours(-1).AddMinutes(-10),
+            LastLatitude = -6.228590,
+            LastLongitude = 106.826680,
+            LastAccuracyMeters = 5,
+            LastSpeedKmh = 0,
+            LastDistanceToDestinationMeters = 5,
+            LastPingAt = now.AddHours(-1).AddMinutes(-5),
+            TotalDistanceMeters = 6120,
+            PodRecipientName = "Mas Arif (DC Shift Engineer)",
+            PodNotes = "Sparepart sudah diserahkan di lobi staging, aplikasi sempat memakai GPS emulator kantor untuk tes.",
+            CreatedAt = now.AddHours(-3),
+            CreatedBy = "admin"
+        };
+        suspiciousTrip.Breadcrumbs.Add(new TrackingBreadcrumb
+        {
+            TrackingAssignmentId = suspiciousTrip.Id,
+            Latitude = -6.175392,
+            Longitude = 106.827153,
+            AccuracyMeters = 14,
+            SpeedKmh = 0,
+            DistanceToDestinationMeters = 5920,
+            EventTag = "START",
+            RecordedAt = now.AddHours(-2),
+            CreatedBy = "putri.ops"
+        });
+        suspiciousTrip.Breadcrumbs.Add(new TrackingBreadcrumb
+        {
+            TrackingAssignmentId = suspiciousTrip.Id,
+            Latitude = -6.228590,
+            Longitude = 106.826680,
+            AccuracyMeters = 5,
+            SpeedKmh = 0,
+            DistanceToDestinationMeters = 5,
+            IsMocked = true,
+            IsSuspicious = true,
+            EventTag = "SUSPICIOUS",
+            RecordedAt = now.AddHours(-1).AddMinutes(-5),
+            CreatedBy = "putri.ops"
+        });
+        suspiciousTrip.StatusLogs.Add(new TrackingStatusLog
+        {
+            TrackingAssignmentId = suspiciousTrip.Id,
+            FromStatus = "Arrived",
+            ToStatus = "PendingVerification",
+            ActorUsername = "putri.ops",
+            ActorFullName = "Putri Wulandari (Warehouse Staff)",
+            Notes = "POD disubmit namun terdapat flag anomali GPS (Mock GPS terdeteksi). Menunggu verifikasi Manager/Dispatcher.",
+            Latitude = -6.228590,
+            Longitude = 106.826680,
+            Timestamp = now.AddHours(-1).AddMinutes(-5),
+            CreatedBy = "putri.ops"
+        });
+        QueueIfMissing(suspiciousTrip);
+
+        // 10. Contoh Completed + Diverifikasi Manual oleh Manager (bambang.ga)
+        var verifiedTrip = new TrackingAssignment
+        {
+            AssignmentCode = "TRK-2026-010",
+            Title = "Inspeksi Panel Listrik & AC Ruang Server Cabang Slipi",
+            TaskType = TrackingTaskType.Maintenance,
+            ReferenceCode = "MTN-2026-018",
+            Notes = "Periksa suhu ruangan, ampere MCB utama, dan kebersihan filter AC presisi.",
+            DispatcherUserId = Guid.Empty,
+            DispatcherUsername = "manager",
+            DispatcherFullName = "Andi Pratama (Manager)",
+            AssigneeUserId = Guid.Empty,
+            AssigneeUsername = "bambang.ga",
+            AssigneeFullName = "Bambang Susanto (GA Operations)",
+            OriginLabel = "HQ Jakarta (Monas)",
+            OriginLatitude = -6.175392,
+            OriginLongitude = 106.827153,
+            DestinationLabel = "Wisma 77 Tower 2 Slipi",
+            DestinationAddress = "Jl. Letjen S. Parman Kav. 77, Slipi, Jakarta Barat",
+            DestinationLatitude = -6.189750,
+            DestinationLongitude = 106.798520,
+            GeofenceRadiusMeters = 150,
+            Status = TrackingStatus.Completed,
+            StartedAt = now.AddDays(-1).AddHours(-5),
+            ArrivedAt = now.AddDays(-1).AddHours(-4).AddMinutes(-20),
+            CompletedAt = now.AddDays(-1).AddHours(-3).AddMinutes(-45),
+            LastLatitude = -6.191400,
+            LastLongitude = 106.798100,
+            LastAccuracyMeters = 16,
+            LastSpeedKmh = 0,
+            LastDistanceToDestinationMeters = 189,
+            LastPingAt = now.AddDays(-1).AddHours(-4),
+            TotalDistanceMeters = 4150,
+            PodRecipientName = "Pak Joko (Building Engineering)",
+            PodNotes = "Suhu ruang server stabil 20.5°C, filter AC dibersihkan. Submit POD dari area parkir basement (sinyal GPS sedikit bergeser 189m).",
+            VerifiedByUsername = "manager",
+            VerifiedAt = now.AddDays(-1).AddHours(-3).AddMinutes(-45),
+            VerificationNotes = "Disetujui setelah konfirmasi telepon dengan Building Engineering Wisma 77.",
+            CreatedAt = now.AddDays(-1).AddHours(-6),
+            CreatedBy = "manager"
+        };
+        verifiedTrip.Breadcrumbs.Add(new TrackingBreadcrumb
+        {
+            TrackingAssignmentId = verifiedTrip.Id,
+            Latitude = -6.175392,
+            Longitude = 106.827153,
+            AccuracyMeters = 11,
+            SpeedKmh = 0,
+            DistanceToDestinationMeters = 3540,
+            EventTag = "START",
+            RecordedAt = now.AddDays(-1).AddHours(-5),
+            CreatedBy = "bambang.ga"
+        });
+        verifiedTrip.Breadcrumbs.Add(new TrackingBreadcrumb
+        {
+            TrackingAssignmentId = verifiedTrip.Id,
+            Latitude = -6.191400,
+            Longitude = 106.798100,
+            AccuracyMeters = 16,
+            SpeedKmh = 0,
+            DistanceToDestinationMeters = 189,
+            EventTag = "COMPLETED",
+            RecordedAt = now.AddDays(-1).AddHours(-4),
+            CreatedBy = "bambang.ga"
+        });
+        verifiedTrip.StatusLogs.Add(new TrackingStatusLog
+        {
+            TrackingAssignmentId = verifiedTrip.Id,
+            FromStatus = "Arrived",
+            ToStatus = "PendingVerification",
+            ActorUsername = "bambang.ga",
+            ActorFullName = "Bambang Susanto (GA Operations)",
+            Notes = "POD disubmit di luar radius geofence (189m > 150m). Menunggu verifikasi Manager.",
+            Latitude = -6.191400,
+            Longitude = 106.798100,
+            Timestamp = now.AddDays(-1).AddHours(-4),
+            CreatedBy = "bambang.ga"
+        });
+        verifiedTrip.StatusLogs.Add(new TrackingStatusLog
+        {
+            TrackingAssignmentId = verifiedTrip.Id,
+            FromStatus = "PendingVerification",
+            ToStatus = "Completed",
+            ActorUsername = "manager",
+            ActorFullName = "Andi Pratama (Manager)",
+            Notes = "Verifikasi DISETUJUI: Disetujui setelah konfirmasi telepon dengan Building Engineering Wisma 77.",
+            Latitude = -6.191400,
+            Longitude = 106.798100,
+            Timestamp = now.AddDays(-1).AddHours(-3).AddMinutes(-45),
+            CreatedBy = "manager"
+        });
+        QueueIfMissing(verifiedTrip);
+
+        if (toAdd.Count > 0)
+        {
+            logger.LogInformation("Seeding {Count} Field Dispatch & Live Tracking assignments into NetStarterPack_TrackingDb...", toAdd.Count);
+            await dbContext.Assignments.AddRangeAsync(toAdd, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
     }
 }
